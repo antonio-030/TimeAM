@@ -1,0 +1,12 @@
+---
+description: Meta-Regeln für TimeAM (Monorepo, FE+BE)
+alwaysApply: true
+---
+
+# TimeAM – Grundregeln
+
+- Repo ist ein Monorepo mit Frontend (Vite) und Backend (Node/TypeScript).
+- Keine Microservices / kein Overengineering. Modular = Feature-Ordner + Registry + Entitlements.
+- Änderungen minimal, strikt typisiert, keine any-Workarounds.
+- Frontend darf nur UI-Gating machen; Sicherheit wird serverseitig erzwungen.
+- Multi-Tenancy immer mitdenken: alle Daten sind tenant-scoped.

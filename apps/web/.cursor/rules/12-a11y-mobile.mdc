@@ -1,0 +1,46 @@
+﻿# Accessibility & Mobile Guidelines
+
+## Ãœberblick
+- **globs:** `apps/web/**/*`
+- **Ziel:** WCAG 2.2 AA Compliance
+
+## Tastatur-Navigation
+- **Keine Tastatur-Fallen**: Tab muss immer aus Komponenten herausfÃ¼hren
+- **Sichtbarer Fokus**: Fokus-Ring auf allen interaktiven Elementen
+- **Skip-Link**: Im Layout, springt direkt zum Hauptinhalt
+- **Logische Tab-Reihenfolge**: Links -> Header -> Navigation -> Content
+
+## Focus Management
+- Modale/Dialoge: Fokus beim Ã–ffnen in Dialog verschieben
+- Nach SchlieÃŸen: Fokus zurÃ¼ck zum auslÃ¶senden Element
+- Dynamischer Content: Fokus sinnvoll setzen nach Lade-VorgÃ¤ngen
+
+## Screenreader
+- **Semantische HTML-Elemente** bevorzugen (button, nav, main, etc.)
+- **Beschreibende aria-labels** fÃ¼r Icon-Buttons
+- **Live Regions**: aria-live="polite" fÃ¼r Status-Updates
+- **Versteckte Texte**: sr-only Klasse fÃ¼r Screenreader-only Text
+
+## Responsiveness
+- **Breakpoint Mobile**: <768px
+- **Kalender-Default**: listWeek / listDay auf Mobile
+- **Touch Targets**: Minimum 44x44px fÃ¼r alle interaktiven Elemente
+- **Toolbar**: Sticky positioniert, groÃŸe Buttons
+
+## Reduced Motion
+@media (prefers-reduced-motion: reduce) verwenden
+
+## Farbkontrast
+- Text auf Hintergrund: Minimum 4.5:1 (WCAG AA)
+- GroÃŸe Texte (>=18pt): Minimum 3:1
+- Nicht nur Farbe fÃ¼r Information verwenden
+
+## Formulare
+- Labels explizit verknÃ¼pft (htmlFor + id)
+- Fehlermeldungen: aria-describedby + aria-invalid
+- Required-Felder: aria-required="true"
+
+## Ladezeiten
+- Skeleton-Loader statt Spinner wo mÃ¶glich
+- aria-busy="true" auf ladenden Containern
+- Mindest-Anzeigedauer fÃ¼r Feedback vermeiden

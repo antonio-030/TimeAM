@@ -1,0 +1,1149 @@
+/* =============================================================================
+   Members Module Styles - Enhanced UI
+   ============================================================================= */
+
+/* =============================================================================
+   Page Layout (Split View)
+   ============================================================================= */
+
+.pageLayout {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.mainContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+  transition: margin-right var(--transition-duration) var(--transition-timing);
+}
+
+.mainContentWithPanel {
+  margin-right: 0;
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xl);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-navy);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.titleIcon {
+  font-size: var(--font-size-3xl);
+}
+
+.headerStats {
+  display: flex;
+  gap: var(--spacing-lg);
+}
+
+.headerStat {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.headerStat strong {
+  color: var(--color-navy);
+}
+
+.headerStatActive strong {
+  color: var(--color-green);
+}
+
+.headerStatPending strong {
+  color: var(--color-orange);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.viewToggle {
+  display: flex;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.viewToggleBtn {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  transition: all var(--transition-duration) var(--transition-timing);
+}
+
+.viewToggleBtnActive {
+  background: var(--color-bg-primary);
+  color: var(--color-blue);
+  box-shadow: var(--shadow-sm);
+}
+
+/* =============================================================================
+   Filters Bar
+   ============================================================================= */
+
+.filtersBar {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-lg);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 200px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: all var(--transition-duration) var(--transition-timing);
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.filterSelect {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: var(--color-blue);
+}
+
+/* =============================================================================
+   Members Grid (Card View)
+   ============================================================================= */
+
+.membersGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.memberCard {
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-duration) var(--transition-timing);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.memberCard:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.memberCardSelected {
+  border-color: var(--color-blue);
+  box-shadow: var(--shadow-md), 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.memberCardAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-blue), var(--color-blue-light));
+  color: var(--color-text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xl);
+  text-transform: uppercase;
+}
+
+.memberCardInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  flex: 1;
+}
+
+.memberCardName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+  font-size: var(--font-size-lg);
+}
+
+.memberCardEmail {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.memberCardBadges {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  margin-top: var(--spacing-xs);
+}
+
+.memberCardDept {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-bg-hover);
+}
+
+/* =============================================================================
+   Table View
+   ============================================================================= */
+
+.table {
+  width: 100%;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.tableHeader {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 150px;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  background: var(--color-bg-sidebar);
+  color: var(--color-text-white);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tableRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 150px;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--color-bg-hover);
+  align-items: center;
+  cursor: pointer;
+  transition: background var(--transition-duration) var(--transition-timing);
+}
+
+.tableRow:hover {
+  background: var(--color-bg-secondary);
+}
+
+.tableRowSelected {
+  background: rgba(52, 152, 219, 0.08);
+}
+
+.tableRow:last-child {
+  border-bottom: none;
+}
+
+/* Member Info */
+.memberInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--color-blue), var(--color-blue-light));
+  color: var(--color-text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-lg);
+  text-transform: uppercase;
+}
+
+.memberDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.memberName {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+}
+
+.memberEmail {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* =============================================================================
+   Detail Panel (Sidebar)
+   ============================================================================= */
+
+.detailPanel {
+  width: 400px;
+  background: var(--color-bg-primary);
+  border-left: 1px solid var(--color-bg-hover);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: slideInRight var(--transition-duration) var(--transition-timing);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.detailPanelHeader {
+  padding: var(--spacing-xl);
+  text-align: center;
+  background: linear-gradient(135deg, var(--color-bg-sidebar) 0%, var(--color-navy) 100%);
+  color: var(--color-text-white);
+  position: relative;
+}
+
+.detailPanelHeader button {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  color: var(--color-text-white);
+}
+
+.detailPanelAvatar {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--color-text-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-2xl);
+  text-transform: uppercase;
+  margin: 0 auto var(--spacing-md);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.detailPanelName {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 var(--spacing-xs);
+}
+
+.detailPanelEmail {
+  font-size: var(--font-size-sm);
+  opacity: 0.8;
+  margin: 0 0 var(--spacing-md);
+}
+
+.detailPanelBadges {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-sm);
+}
+
+.detailPanelTabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-bg-hover);
+}
+
+.tabButton {
+  flex: 1;
+  padding: var(--spacing-md);
+  border: none;
+  background: transparent;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-duration) var(--transition-timing);
+  border-bottom: 3px solid transparent;
+}
+
+.tabButton:hover {
+  color: var(--color-navy);
+  background: var(--color-bg-secondary);
+}
+
+.tabButtonActive {
+  color: var(--color-blue);
+  border-bottom-color: var(--color-blue);
+}
+
+.detailPanelContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+.detailPanelActions {
+  padding: var(--spacing-lg);
+  border-top: 1px solid var(--color-bg-hover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* Info Grid */
+.infoGrid {
+  display: grid;
+  gap: var(--spacing-lg);
+}
+
+.infoItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.infoLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.infoValue {
+  font-size: var(--font-size-base);
+  color: var(--color-navy);
+  font-weight: var(--font-weight-medium);
+}
+
+/* =============================================================================
+   Shifts Panel
+   ============================================================================= */
+
+.shiftsPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.shiftsPanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.shiftsPanelTitle {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+  margin: 0;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.checkboxLabel input {
+  cursor: pointer;
+}
+
+.shiftsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.shiftsSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.shiftsSectionTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  margin: 0;
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-bg-hover);
+}
+
+.shiftCard {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  border-left: 4px solid var(--color-blue);
+  transition: all var(--transition-duration) var(--transition-timing);
+}
+
+.shiftCard:hover {
+  background: var(--color-bg-hover);
+}
+
+.shiftCardActive {
+  border-left-color: var(--color-green);
+  background: rgba(39, 174, 96, 0.08);
+}
+
+.shiftCardPast {
+  border-left-color: var(--color-text-secondary);
+  opacity: 0.7;
+}
+
+.shiftCardCancelled {
+  border-left-color: var(--color-red);
+  opacity: 0.6;
+}
+
+.shiftCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.shiftTitle {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+  font-size: var(--font-size-sm);
+}
+
+.assignmentTypeBadge {
+  font-size: var(--font-size-xs);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.badgeAccepted {
+  background: rgba(39, 174, 96, 0.15);
+  color: var(--color-green);
+}
+
+.badgeDirect {
+  background: rgba(52, 152, 219, 0.15);
+  color: var(--color-blue);
+}
+
+.shiftCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.shiftInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.shiftInfoIcon {
+  width: 16px;
+  text-align: center;
+}
+
+.shiftCardFooter {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-bg-hover);
+}
+
+/* =============================================================================
+   Badges
+   ============================================================================= */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badgeSmall {
+  padding: 2px 6px;
+  font-size: 10px;
+  border-radius: var(--radius-sm);
+}
+
+.badgeAdmin {
+  background: var(--color-blue);
+  color: var(--color-text-white);
+}
+
+.badgeManager {
+  background: var(--color-green);
+  color: var(--color-text-white);
+}
+
+.badgeEmployee {
+  background: var(--color-text-secondary);
+  color: var(--color-text-white);
+}
+
+.badgeActive {
+  background: rgba(39, 174, 96, 0.15);
+  color: var(--color-green);
+}
+
+.badgeInactive {
+  background: rgba(231, 76, 60, 0.15);
+  color: var(--color-red);
+}
+
+.badgePending {
+  background: rgba(243, 156, 18, 0.15);
+  color: var(--color-orange);
+}
+
+/* =============================================================================
+   Actions
+   ============================================================================= */
+
+.actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  justify-content: flex-end;
+}
+
+/* =============================================================================
+   Buttons
+   ============================================================================= */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-duration) var(--transition-timing);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonPrimary {
+  background: var(--color-blue);
+  color: var(--color-text-white);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background: var(--color-blue-hover);
+}
+
+.buttonSecondary {
+  background: var(--color-bg-sidebar);
+  color: var(--color-text-white);
+}
+
+.buttonSecondary:hover:not(:disabled) {
+  background: var(--color-navy);
+}
+
+.buttonDanger {
+  background: var(--color-red);
+  color: var(--color-text-white);
+}
+
+.buttonDanger:hover:not(:disabled) {
+  background: var(--color-red-hover);
+}
+
+.buttonGhost {
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: var(--spacing-xs);
+}
+
+.buttonGhost:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.buttonSmall {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-sm);
+}
+
+.buttonIcon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+}
+
+/* =============================================================================
+   Modal
+   ============================================================================= */
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(44, 62, 80, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-xl);
+  animation: fadeIn var(--transition-duration) var(--transition-timing);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modalContent {
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-2xl);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp var(--transition-duration) var(--transition-timing);
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modalTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-navy);
+  margin: 0 0 var(--spacing-xl) 0;
+  padding-bottom: var(--spacing-lg);
+  border-bottom: 2px solid var(--color-bg-hover);
+}
+
+/* =============================================================================
+   Form
+   ============================================================================= */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.formLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+}
+
+.formInput,
+.formTextarea,
+.formSelect {
+  padding: var(--spacing-md);
+  border: 2px solid var(--color-text-light);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  transition: all var(--transition-duration) var(--transition-timing);
+}
+
+.formInput:focus,
+.formTextarea:focus,
+.formSelect:focus {
+  outline: none;
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-lg);
+}
+
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-bg-hover);
+}
+
+/* =============================================================================
+   Info Boxes
+   ============================================================================= */
+
+.infoBox {
+  background: var(--color-bg-secondary);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  margin-top: var(--spacing-md);
+}
+
+.infoBoxMuted {
+  background: var(--color-bg-tertiary);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  margin-top: var(--spacing-md);
+}
+
+.infoText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-md);
+}
+
+.linkCopyRow {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* =============================================================================
+   Empty State
+   ============================================================================= */
+
+.empty {
+  text-align: center;
+  padding: var(--spacing-3xl) var(--spacing-xl);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+}
+
+.emptyIcon {
+  font-size: 64px;
+  margin-bottom: var(--spacing-lg);
+  opacity: 0.5;
+}
+
+.emptyText {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.emptyPanel {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--color-text-secondary);
+}
+
+.emptyPanel .emptyIcon {
+  font-size: 48px;
+  margin-bottom: var(--spacing-md);
+}
+
+/* =============================================================================
+   Loading
+   ============================================================================= */
+
+.loading {
+  text-align: center;
+  padding: var(--spacing-3xl);
+  color: var(--color-text-secondary);
+}
+
+.panelLoading {
+  text-align: center;
+  padding: var(--spacing-xl);
+  color: var(--color-text-secondary);
+}
+
+.loadingSpinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-bg-hover);
+  border-top-color: var(--color-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--spacing-md);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* =============================================================================
+   Error / Success
+   ============================================================================= */
+
+.error {
+  padding: var(--spacing-lg);
+  background: rgba(231, 76, 60, 0.1);
+  border: 1px solid rgba(231, 76, 60, 0.2);
+  border-left: 4px solid var(--color-red);
+  border-radius: var(--radius-md);
+  color: var(--color-red);
+  font-size: var(--font-size-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.success {
+  padding: var(--spacing-lg);
+  background: rgba(39, 174, 96, 0.1);
+  border: 1px solid rgba(39, 174, 96, 0.2);
+  border-left: 4px solid var(--color-green);
+  border-radius: var(--radius-md);
+  color: var(--color-green);
+  font-size: var(--font-size-sm);
+}
+
+/* =============================================================================
+   Stats Grid (Legacy - für Header Stats)
+   ============================================================================= */
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.statCard {
+  background: var(--color-bg-primary);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-bg-hover);
+}
+
+.statValue {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-navy);
+}
+
+.statLabel {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--spacing-xs);
+}
+
+/* =============================================================================
+   Legacy Filters (für Kompatibilität)
+   ============================================================================= */
+
+.filters {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filterInput {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--color-text-light);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  min-width: 200px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transition: all var(--transition-duration) var(--transition-timing);
+}
+
+.filterInput:focus {
+  outline: none;
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+/* =============================================================================
+   Page (Legacy - für alte Verwendungen)
+   ============================================================================= */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  max-width: var(--max-content-width);
+  margin: 0 auto;
+  padding: var(--spacing-xl);
+}
+
+/* =============================================================================
+   Responsive
+   ============================================================================= */
+
+@media (max-width: 1200px) {
+  .detailPanel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    z-index: 100;
+    box-shadow: var(--shadow-lg);
+  }
+}
+
+@media (max-width: 900px) {
+  .tableHeader,
+  .tableRow {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+  
+  .tableHeader > *:nth-child(4),
+  .tableHeader > *:nth-child(5),
+  .tableRow > *:nth-child(4),
+  .tableRow > *:nth-child(5) {
+    display: none;
+  }
+
+  .headerLeft {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .detailPanel {
+    width: 100%;
+  }
+
+  .membersGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .mainContent {
+    padding: var(--spacing-md);
+  }
+  
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .headerActions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .tableHeader {
+    display: none;
+  }
+  
+  .tableRow {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+  }
+  
+  .tableRow > *:nth-child(4),
+  .tableRow > *:nth-child(5) {
+    display: flex;
+  }
+  
+  .actions {
+    margin-top: var(--spacing-sm);
+    justify-content: flex-start;
+  }
+  
+  .filtersBar {
+    flex-direction: column;
+  }
+
+  .searchInput,
+  .filterSelect {
+    width: 100%;
+  }
+}

@@ -1,0 +1,11 @@
+---
+description: Security, Tenant-Scope, RBAC, Audit (TimeAM)
+alwaysApply: true
+---
+
+# Security
+
+- Jeder Request im Backend: auth -> tenant-scope -> entitlement -> permission.
+- Jede DB-Entität ist tenant-scoped (tenant_id/orgId).
+- Keine Cross-Tenant-Zugriffe (IDs immer tenant-validieren).
+- Wichtige Admin-Aktionen auditen (publish shift, accept/reject, cancel).

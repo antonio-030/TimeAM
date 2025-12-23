@@ -1,0 +1,342 @@
+/**
+ * Mini Calendar Styles - Modern Design
+ *
+ * Schlankes, modernes Kalender-Widget für die Sidebar.
+ */
+
+.calendar {
+  padding: var(--spacing-sm);
+  background: linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(155, 89, 182, 0.05) 100%);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Header mit Navigation */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-xs);
+  padding: 0 2px;
+}
+
+.navBtn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--color-text-light);
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.navBtn:hover {
+  background: rgba(52, 152, 219, 0.3);
+  border-color: var(--color-blue);
+  color: var(--color-text-white);
+  transform: scale(1.05);
+}
+
+.todayBtn {
+  padding: 4px 10px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-white);
+  background: linear-gradient(135deg, var(--color-blue) 0%, var(--color-blue-hover) 100%);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+}
+
+.todayBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+/* Monat/Jahr */
+.monthYear {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  padding-left: 2px;
+}
+
+.month {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-white);
+  letter-spacing: -0.02em;
+}
+
+.year {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-light);
+  opacity: 0.7;
+}
+
+/* Wochentage */
+.weekDays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  margin-bottom: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.weekDay {
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-blue);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Tage */
+.days {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+}
+
+.dayWrapper {
+  position: relative;
+}
+
+.day {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  color: rgba(255, 255, 255, 0.85);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 26px;
+  min-height: 26px;
+  position: relative;
+}
+
+.day:hover {
+  background: rgba(52, 152, 219, 0.25);
+  color: var(--color-text-white);
+  transform: scale(1.1);
+}
+
+.dayOtherMonth {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.dayOtherMonth:hover {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.dayToday {
+  background: linear-gradient(135deg, var(--color-red) 0%, #c0392b 100%);
+  color: var(--color-text-white);
+  font-weight: var(--font-weight-bold);
+  box-shadow: 0 2px 8px rgba(231, 76, 60, 0.4);
+}
+
+.dayToday:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.5);
+}
+
+.daySelected {
+  background: linear-gradient(135deg, var(--color-blue) 0%, var(--color-blue-hover) 100%);
+  color: var(--color-text-white);
+  font-weight: var(--font-weight-semibold);
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.4);
+}
+
+.daySelected:hover {
+  transform: scale(1.15);
+}
+
+.dayHasEvents {
+  font-weight: var(--font-weight-bold);
+}
+
+/* Event Dot */
+.eventDot {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  background: linear-gradient(135deg, var(--color-orange) 0%, #e67e22 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(243, 156, 18, 0.6);
+  animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1.3);
+  }
+}
+
+.dayToday .eventDot {
+  background: var(--color-text-white);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  min-width: 200px;
+  max-width: 260px;
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.25),
+    0 0 0 1px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  animation: tooltipFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* Tooltip Position für Randtage */
+.week > .dayWrapper:nth-child(n+5) .tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.week > .dayWrapper:nth-child(n+5) .tooltip {
+  animation-name: tooltipFadeInRight;
+}
+
+@keyframes tooltipFadeInRight {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.week > .dayWrapper:nth-child(-n+3) .tooltip {
+  left: 0;
+  right: auto;
+  transform: none;
+}
+
+.tooltipDate {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-white);
+  background: linear-gradient(135deg, var(--color-navy) 0%, var(--color-navy-dark) 100%);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tooltipEvents {
+  padding: var(--spacing-xs);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.tooltipEvents::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tooltipEvents::-webkit-scrollbar-thumb {
+  background: var(--color-text-light);
+  border-radius: 2px;
+}
+
+.tooltipEvent {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  margin: 2px 0;
+}
+
+.tooltipEvent:hover {
+  background: linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(52, 152, 219, 0.05) 100%);
+  transform: translateX(2px);
+}
+
+.tooltipEventIcon {
+  font-size: var(--font-size-base);
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.tooltipEventTitle {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tooltipEventTime {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  padding: 2px 6px;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+}

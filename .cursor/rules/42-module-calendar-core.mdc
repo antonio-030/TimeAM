@@ -1,0 +1,46 @@
+﻿# Modul: calendar-core
+
+## Ãœberblick
+- **globs:** `**/modules/calendar-core/**/*`
+- **Entitlement:** `module.calendar_core` (immer vorhanden fÃ¼r alle Tenants)
+- Kalender ist Core-Module und zeigt Events aus time-tracking + shift-pool an
+
+## Architektur
+- Kalender aggregiert Events aus verschiedenen Source-Modulen
+- Event-Provider-Pattern: Module liefern Events Ã¼ber definierte Schnittstelle
+- Backend aggregiert Events; Frontend zeigt nur an (kein Write)
+- FullCalendar (React) als UI-Basis
+
+## A11y Anforderungen (WCAG 2.2 AA)
+- **Tastaturbedienung**: Kompletter Flow per Tab/Enter/Space/Escape navigierbar
+- **Fokus-Management**: 
+  - Sichtbarer Fokus-Ring auf allen interaktiven Elementen
+  - Fokus wird bei Modal-Open in Dialog verschoben
+  - Fokus kehrt bei Modal-Close zum AuslÃ¶ser zurÃ¼ck
+- **ARIA Labels**: 
+  - Alle Buttons mit aussagekrÃ¤ftigen aria-label
+  - Date-Navigation mit aria-live="polite"
+  - Events mit vollstÃ¤ndiger Beschreibung
+- **Dialoge**: 
+  - role="dialog" mit aria-labelledby
+  - ESC schlieÃŸt Dialog
+  - Fokus-Trap innerhalb Dialog
+
+## Mobile UX
+- Default View auf Mobile (<768px): `listWeek` / `listDay`
+- Touch Targets mindestens 44x44px
+- Event-Details als Bottom-Sheet (Dialog-Pattern)
+- Toolbar sticky, reduziert auf essenzielle Buttons
+- Swipe-Gesten fÃ¼r Navigation (optional, mit Button-Fallback)
+
+## Event-Darstellung
+- **Nicht nur Farbe verwenden**: ZusÃ¤tzliche Labels/Icons/Text
+  - Schicht-Events: Badge + "Schicht" Label
+  - Arbeitszeit-Events: Badge + "Arbeitszeit" Label
+- Kontrast: Minimum 4.5:1 fÃ¼r Text auf Event-Hintergrund
+- High Contrast Mode: Fallback-Styles bereitstellen
+
+## Performance
+- Lazy Loading: Events nur fÃ¼r sichtbaren Zeitraum laden
+- Debounced Date-Range Changes
+- Skeleton wÃ¤hrend Laden (aria-busy="true")

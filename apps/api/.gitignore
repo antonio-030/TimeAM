@@ -1,0 +1,29 @@
+# Environment (enthält Secrets!)
+.env
+.env.local
+.env.*.local
+
+# Firebase Service Account (NIEMALS committen!)
+service-account*.json
+firebase-adminsdk*.json
+*-firebase-adminsdk-*.json
+
+# Dependencies
+node_modules/
+
+# Build
+dist/
+
+# IDE
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+

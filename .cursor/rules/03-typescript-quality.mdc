@@ -1,0 +1,11 @@
+---
+description: TypeScript-Qualität (TimeAM)
+alwaysApply: true
+---
+
+# TypeScript
+
+- strict TS, keine any.
+- Status/Keys als unions/const objects (keine Magic Strings).
+- Validierung an Grenzen (API Input, URL Params). Shared Schemas bevorzugen.
+- Kleine Funktionen/Komponenten, klare loading/empty/error States.

@@ -1,0 +1,28 @@
+---
+description: Architektur: modularer Monolith + Module Registry + Entitlements
+alwaysApply: true
+---
+
+# Architektur (TimeAM)
+
+## Modular, aber simpel
+- Ein Deployment pro App (web/api), keine Microservices.
+- Module sind Feature-Pakete im Code: src/modules/<moduleId>/...
+- Es gibt eine zentrale Module-Registry (ein Ort, der Module registriert).
+
+## Module Manifest (Konzept)
+Jedes Modul definiert:
+- id, displayName
+- requiredEntitlements (z.B. module.time_tracking)
+- (web) navItems + routes
+- (api) routes + guards (auth/tenant/entitlement/permission)
+- optional: calendarEventProvider
+
+## Entitlements
+- Pro Tenant gibt es Entitlements (Key/Value oder Liste).
+- Backend erzwingt Entitlements bei allen Modul-Endpunkten.
+- Frontend nutzt Entitlements für Navigation + Route-Guards.
+
+## Kalender als Core
+- Es gibt ein Core-Kalender-Modul.
+- Feature-Module liefern Events über Provider-Schnittstelle (keine harte Kopplung).

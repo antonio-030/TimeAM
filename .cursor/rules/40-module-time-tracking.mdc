@@ -1,0 +1,8 @@
+---
+description: Modul: time-tracking (Zeiterfassung)
+globs: ["**/modules/time-tracking/**/*"]
+alwaysApply: false
+---
+
+- Fokus: Clock In/Out, TimeEntries/Timesheets, Kalender-Events.
+- Approvals optional per Entitlement (z.B. time_tracking.approvals).

@@ -1,0 +1,12 @@
+---
+description: Modul: shift-pool (Ausschreibung + Bewerbungen)
+globs: ["**/modules/shift-pool/**/*"]
+alwaysApply: false
+---
+
+- Fokus: Shift Pool, Schichten veröffentlichen, Bewerbungen/Annahmen.
+- Kernzustände:
+  - Shift: DRAFT/PUBLISHED/CLOSED/CANCELLED
+  - Application: PENDING/ACCEPTED/REJECTED/WITHDRAWN
+  - Assignment: CONFIRMED/CANCELLED
+- Accept erzeugt Assignment und reduziert Slots; keine Überschneidungen pro User.

@@ -1,0 +1,80 @@
+/**
+ * App Styles
+ */
+
+.loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--color-navy-dark) 0%, var(--color-navy) 100%);
+}
+
+.spinner {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg-primary);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-lg);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.spinnerIcon {
+  font-size: var(--font-size-3xl);
+}
+
+.loadingText {
+  margin-top: var(--spacing-xl);
+  font-size: var(--font-size-base);
+  color: var(--color-text-light);
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+/* Placeholder Pages */
+.placeholder,
+.noAccess {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  background-color: var(--color-bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.placeholder span,
+.noAccess span {
+  font-size: 48px;
+  margin-bottom: var(--spacing-lg);
+}
+
+.placeholder p,
+.noAccess p {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+}
+
+.noAccess {
+  background-color: rgba(231, 76, 60, 0.05);
+}
+
+.noAccess p {
+  color: var(--color-red);
+}
+

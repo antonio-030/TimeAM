@@ -1,0 +1,54 @@
+# =============================================================================
+# TimeAM – Root .gitignore
+# =============================================================================
+
+# Environment files (enthalten Secrets!)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Firebase Service Account (NIEMALS committen!)
+**/service-account*.json
+**/firebase-adminsdk*.json
+**/*-firebase*.json
+**/timeam-*-firebase*.json
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Misc
+*.tgz
+*.tar.gz
+.cache/
+

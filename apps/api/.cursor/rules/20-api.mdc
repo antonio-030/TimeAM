@@ -1,0 +1,9 @@
+---
+description: Backend-Regeln (Node/TS) für TimeAM
+globs: ["apps/api/**/*"]
+alwaysApply: false
+---
+
+- Jede Route: auth -> tenant-scope -> entitlement -> permission.
+- Business-Logik in Services pro Modul, Controller dünn.
+- Audit für Admin-Aktionen.

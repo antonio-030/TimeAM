@@ -1,0 +1,29 @@
+{
+  "name": "timeam",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TimeAM – Monorepo: Vite Web + Node API",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "npm run dev -w @timeam/web",
+    "dev:api": "npm run dev -w @timeam/api",
+    "build": "npm run build -w @timeam/web && npm run build -w @timeam/api",
+    "build:web": "npm run build -w @timeam/web",
+    "build:api": "npm run build -w @timeam/api",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

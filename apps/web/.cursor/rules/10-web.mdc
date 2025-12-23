@@ -1,0 +1,10 @@
+---
+description: Frontend-Regeln (Vite) für TimeAM
+globs: ["apps/web/**/*"]
+alwaysApply: false
+---
+
+- Web = Vite Frontend. Module in src/modules/<moduleId>.
+- Navigation + Routing kommen aus aktivierten Modulen (Registry-Konzept).
+- Entitlements bestimmen Sichtbarkeit + Route-Guard.
+- Keine Security-Entscheidungen nur im Frontend.
