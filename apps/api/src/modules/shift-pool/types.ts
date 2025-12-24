@@ -24,6 +24,10 @@ export {
   type CreateShiftRequest,
   type ApplyToShiftRequest,
   type PoolQueryParams,
+  type ShiftTimeEntry,
+  type CreateShiftTimeEntryRequest,
+  type UpdateShiftTimeEntryRequest,
+  type ShiftDocument,
 } from '@timeam/shared';
 
 // =============================================================================
@@ -39,6 +43,8 @@ export interface ShiftDoc {
   location: {
     name: string;
     address?: string;
+    latitude?: number;
+    longitude?: number;
   };
   startsAt: Timestamp;
   endsAt: Timestamp;
@@ -48,9 +54,11 @@ export interface ShiftDoc {
   requirements?: string[];
   applyDeadline?: Timestamp;
   status: string; // ShiftStatus
+  crewLeaderUid?: string;
   createdByUid: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  isPublicPool?: boolean; // Freigabe für Freelancer Pool
 }
 
 /**
@@ -65,6 +73,7 @@ export interface ApplicationDoc {
   status: string; // ApplicationStatus
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  isFreelancer?: boolean; // Freelancer-Bewerbung
 }
 
 /**
@@ -89,4 +98,34 @@ export interface AuditLogDoc {
   entityId: string;
   at: Timestamp;
   details?: Record<string, unknown>;
+}
+
+/**
+ * Zeiteintrag-Dokument in Firestore.
+ * Pfad: /tenants/{tenantId}/shiftTimeEntries/{entryId}
+ */
+export interface ShiftTimeEntryDoc {
+  shiftId: string;
+  uid: string;
+  actualClockIn: Timestamp;
+  actualClockOut: Timestamp;
+  durationMinutes: number;
+  enteredByUid: string;
+  note?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/**
+ * Dokument-Dokument in Firestore.
+ * Pfad: /tenants/{tenantId}/shiftDocuments/{documentId}
+ */
+export interface ShiftDocumentDoc {
+  shiftId: string;
+  uploadedByUid: string;
+  fileName: string;
+  filePath: string; // Storage-Pfad
+  fileType: string; // MIME-Type
+  fileSize: number; // Bytes
+  createdAt: Timestamp;
 }

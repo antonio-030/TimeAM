@@ -20,6 +20,8 @@ export {
   setEntitlement,
   deleteEntitlement,
   getEntitlements,
+  getFreelancerEntitlements,
+  setFreelancerEntitlement,
   type TenantDoc,
   type MemberDoc,
   type EntitlementDoc,

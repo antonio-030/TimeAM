@@ -5,10 +5,15 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useAdminShifts, useShiftApplications, useShiftAssignments } from './hooks';
+import { useAdminShifts, useShiftApplications, useShiftAssignments, useShiftDocuments } from './hooks';
 import { SHIFT_STATUS, APPLICATION_STATUS, type Shift, type AdminShift, type Application, type ShiftStatus, type ApplicationStatus, type CreateShiftRequest, type Member } from '@timeam/shared';
+import { FreelancerDetailModal } from './FreelancerDetailModal';
 import { getMembers } from '../members/api';
 import { assignMemberToShift } from './api';
+import { ShiftDocumentList } from './ShiftDocumentList';
+import { AddressAutocomplete } from './AddressAutocomplete';
+import { openAddressInMaps } from './mapsUtils';
+import { VerificationBadge } from '../../components/VerificationBadge';
 import styles from './ShiftPool.module.css';
 
 // =============================================================================
@@ -115,17 +120,38 @@ function CreateShiftForm({ onSubmit, onCancel }: CreateShiftFormProps) {
   const [title, setTitle] = useState('');
   const [locationName, setLocationName] = useState('');
   const [locationAddress, setLocationAddress] = useState('');
+  const [locationLatitude, setLocationLatitude] = useState<number | undefined>(undefined);
+  const [locationLongitude, setLocationLongitude] = useState<number | undefined>(undefined);
+  
+  // Wenn Adresse ausgewählt wird, auch als Standort-Name verwenden (falls Standort leer)
+  const handleLocationChange = (location: Partial<ShiftLocation>) => {
+    if (location.address) {
+      setLocationAddress(location.address);
+      // Wenn Standort noch leer ist, verwende die Adresse als Standort-Name
+      if (!locationName.trim()) {
+        setLocationName(location.address);
+      }
+    }
+    if (location.latitude !== undefined) {
+      setLocationLatitude(location.latitude);
+    }
+    if (location.longitude !== undefined) {
+      setLocationLongitude(location.longitude);
+    }
+  };
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [requiredCount, setRequiredCount] = useState(1);
   const [payRate, setPayRate] = useState('');
   const [applyDeadline, setApplyDeadline] = useState('');
+  const [isPublicPool, setIsPublicPool] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Mitarbeiter-Vorzuweisung
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
   const [preAssignedMembers, setPreAssignedMembers] = useState<string[]>([]);
+  const [crewLeaderUid, setCrewLeaderUid] = useState<string>('');
 
   // Mitarbeiter laden
   useEffect(() => {
@@ -158,17 +184,26 @@ function CreateShiftForm({ onSubmit, onCancel }: CreateShiftFormProps) {
     setError(null);
 
     try {
+      const location: CreateShiftRequest['location'] = {
+        name: locationName.trim(),
+      };
+      if (locationAddress.trim()) {
+        location.address = locationAddress.trim();
+      }
+      if (locationLatitude !== undefined && locationLongitude !== undefined) {
+        location.latitude = locationLatitude;
+        location.longitude = locationLongitude;
+      }
+
       const data: CreateShiftRequest = {
         title: title.trim(),
-        location: {
-          name: locationName.trim(),
-          address: locationAddress.trim() || undefined,
-        },
+        location,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(endsAt).toISOString(),
         requiredCount,
         payRate: payRate ? parseFloat(payRate) : undefined,
         applyDeadline: applyDeadline ? new Date(applyDeadline).toISOString() : undefined,
+        isPublicPool,
       };
 
       await onSubmit(data, preAssignedMembers);
@@ -200,20 +235,35 @@ function CreateShiftForm({ onSubmit, onCancel }: CreateShiftFormProps) {
           className={styles.formInput}
           value={locationName}
           onChange={(e) => setLocationName(e.target.value)}
-          placeholder="Name des Standorts"
+          placeholder="z.B. Hauptbüro, Filiale Nord, Baustelle XY"
           required
         />
+        <div style={{ marginTop: 'var(--spacing-xs)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-light)' }}>
+          Name oder Bezeichnung des Standorts
+        </div>
       </div>
 
       <div className={styles.formGroup}>
         <label className={styles.formLabel}>Adresse (optional)</label>
-        <input
-          type="text"
-          className={styles.formInput}
+        <AddressAutocomplete
           value={locationAddress}
-          onChange={(e) => setLocationAddress(e.target.value)}
-          placeholder="Straße, PLZ Ort"
+          onChange={(location) => {
+            // Nur Adresse setzen, NICHT den Standort-Namen
+            if (location.address) {
+              setLocationAddress(location.address);
+            }
+            if (location.latitude !== undefined) {
+              setLocationLatitude(location.latitude);
+            }
+            if (location.longitude !== undefined) {
+              setLocationLongitude(location.longitude);
+            }
+          }}
+          placeholder="Straße, PLZ Ort - für Google Maps Navigation"
         />
+        <div style={{ marginTop: 'var(--spacing-xs)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-light)' }}>
+          Vollständige Adresse für Navigation (wird automatisch mit Koordinaten gespeichert)
+        </div>
       </div>
 
       <div className={styles.formRow}>
@@ -275,6 +325,49 @@ function CreateShiftForm({ onSubmit, onCancel }: CreateShiftFormProps) {
           value={applyDeadline}
           onChange={(e) => setApplyDeadline(e.target.value)}
         />
+      </div>
+
+      {/* Crew-Leiter auswählen */}
+      <div className={styles.formGroup}>
+        <label className={styles.formLabel}>👑 Crew-Leiter (optional)</label>
+        <p className={styles.preAssignHint}>
+          Der Crew-Leiter kann die Schicht beenden und Zeiten eintragen/korrigieren.
+        </p>
+        {membersLoading ? (
+          <div className={styles.loading}>Mitarbeiter werden geladen...</div>
+        ) : (
+          <select
+            className={styles.formInput}
+            value={crewLeaderUid}
+            onChange={(e) => setCrewLeaderUid(e.target.value)}
+          >
+            <option value="">Kein Crew-Leiter</option>
+            {members.map((member) => (
+              <option key={member.uid} value={member.uid}>
+                {member.displayName || member.email}
+                {member.role === 'admin' && ' (Admin)'}
+                {member.role === 'manager' && ' (Manager)'}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Freelancer Pool Freigabe */}
+      <div className={styles.formGroup}>
+        <label className={styles.formLabel}>
+          <input
+            type="checkbox"
+            checked={isPublicPool}
+            onChange={(e) => setIsPublicPool(e.target.checked)}
+            className={styles.checkbox}
+          />
+          Zum Freelancer Pool freigeben
+        </label>
+        <p className={styles.formHint}>
+          Wenn aktiviert, wird diese Schicht im öffentlichen Freelancer Pool angezeigt, 
+          sodass externe Freelancer sich darauf bewerben können.
+        </p>
       </div>
 
       {/* Mitarbeiter vorab zuweisen */}
@@ -358,9 +451,10 @@ interface ShiftAssignmentsManagerProps {
   shiftId: string;
   requiredCount: number;
   filledCount: number;
+  allowRemove?: boolean; // Erlaube Entfernen von Zuweisungen (default: true)
 }
 
-function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount }: ShiftAssignmentsManagerProps) {
+function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount, allowRemove = true }: ShiftAssignmentsManagerProps) {
   const { assignments, loading, error, assignMember, removeAssignment } = useShiftAssignments(shiftId);
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
@@ -400,8 +494,11 @@ function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount }: ShiftA
     setActionLoading(assignmentId);
     try {
       await removeAssignment(assignmentId);
-    } catch {
-      // Error wird im Hook behandelt
+      // Erfolgreich entfernt - refresh wird automatisch durch den Hook ausgelöst
+    } catch (err) {
+      // Fehler anzeigen
+      console.error('Fehler beim Entfernen der Zuweisung:', err);
+      alert(err instanceof Error ? err.message : 'Fehler beim Entfernen der Zuweisung');
     } finally {
       setActionLoading(null);
     }
@@ -418,7 +515,14 @@ function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount }: ShiftA
         👥 Zugewiesene Mitarbeiter ({assignments.length}/{requiredCount})
       </h3>
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && (
+        <div className={styles.error}>
+          {error}
+          <button onClick={() => window.location.reload()} className={styles.retryBtn} style={{ marginLeft: '0.5rem' }}>
+            Seite neu laden
+          </button>
+        </div>
+      )}
 
       {loading && <div className={styles.loading}>Laden...</div>}
 
@@ -436,16 +540,52 @@ function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount }: ShiftA
                   {assignment.email && (
                     <span className={styles.assignmentEmail}>{assignment.email}</span>
                   )}
+                  {/* Security-Qualifikationen anzeigen */}
+                  {(() => {
+                    const member = members.find(m => m.uid === assignment.uid);
+                    if (!member) return null;
+                    const qualifications: string[] = [];
+                    if (member.hasSachkunde) qualifications.push('📜 Sachkunde');
+                    if (member.hasFuehrerschein) qualifications.push('🚗 Führerschein');
+                    if (member.hasUnterweisung) qualifications.push('✅ Unterweisung');
+                    if (member.securityQualifications && member.securityQualifications.length > 0) {
+                      qualifications.push(...member.securityQualifications.map(q => `🔐 ${q}`));
+                    }
+                    if (qualifications.length === 0) return null;
+                    return (
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: 'var(--spacing-xs)', 
+                        flexWrap: 'wrap',
+                        marginTop: 'var(--spacing-xs)',
+                        fontSize: 'var(--font-size-sm)',
+                        color: 'var(--color-text-light)'
+                      }}>
+                        {qualifications.map((q, idx) => (
+                          <span key={idx} style={{ 
+                            background: 'var(--color-bg-secondary)', 
+                            padding: '2px 6px', 
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: 'var(--font-size-xs)'
+                          }}>
+                            {q}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
-              <button
-                className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`}
-                onClick={() => handleRemove(assignment.assignmentId)}
-                disabled={actionLoading === assignment.assignmentId}
-                title="Zuweisung entfernen"
-              >
-                {actionLoading === assignment.assignmentId ? '...' : '✕'}
-              </button>
+              {allowRemove && (
+                <button
+                  className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`}
+                  onClick={() => handleRemove(assignment.assignmentId)}
+                  disabled={actionLoading === assignment.assignmentId}
+                  title="Zuweisung entfernen"
+                >
+                  {actionLoading === assignment.assignmentId ? '...' : '✕'}
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -514,15 +654,56 @@ interface EditShiftFormProps {
 
 function EditShiftForm({ shift, onSubmit, onCancel }: EditShiftFormProps) {
   const [title, setTitle] = useState(shift.title);
-  const [locationName, setLocationName] = useState(shift.location.name);
-  const [locationAddress, setLocationAddress] = useState(shift.location.address || '');
+  // Verwende Adresse als Standort-Name, falls vorhanden, sonst Name
+  const initialLocationName = shift.location.address || shift.location.name;
+  const [locationName, setLocationName] = useState(initialLocationName);
+  const [locationAddress, setLocationAddress] = useState(shift.location.address || shift.location.name || '');
+  const [locationLatitude, setLocationLatitude] = useState<number | undefined>(shift.location.latitude);
+  const [locationLongitude, setLocationLongitude] = useState<number | undefined>(shift.location.longitude);
+  
+  // Wenn Adresse ausgewählt wird, auch als Standort-Name verwenden (falls Standort leer)
+  const handleLocationChange = (location: Partial<ShiftLocation>) => {
+    if (location.address) {
+      setLocationAddress(location.address);
+      // Wenn Standort noch leer ist, verwende die Adresse als Standort-Name
+      if (!locationName.trim()) {
+        setLocationName(location.address);
+      }
+    }
+    if (location.latitude !== undefined) {
+      setLocationLatitude(location.latitude);
+    }
+    if (location.longitude !== undefined) {
+      setLocationLongitude(location.longitude);
+    }
+  };
   const [startsAt, setStartsAt] = useState(shift.startsAt.slice(0, 16));
   const [endsAt, setEndsAt] = useState(shift.endsAt.slice(0, 16));
   const [requiredCount, setRequiredCount] = useState(shift.requiredCount);
   const [payRate, setPayRate] = useState(shift.payRate?.toString() || '');
   const [applyDeadline, setApplyDeadline] = useState(shift.applyDeadline?.slice(0, 16) || '');
+  const [crewLeaderUid, setCrewLeaderUid] = useState(shift.crewLeaderUid || '');
+  const [isPublicPool, setIsPublicPool] = useState(shift.isPublicPool || false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Mitglieder für Crew-Leiter-Auswahl
+  const [members, setMembers] = useState<Member[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadMembers() {
+      try {
+        const data = await getMembers();
+        setMembers(data.members);
+      } catch (err) {
+        console.error('Failed to load members:', err);
+      } finally {
+        setMembersLoading(false);
+      }
+    }
+    loadMembers();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -530,17 +711,27 @@ function EditShiftForm({ shift, onSubmit, onCancel }: EditShiftFormProps) {
     setError(null);
 
     try {
+      const location: CreateShiftRequest['location'] = {
+        name: locationName.trim(),
+      };
+      if (locationAddress.trim()) {
+        location.address = locationAddress.trim();
+      }
+      if (locationLatitude !== undefined && locationLongitude !== undefined) {
+        location.latitude = locationLatitude;
+        location.longitude = locationLongitude;
+      }
+
       const data: CreateShiftRequest = {
         title: title.trim(),
-        location: {
-          name: locationName.trim(),
-          address: locationAddress.trim() || undefined,
-        },
+        location,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(endsAt).toISOString(),
         requiredCount,
         payRate: payRate ? parseFloat(payRate) : undefined,
         applyDeadline: applyDeadline ? new Date(applyDeadline).toISOString() : undefined,
+        crewLeaderUid: crewLeaderUid || undefined,
+        isPublicPool,
       };
 
       await onSubmit(data);
@@ -567,25 +758,15 @@ function EditShiftForm({ shift, onSubmit, onCancel }: EditShiftFormProps) {
 
       <div className={styles.formGroup}>
         <label className={styles.formLabel}>Standort *</label>
-        <input
-          type="text"
-          className={styles.formInput}
+        <AddressAutocomplete
           value={locationName}
-          onChange={(e) => setLocationName(e.target.value)}
-          placeholder="Name des Standorts"
+          onChange={handleLocationChange}
+          placeholder="Adresse eingeben oder auswählen"
           required
         />
-      </div>
-
-      <div className={styles.formGroup}>
-        <label className={styles.formLabel}>Adresse (optional)</label>
-        <input
-          type="text"
-          className={styles.formInput}
-          value={locationAddress}
-          onChange={(e) => setLocationAddress(e.target.value)}
-          placeholder="Straße, PLZ Ort"
-        />
+        <div style={{ marginTop: 'var(--spacing-xs)', fontSize: 'var(--font-size-sm)', color: 'var(--color-text-light)' }}>
+          Beginne mit der Eingabe, um Adressvorschläge zu sehen
+        </div>
       </div>
 
       <div className={styles.formRow}>
@@ -647,6 +828,49 @@ function EditShiftForm({ shift, onSubmit, onCancel }: EditShiftFormProps) {
           value={applyDeadline}
           onChange={(e) => setApplyDeadline(e.target.value)}
         />
+      </div>
+
+      {/* Crew-Leiter auswählen */}
+      <div className={styles.formGroup}>
+        <label className={styles.formLabel}>👑 Crew-Leiter (optional)</label>
+        <p className={styles.preAssignHint}>
+          Der Crew-Leiter kann die Schicht beenden und Zeiten eintragen/korrigieren.
+        </p>
+        {membersLoading ? (
+          <div className={styles.loading}>Mitarbeiter werden geladen...</div>
+        ) : (
+          <select
+            className={styles.formInput}
+            value={crewLeaderUid}
+            onChange={(e) => setCrewLeaderUid(e.target.value)}
+          >
+            <option value="">Kein Crew-Leiter</option>
+            {members.map((member) => (
+              <option key={member.uid} value={member.uid}>
+                {member.displayName || member.email}
+                {member.role === 'admin' && ' (Admin)'}
+                {member.role === 'manager' && ' (Manager)'}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Freelancer Pool Freigabe */}
+      <div className={styles.formGroup}>
+        <label className={styles.formLabel}>
+          <input
+            type="checkbox"
+            checked={isPublicPool}
+            onChange={(e) => setIsPublicPool(e.target.checked)}
+            className={styles.checkbox}
+          />
+          Zum Freelancer Pool freigeben
+        </label>
+        <p className={styles.formHint}>
+          Wenn aktiviert, wird diese Schicht im öffentlichen Freelancer Pool angezeigt, 
+          sodass externe Freelancer sich darauf bewerben können.
+        </p>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -721,7 +945,23 @@ function ShiftCard({ shift, onPublish, onEdit, onDelete, onClose, onCancel, onVi
         <div className={styles.cardMetaItem}>
           <span className={styles.cardMetaIcon}>📍</span>
           {shift.location.name}
-          {shift.location.address && <span style={{ color: 'var(--color-text-light)', marginLeft: '4px' }}>({shift.location.address})</span>}
+          {shift.location.address && (
+            <span 
+              style={{ 
+                color: 'var(--color-primary)', 
+                marginLeft: '4px', 
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                openAddressInMaps(shift.location);
+              }}
+              title="In Google Maps öffnen"
+            >
+              🗺️ {shift.location.address}
+            </span>
+          )}
         </div>
         <div className={styles.cardMetaItem}>
           <span className={styles.cardMetaIcon}>📅</span>
@@ -836,6 +1076,11 @@ interface ApplicationsModalProps {
 
 function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalProps) {
   const { applications, loading, error, acceptApplication, rejectApplication, revokeApplication } = useShiftApplications(shiftId);
+  const [selectedFreelancer, setSelectedFreelancer] = useState<{
+    profile: any;
+    email: string;
+    note?: string;
+  } | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
   const handleAccept = async (applicationId: string) => {
@@ -910,13 +1155,35 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
               {pendingApplications.map((app) => (
                 <div key={app.id} className={styles.applicationRow}>
                   <div className={styles.applicationInfo}>
-                    <span className={styles.applicationEmail}>{app.email || app.uid}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className={styles.applicationEmail}>{app.email || app.uid}</span>
+                      {app.isFreelancer && (app as any).verificationStatus && (
+                        <VerificationBadge
+                          status={(app as any).verificationStatus}
+                          size="small"
+                          showLabel={false}
+                        />
+                      )}
+                    </div>
                     {app.note && <span className={styles.applicationNote}>„{app.note}"</span>}
                     <span className={styles.applicationDate}>
                       📅 Beworben am {formatDateTime(app.createdAt)}
                     </span>
                   </div>
                   <div className={styles.applicationActions}>
+                    {app.isFreelancer && (app as any).freelancerProfile && (
+                      <button
+                        className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonSmall}`}
+                        onClick={() => setSelectedFreelancer({
+                          profile: (app as any).freelancerProfile,
+                          email: app.email || app.uid,
+                          note: app.note,
+                        })}
+                        title="Freelancer-Details anzeigen"
+                      >
+                        👤 Details
+                      </button>
+                    )}
                     <button
                       className={`${styles.button} ${styles.buttonSuccess} ${styles.buttonSmall}`}
                       onClick={() => handleAccept(app.id)}
@@ -948,7 +1215,16 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
               {acceptedApplications.map((app) => (
                 <div key={app.id} className={styles.applicationRow}>
                   <div className={styles.applicationInfo}>
-                    <span className={styles.applicationEmail}>{app.email || app.uid}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className={styles.applicationEmail}>{app.email || app.uid}</span>
+                      {app.isFreelancer && (app as any).verificationStatus && (
+                        <VerificationBadge
+                          status={(app as any).verificationStatus}
+                          size="small"
+                          showLabel={false}
+                        />
+                      )}
+                    </div>
                     {app.note && <span className={styles.applicationNote}>„{app.note}"</span>}
                     <span className={styles.applicationDate}>
                       📅 Beworben am {formatDateTime(app.createdAt)}
@@ -1004,6 +1280,15 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
           </button>
         </div>
       </div>
+
+      {selectedFreelancer && (
+        <FreelancerDetailModal
+          freelancerProfile={selectedFreelancer.profile}
+          email={selectedFreelancer.email}
+          note={selectedFreelancer.note}
+          onClose={() => setSelectedFreelancer(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1073,6 +1358,12 @@ export function AdminShiftsPage() {
     setLoadingShiftId(shiftId);
     try {
       await deleteShift(shiftId);
+      // Zurück zur Liste nach erfolgreichem Löschen
+      if (view === 'edit' && editingShift?.id === shiftId) {
+        setView('list');
+        setEditingShift(null);
+      }
+      await refresh();
     } catch {
       // Error handled in hook
     } finally {
@@ -1216,7 +1507,23 @@ export function AdminShiftsPage() {
         <div className={styles.editLayout}>
           {/* Linke Spalte: Formular */}
           <div className={styles.editFormSection}>
-            <h2 className={styles.editSectionTitle}>📝 Schichtdaten</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+              <h2 className={styles.editSectionTitle} style={{ margin: 0 }}>📝 Schichtdaten</h2>
+              {(editingShift.status === SHIFT_STATUS.DRAFT || editingShift.status === SHIFT_STATUS.CANCELLED) && (
+                <button
+                  className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`}
+                  onClick={() => {
+                    if (confirm('Schicht wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+                      handleDeleteShift(editingShift.id);
+                    }
+                  }}
+                  disabled={loadingShiftId === editingShift.id}
+                  title="Schicht löschen"
+                >
+                  🗑️ Löschen
+                </button>
+              )}
+            </div>
             <EditShiftForm 
               shift={editingShift} 
               onSubmit={handleUpdateShift} 
@@ -1224,13 +1531,23 @@ export function AdminShiftsPage() {
             />
           </div>
 
-          {/* Rechte Spalte: Mitarbeiter-Verwaltung */}
+          {/* Rechte Spalte: Mitarbeiter-Verwaltung + Dokumente */}
           <div className={styles.editAssignmentsSection}>
             <ShiftAssignmentsManager 
               shiftId={editingShift.id}
               requiredCount={editingShift.requiredCount}
               filledCount={editingShift.filledCount}
+              allowRemove={true}
             />
+            
+            {/* Dokumente */}
+            <div style={{ marginTop: 'var(--spacing-xl)' }}>
+              <ShiftDocumentList
+                shiftId={editingShift.id}
+                canView={true}
+                canUpload={true}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1447,7 +1764,7 @@ export function AdminShiftsPage() {
                         <div 
                           className={styles.occupancyFill} 
                           style={{ 
-                            width: `${Math.min((shift.filledCount / shift.requiredCount) * 100, 100)}%`,
+                            width: `${shift.requiredCount > 0 ? Math.min((shift.filledCount / shift.requiredCount) * 100, 100) : 0}%`,
                             background: shift.filledCount >= shift.requiredCount 
                               ? 'var(--color-green)' 
                               : 'var(--color-primary)'
@@ -1509,7 +1826,8 @@ export function AdminShiftsPage() {
                           🔒
                         </button>
                       )}
-                      {shift.status === SHIFT_STATUS.DRAFT && (
+                      {/* Löschen: DRAFT und CANCELLED */}
+                      {(shift.status === SHIFT_STATUS.DRAFT || shift.status === SHIFT_STATUS.CANCELLED) && (
                         <button
                           className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
                           onClick={() => handleDeleteShift(shift.id)}
@@ -1519,6 +1837,7 @@ export function AdminShiftsPage() {
                           🗑️
                         </button>
                       )}
+                      {/* Absagen: Für PUBLISHED, CLOSED, COMPLETED */}
                       {shift.status !== SHIFT_STATUS.CANCELLED && shift.status !== SHIFT_STATUS.DRAFT && (
                         <button
                           className={`${styles.actionBtn} ${styles.actionBtnDanger}`}

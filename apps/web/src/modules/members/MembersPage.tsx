@@ -124,6 +124,11 @@ function InviteMemberModal({ onSubmit, onClose }: InviteMemberModalProps) {
   const [department, setDepartment] = useState('');
   const [position, setPosition] = useState('');
   const [hourlyRate, setHourlyRate] = useState('');
+  // Security-Qualifikationen
+  const [hasSachkunde, setHasSachkunde] = useState(false);
+  const [hasFuehrerschein, setHasFuehrerschein] = useState(false);
+  const [hasUnterweisung, setHasUnterweisung] = useState(false);
+  const [securityQualifications, setSecurityQualifications] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,6 +145,13 @@ function InviteMemberModal({ onSubmit, onClose }: InviteMemberModalProps) {
         department: department.trim() || undefined,
         position: position.trim() || undefined,
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
+        // Security-Qualifikationen
+        hasSachkunde: hasSachkunde || undefined,
+        hasFuehrerschein: hasFuehrerschein || undefined,
+        hasUnterweisung: hasUnterweisung || undefined,
+        securityQualifications: securityQualifications.trim() 
+          ? securityQualifications.split(',').map(q => q.trim()).filter(q => q.length > 0)
+          : undefined,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Einladen');
@@ -224,6 +236,52 @@ function InviteMemberModal({ onSubmit, onClose }: InviteMemberModalProps) {
                 value={position}
                 onChange={(e) => setPosition(e.target.value)}
                 placeholder="z.B. Teamleiter"
+              />
+            </div>
+          </div>
+
+          {/* Security-Qualifikationen */}
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel} style={{ marginBottom: 'var(--spacing-sm)' }}>
+              🔐 Security-Qualifikationen
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={hasSachkunde}
+                  onChange={(e) => setHasSachkunde(e.target.checked)}
+                />
+                <span>📜 Sachkunde/Einweisung</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={hasFuehrerschein}
+                  onChange={(e) => setHasFuehrerschein(e.target.checked)}
+                />
+                <span>🚗 Führerschein</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={hasUnterweisung}
+                  onChange={(e) => setHasUnterweisung(e.target.checked)}
+                />
+                <span>✅ Unterweisung</span>
+              </label>
+            </div>
+            <div style={{ marginTop: 'var(--spacing-sm)' }}>
+              <label className={styles.formLabel} style={{ fontSize: 'var(--font-size-sm)' }}>
+                Weitere Qualifikationen (komma-separiert)
+              </label>
+              <input
+                type="text"
+                className={styles.formInput}
+                value={securityQualifications}
+                onChange={(e) => setSecurityQualifications(e.target.value)}
+                placeholder="z.B. Brandschutzhelfer, Erste Hilfe"
+                style={{ fontSize: 'var(--font-size-sm)' }}
               />
             </div>
           </div>
@@ -349,6 +407,13 @@ function EditMemberModal({ member, onSubmit, onClose }: EditMemberModalProps) {
   const [position, setPosition] = useState(member.position || '');
   const [hourlyRate, setHourlyRate] = useState(member.hourlyRate?.toString() || '');
   const [phone, setPhone] = useState(member.phone || '');
+  // Security-Qualifikationen
+  const [hasSachkunde, setHasSachkunde] = useState(member.hasSachkunde || false);
+  const [hasFuehrerschein, setHasFuehrerschein] = useState(member.hasFuehrerschein || false);
+  const [hasUnterweisung, setHasUnterweisung] = useState(member.hasUnterweisung || false);
+  const [securityQualifications, setSecurityQualifications] = useState(
+    member.securityQualifications?.join(', ') || ''
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -365,6 +430,13 @@ function EditMemberModal({ member, onSubmit, onClose }: EditMemberModalProps) {
         position: position.trim() || undefined,
         hourlyRate: hourlyRate ? parseFloat(hourlyRate) : undefined,
         phone: phone.trim() || undefined,
+        // Security-Qualifikationen
+        hasSachkunde: hasSachkunde || undefined,
+        hasFuehrerschein: hasFuehrerschein || undefined,
+        hasUnterweisung: hasUnterweisung || undefined,
+        securityQualifications: securityQualifications.trim() 
+          ? securityQualifications.split(',').map(q => q.trim()).filter(q => q.length > 0)
+          : undefined,
       });
       onClose();
     } catch (err) {
@@ -463,6 +535,52 @@ function EditMemberModal({ member, onSubmit, onClose }: EditMemberModalProps) {
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+49 123 456789"
             />
+          </div>
+
+          {/* Security-Qualifikationen */}
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel} style={{ marginBottom: 'var(--spacing-sm)' }}>
+              🔐 Security-Qualifikationen
+            </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-sm)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={hasSachkunde}
+                  onChange={(e) => setHasSachkunde(e.target.checked)}
+                />
+                <span>📜 Sachkunde/Einweisung</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={hasFuehrerschein}
+                  onChange={(e) => setHasFuehrerschein(e.target.checked)}
+                />
+                <span>🚗 Führerschein</span>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={hasUnterweisung}
+                  onChange={(e) => setHasUnterweisung(e.target.checked)}
+                />
+                <span>✅ Unterweisung</span>
+              </label>
+            </div>
+            <div style={{ marginTop: 'var(--spacing-sm)' }}>
+              <label className={styles.formLabel} style={{ fontSize: 'var(--font-size-sm)' }}>
+                Weitere Qualifikationen (komma-separiert)
+              </label>
+              <input
+                type="text"
+                className={styles.formInput}
+                value={securityQualifications}
+                onChange={(e) => setSecurityQualifications(e.target.value)}
+                placeholder="z.B. Brandschutzhelfer, Erste Hilfe"
+                style={{ fontSize: 'var(--font-size-sm)' }}
+              />
+            </div>
           </div>
 
           {error && <div className={styles.error}>⚠️ {error}</div>}
@@ -723,6 +841,55 @@ function MemberDetailPanel({
               <div className={styles.infoItem}>
                 <span className={styles.infoLabel}>Stundenlohn</span>
                 <span className={styles.infoValue}>{member.hourlyRate.toFixed(2)} €/h</span>
+              </div>
+            )}
+            {/* Security-Qualifikationen */}
+            {(member.hasSachkunde || member.hasFuehrerschein || member.hasUnterweisung || 
+              (member.securityQualifications && member.securityQualifications.length > 0)) && (
+              <div className={styles.infoItem} style={{ gridColumn: '1 / -1' }}>
+                <span className={styles.infoLabel}>🔐 Security-Qualifikationen</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--spacing-xs)', marginTop: 'var(--spacing-xs)' }}>
+                  {member.hasSachkunde && (
+                    <span style={{ 
+                      background: 'var(--color-bg-secondary)', 
+                      padding: '4px 8px', 
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--font-size-sm)'
+                    }}>
+                      📜 Sachkunde
+                    </span>
+                  )}
+                  {member.hasFuehrerschein && (
+                    <span style={{ 
+                      background: 'var(--color-bg-secondary)', 
+                      padding: '4px 8px', 
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--font-size-sm)'
+                    }}>
+                      🚗 Führerschein
+                    </span>
+                  )}
+                  {member.hasUnterweisung && (
+                    <span style={{ 
+                      background: 'var(--color-bg-secondary)', 
+                      padding: '4px 8px', 
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--font-size-sm)'
+                    }}>
+                      ✅ Unterweisung
+                    </span>
+                  )}
+                  {member.securityQualifications?.map((q, idx) => (
+                    <span key={idx} style={{ 
+                      background: 'var(--color-bg-secondary)', 
+                      padding: '4px 8px', 
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--font-size-sm)'
+                    }}>
+                      🔐 {q}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
             <div className={styles.infoItem}>

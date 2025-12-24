@@ -67,6 +67,11 @@ function memberToResponse(id: string, doc: Record<string, unknown>): Member {
     hourlyRate: doc.hourlyRate as number | undefined,
     skills: doc.skills as string[] | undefined,
     notes: doc.notes as string | undefined,
+    // Security-spezifische Qualifikationen
+    hasSachkunde: doc.hasSachkunde as boolean | undefined,
+    hasFuehrerschein: doc.hasFuehrerschein as boolean | undefined,
+    hasUnterweisung: doc.hasUnterweisung as boolean | undefined,
+    securityQualifications: doc.securityQualifications as string[] | undefined,
     createdAt: timestampToISO(createdAt),
     updatedAt: timestampToISO(updatedAt),
     invitedByUid: (doc.invitedByUid || doc.invitedBy) as string | undefined,
@@ -277,6 +282,19 @@ export async function inviteMember(
   if (data.notes?.trim()) {
     memberData.notes = data.notes.trim();
   }
+  // Security-spezifische Qualifikationen
+  if (data.hasSachkunde !== undefined) {
+    memberData.hasSachkunde = data.hasSachkunde;
+  }
+  if (data.hasFuehrerschein !== undefined) {
+    memberData.hasFuehrerschein = data.hasFuehrerschein;
+  }
+  if (data.hasUnterweisung !== undefined) {
+    memberData.hasUnterweisung = data.hasUnterweisung;
+  }
+  if (data.securityQualifications && data.securityQualifications.length > 0) {
+    memberData.securityQualifications = data.securityQualifications;
+  }
 
   await memberRef.set(memberData);
 
@@ -351,6 +369,19 @@ export async function updateMember(
   }
   if (data.notes !== undefined) {
     updateData.notes = data.notes?.trim() || null;
+  }
+  // Security-spezifische Qualifikationen
+  if (data.hasSachkunde !== undefined) {
+    updateData.hasSachkunde = data.hasSachkunde;
+  }
+  if (data.hasFuehrerschein !== undefined) {
+    updateData.hasFuehrerschein = data.hasFuehrerschein;
+  }
+  if (data.hasUnterweisung !== undefined) {
+    updateData.hasUnterweisung = data.hasUnterweisung;
+  }
+  if (data.securityQualifications !== undefined) {
+    updateData.securityQualifications = data.securityQualifications.length > 0 ? data.securityQualifications : null;
   }
 
   await memberRef.update(updateData);

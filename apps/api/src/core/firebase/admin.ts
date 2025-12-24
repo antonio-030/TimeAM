@@ -33,17 +33,46 @@ export function initializeFirebaseAdmin(): App {
   }
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
+  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET;
   const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
+
+  // Helper: Bestimmt Storage Bucket Name
+  const getStorageBucket = (serviceAccount?: { project_id?: string }): string | undefined => {
+    // 1. Explizite ENV-Variable (höchste Priorität)
+    if (storageBucket) {
+      return storageBucket;
+    }
+    // 2. Neues Firebase Storage Format (project_id.firebasestorage.app)
+    if (serviceAccount?.project_id) {
+      return `${serviceAccount.project_id}.firebasestorage.app`;
+    }
+    // 3. Fallback: Altes Format (project_id.appspot.com)
+    if (serviceAccount?.project_id) {
+      return `${serviceAccount.project_id}.appspot.com`;
+    }
+    // 4. Aus Project ID (neues Format)
+    if (projectId) {
+      return `${projectId}.firebasestorage.app`;
+    }
+    return undefined;
+  };
 
   // Option 1: Service Account als JSON String (für Cloud Deployments)
   if (serviceAccountJson) {
     console.log('🔐 Firebase Admin: Using FIREBASE_SERVICE_ACCOUNT env');
     const serviceAccount = JSON.parse(serviceAccountJson);
+    const bucket = getStorageBucket(serviceAccount);
+    
     app = initializeApp({
       credential: cert(serviceAccount),
       projectId: projectId || serviceAccount.project_id,
+      storageBucket: bucket,
     });
+    
+    if (bucket) {
+      console.log(`📦 Storage bucket: ${bucket}`);
+    }
     return app;
   }
 
@@ -56,13 +85,18 @@ export function initializeFirebaseAdmin(): App {
     try {
       const serviceAccountContent = readFileSync(absolutePath, 'utf-8');
       const serviceAccount = JSON.parse(serviceAccountContent);
+      const bucket = getStorageBucket(serviceAccount);
 
       app = initializeApp({
         credential: cert(serviceAccount),
         projectId: projectId || serviceAccount.project_id,
+        storageBucket: bucket,
       });
 
       console.log(`✅ Firebase Admin initialized for project: ${serviceAccount.project_id}`);
+      if (bucket) {
+        console.log(`📦 Storage bucket: ${bucket}`);
+      }
       return app;
     } catch (error) {
       console.error(`❌ Failed to load service account from ${absolutePath}:`, error);
@@ -73,7 +107,14 @@ export function initializeFirebaseAdmin(): App {
   // Fallback: Nur Project ID (für GCP mit impliziten Credentials)
   if (projectId) {
     console.log(`🔐 Firebase Admin: Using project ID only (${projectId})`);
-    app = initializeApp({ projectId });
+    const bucket = getStorageBucket();
+    app = initializeApp({ 
+      projectId,
+      storageBucket: bucket,
+    });
+    if (bucket) {
+      console.log(`📦 Storage bucket: ${bucket}`);
+    }
     return app;
   }
 

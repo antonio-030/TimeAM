@@ -5,8 +5,10 @@
  */
 
 import { Router } from 'express';
+import multer from 'multer';
 import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
 import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements';
+import { getAdminFirestore } from '../../core/firebase';
 import { MEMBER_ROLES } from '@timeam/shared';
 import {
   createShift,
@@ -15,11 +17,16 @@ import {
   publishShift,
   closeShift,
   cancelShift,
+  completeShift,
   getAdminShifts,
   getShiftById,
   getPoolList,
+  getPublicPoolList,
   applyToShift,
+  applyToPublicShift,
   getShiftApplications,
+  getFreelancerApplications,
+  getFreelancerShifts,
   acceptApplication,
   rejectApplication,
   withdrawApplication,
@@ -29,14 +36,34 @@ import {
   getShiftAssignments,
   assignMemberToShift,
   removeAssignment,
+  getShiftTimeEntries,
+  createShiftTimeEntry,
+  updateShiftTimeEntry,
+  uploadShiftDocument,
+  getShiftDocuments,
+  downloadShiftDocument,
+  deleteShiftDocument,
 } from './service';
-import type { CreateShiftRequest, ApplyToShiftRequest } from './types';
+import type {
+  CreateShiftRequest,
+  ApplyToShiftRequest,
+  CreateShiftTimeEntryRequest,
+  UpdateShiftTimeEntryRequest,
+} from './types';
 
 const router = Router();
 
 // =============================================================================
 // Middleware
 // =============================================================================
+
+// Multer für File-Uploads (Memory Storage)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+  },
+});
 
 // Alle Routes erfordern Auth + shift_pool Entitlement
 const shiftPoolGuard = [
@@ -494,6 +521,145 @@ router.delete('/assignments/:assignmentId', ...shiftPoolGuard, async (req, res) 
 });
 
 // =============================================================================
+// Public Routes (ohne Auth)
+// =============================================================================
+
+/**
+ * GET /api/shift-pool/public/pool
+ * Öffentliche Pool-Liste (alle Schichten mit isPublicPool: true aus allen Tenants).
+ * Kein Auth erforderlich.
+ */
+router.get('/public/pool', async (req, res) => {
+  const { from, to, location, q } = req.query;
+
+  try {
+    const shifts = await getPublicPoolList({
+      from: from as string | undefined,
+      to: to as string | undefined,
+      location: location as string | undefined,
+      q: q as string | undefined,
+    });
+
+    res.json({
+      shifts,
+      count: shifts.length,
+    });
+  } catch (error) {
+    console.error('Error in GET /shift-pool/public/pool:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get public pool';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/shift-pool/freelancer/applications
+ * Lädt alle Bewerbungen des eingeloggten Freelancers.
+ */
+router.get('/freelancer/applications', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+
+  try {
+    // Prüfen ob User ein Freelancer ist
+    const db = getAdminFirestore();
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    const userData = userDoc.data();
+    
+    if (!userData?.isFreelancer) {
+      res.status(403).json({ error: 'Only freelancers can access this endpoint' });
+      return;
+    }
+
+    const applications = await getFreelancerApplications(user.uid);
+
+    res.json({
+      applications,
+      count: applications.length,
+    });
+  } catch (error) {
+    console.error('Error in GET /shift-pool/freelancer/applications:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get applications';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/shift-pool/freelancer/shifts
+ * Lädt alle Schichten des eingeloggten Freelancers (angenommene Bewerbungen).
+ */
+router.get('/freelancer/shifts', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { includeCompleted } = req.query;
+
+  try {
+    // Prüfen ob User ein Freelancer ist
+    const db = getAdminFirestore();
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    const userData = userDoc.data();
+    
+    if (!userData?.isFreelancer) {
+      res.status(403).json({ error: 'Only freelancers can access this endpoint' });
+      return;
+    }
+
+    const shifts = await getFreelancerShifts(user.uid, {
+      includeCompleted: includeCompleted === 'true',
+    });
+
+    res.json({
+      shifts,
+      count: shifts.length,
+    });
+  } catch (error) {
+    console.error('Error in GET /shift-pool/freelancer/shifts:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get shifts';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/shift-pool/public/shifts/:shiftId/apply
+ * Bewerbung auf öffentliche Schicht als Freelancer.
+ * Auth erforderlich (Freelancer-Account).
+ */
+router.post('/public/shifts/:shiftId/apply', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { shiftId } = req.params;
+  const body = req.body as ApplyToShiftRequest;
+
+  try {
+    const application = await applyToPublicShift(
+      shiftId,
+      user.uid,
+      user.email || '',
+      body.note
+    );
+
+    res.status(201).json({
+      application,
+      message: 'Application submitted successfully',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to apply to shift';
+
+    if (message.includes('not found') || message.includes('not available')) {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message.includes('deadline') || message.includes('Already applied')) {
+      res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+    if (message.includes('Only freelancers') || message.includes('Tenant members')) {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+
+    console.error('Error in POST /shift-pool/public/shifts/:shiftId/apply:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+// =============================================================================
 // User Routes
 // =============================================================================
 
@@ -695,6 +861,313 @@ router.post('/applications/:applicationId/withdraw', ...shiftPoolGuard, async (r
     }
 
     console.error('Error in POST /shift-pool/applications/:applicationId/withdraw:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+// =============================================================================
+// Shift Completion
+// =============================================================================
+
+/**
+ * POST /api/shift-pool/shifts/:shiftId/complete
+ * Beendet eine Schicht (nur Crew-Leiter).
+ */
+router.post('/shifts/:shiftId/complete', ...shiftPoolGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const { shiftId } = req.params;
+
+  try {
+    const shift = await completeShift(tenant.id, shiftId, user.uid);
+
+    res.json({
+      shift,
+      message: 'Shift completed successfully',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to complete shift';
+
+    if (message === 'Shift not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message === 'Only the crew leader can complete a shift') {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+    if (message.includes('already completed') || message.includes('Cannot complete')) {
+      res.status(409).json({ error: message, code: 'INVALID_STATUS' });
+      return;
+    }
+
+    console.error('Error in POST /shift-pool/shifts/:shiftId/complete:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+// =============================================================================
+// Shift Time Entries
+// =============================================================================
+
+/**
+ * GET /api/shift-pool/shifts/:shiftId/time-entries
+ * Lädt alle Zeiteinträge einer Schicht.
+ */
+router.get('/shifts/:shiftId/time-entries', ...shiftPoolGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const { shiftId } = req.params;
+
+  try {
+    const entries = await getShiftTimeEntries(tenant.id, shiftId);
+
+    res.json({
+      entries,
+      count: entries.length,
+    });
+  } catch (error) {
+    console.error('Error in GET /shift-pool/shifts/:shiftId/time-entries:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get time entries';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/shift-pool/shifts/:shiftId/time-entries
+ * Erstellt oder aktualisiert einen Zeiteintrag.
+ */
+router.post('/shifts/:shiftId/time-entries', ...shiftPoolGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const { shiftId } = req.params;
+  const body = req.body as CreateShiftTimeEntryRequest;
+
+  try {
+    const entry = await createShiftTimeEntry(tenant.id, shiftId, user.uid, body);
+
+    res.status(201).json({
+      entry,
+      message: 'Time entry created successfully',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create time entry';
+
+    if (message === 'Shift not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message === 'User is not assigned to this shift') {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+    if (message.includes('Only crew leader')) {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+    if (message.includes('Invalid') || message.includes('must be') || message.includes('Maximum')) {
+      res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    console.error('Error in POST /shift-pool/shifts/:shiftId/time-entries:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * PUT /api/shift-pool/shifts/:shiftId/time-entries/:entryId
+ * Aktualisiert einen Zeiteintrag.
+ */
+router.put('/shifts/:shiftId/time-entries/:entryId', ...shiftPoolGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const { shiftId, entryId } = req.params;
+  const body = req.body as UpdateShiftTimeEntryRequest;
+
+  try {
+    const entry = await updateShiftTimeEntry(tenant.id, shiftId, entryId, user.uid, body);
+
+    res.json({
+      entry,
+      message: 'Time entry updated successfully',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update time entry';
+
+    if (message === 'Time entry not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message === 'Time entry does not belong to this shift') {
+      res.status(409).json({ error: message, code: 'INVALID_SHIFT' });
+      return;
+    }
+    if (message.includes('Only crew leader')) {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+    if (message.includes('Invalid') || message.includes('must be') || message.includes('Maximum')) {
+      res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    console.error('Error in PUT /shift-pool/shifts/:shiftId/time-entries/:entryId:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+// =============================================================================
+// Shift Documents
+// =============================================================================
+
+/**
+ * POST /api/shift-pool/shifts/:shiftId/documents
+ * Lädt ein Dokument hoch.
+ */
+router.post(
+  '/shifts/:shiftId/documents',
+  ...shiftPoolGuard,
+  upload.single('file'),
+  async (req, res) => {
+    const { user } = req as AuthenticatedRequest;
+    const { tenant } = req as TenantRequest;
+    const { shiftId } = req.params;
+
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: 'No file uploaded', code: 'MISSING_FILE' });
+        return;
+      }
+
+      const document = await uploadShiftDocument(tenant.id, shiftId, user.uid, {
+        buffer: req.file.buffer,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      });
+
+      res.status(201).json({
+        document,
+        message: 'Document uploaded successfully',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to upload document';
+
+      if (message === 'Shift not found') {
+        res.status(404).json({ error: message, code: 'NOT_FOUND' });
+        return;
+      }
+      if (message === 'Only assigned members can upload documents') {
+        res.status(403).json({ error: message, code: 'FORBIDDEN' });
+        return;
+      }
+      if (message.includes('Invalid file type') || message.includes('File size exceeds')) {
+        res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
+        return;
+      }
+
+      console.error('Error in POST /shift-pool/shifts/:shiftId/documents:', error);
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+/**
+ * GET /api/shift-pool/shifts/:shiftId/documents
+ * Lädt alle Dokumente einer Schicht (nur Admin, Manager oder Crew-Leiter).
+ */
+router.get('/shifts/:shiftId/documents', ...shiftPoolGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const { shiftId } = req.params;
+
+  try {
+    const documents = await getShiftDocuments(tenant.id, shiftId, user.uid);
+
+    res.json({
+      documents,
+      count: documents.length,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to get documents';
+
+    if (message.includes('Only crew leader')) {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+
+    console.error('Error in GET /shift-pool/shifts/:shiftId/documents:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/shift-pool/shifts/:shiftId/documents/:documentId/download
+ * Generiert eine Download-URL für ein Dokument.
+ */
+router.get('/shifts/:shiftId/documents/:documentId/download', ...shiftPoolGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const { shiftId, documentId } = req.params;
+
+  try {
+    const result = await downloadShiftDocument(tenant.id, shiftId, documentId, user.uid);
+
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to generate download URL';
+
+    if (message === 'Document not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message === 'Document does not belong to this shift') {
+      res.status(409).json({ error: message, code: 'INVALID_SHIFT' });
+      return;
+    }
+    if (message.includes('Only crew leader')) {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+
+    console.error('Error in GET /shift-pool/shifts/:shiftId/documents/:documentId/download:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * DELETE /api/shift-pool/shifts/:shiftId/documents/:documentId
+ * Löscht ein Dokument.
+ */
+router.delete('/shifts/:shiftId/documents/:documentId', ...shiftPoolGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const { shiftId, documentId } = req.params;
+
+  try {
+    await deleteShiftDocument(tenant.id, shiftId, documentId, user.uid);
+
+    res.json({
+      success: true,
+      message: 'Document deleted successfully',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete document';
+
+    if (message === 'Document not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message === 'Document does not belong to this shift') {
+      res.status(409).json({ error: message, code: 'INVALID_SHIFT' });
+      return;
+    }
+    if (message.includes('Only crew leader')) {
+      res.status(403).json({ error: message, code: 'FORBIDDEN' });
+      return;
+    }
+
+    console.error('Error in DELETE /shift-pool/shifts/:shiftId/documents/:documentId:', error);
     res.status(500).json({ error: message });
   }
 });

@@ -10,6 +10,7 @@
 import { type ReactNode, useCallback, useState, useMemo } from 'react';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
+import { useDevStaffCheck } from '../../modules/support/hooks';
 import { NotificationBell } from '../../modules/notifications';
 import { MiniCalendar } from './MiniCalendar';
 import { useSidebarCalendar } from './useSidebarCalendar';
@@ -24,7 +25,8 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isSuperAdmin = false }: AppLayoutProps) {
   const { user, signOut } = useAuth();
-  const { tenant, role, hasEntitlement } = useTenant();
+  const { tenant, role, hasEntitlement, isFreelancer } = useTenant();
+  const { isDevStaff } = useDevStaffCheck();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -38,8 +40,8 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
   const hasReportsAccess = hasEntitlement('module.reports');
   
   const { events: calendarEvents, loading: calendarLoading } = useSidebarCalendar({
-    role: role ?? 'employee',
-    includeShifts: hasShiftPoolAccess,
+    role: isFreelancer ? 'freelancer' : (role ?? 'employee'),
+    includeShifts: isFreelancer ? true : hasShiftPoolAccess,
     includeTimeEntries: hasTimeTrackingAccess,
   });
 
@@ -87,8 +89,17 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
     }
   }, [onNavigate, isAdminOrManager]);
 
-  // Navigation Items
-  const navItems = [
+  // Navigation Items - Dev-Mitarbeiter, Freelancer oder normale Mitarbeiter
+  const navItems = isDevStaff ? [
+    { id: 'support', label: 'Verifizierungen', icon: '🛠️', enabled: true },
+    { id: 'dev-staff-admin', label: 'Dev-Mitarbeiter', icon: '👥', enabled: isSuperAdmin },
+    { id: 'dev-dashboard', label: 'Developer', icon: '🔐', enabled: isSuperAdmin },
+  ] : isFreelancer ? [
+    { id: 'freelancer-dashboard', label: 'Dashboard', icon: '📊', enabled: true },
+    { id: 'calendar', label: 'Kalender', icon: '📅', enabled: true },
+    { id: 'freelancer-my-shifts', label: 'Meine Schichten', icon: '✅', enabled: true },
+    { id: 'freelancer-pool', label: 'Schicht-Pool', icon: '🔍', enabled: true },
+  ] : [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', enabled: true },
     { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },
     { id: 'calendar', label: 'Kalender', icon: '📅', enabled: true },
@@ -102,6 +113,35 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
 
   // Sinnvolle Quick-Filter für alle Nutzer
   const quickFilters = useMemo(() => {
+    if (isFreelancer) {
+      // Freelancer-spezifische Quick-Filter
+      const filters = [
+        { 
+          id: 'freelancer-my-shifts-today', 
+          label: 'Heute', 
+          icon: '📅',
+          page: 'freelancer-my-shifts',
+          enabled: true,
+        },
+        { 
+          id: 'freelancer-my-shifts-week', 
+          label: 'Diese Woche', 
+          icon: '📆',
+          page: 'freelancer-my-shifts',
+          enabled: true,
+        },
+        { 
+          id: 'freelancer-pool', 
+          label: 'Schicht-Pool', 
+          icon: '🔍',
+          page: 'freelancer-pool',
+          enabled: true,
+        },
+      ];
+      return filters.filter(f => f.enabled);
+    }
+    
+    // Normale Mitarbeiter Quick-Filter
     const filters = [
       { 
         id: 'my-shifts-today', 
@@ -134,7 +174,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
     ];
     
     return filters.filter(f => f.enabled);
-  }, [hasShiftPoolAccess, hasTimeTrackingAccess]);
+  }, [isFreelancer, hasShiftPoolAccess, hasTimeTrackingAccess]);
 
   return (
     <div className={styles.layout}>
@@ -177,8 +217,8 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
             />
           </div>
 
-          {/* Mitarbeiter-Suche - nur für Admin/Manager */}
-          {isAdminOrManager && (
+          {/* Mitarbeiter-Suche - nur für Admin/Manager (nicht für Freelancer) */}
+          {!isFreelancer && isAdminOrManager && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>MITARBEITER</div>
               <div className={styles.searchBox}>
@@ -216,15 +256,15 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
 
         {/* Sidebar Footer */}
         <div className={styles.sidebarFooter}>
-          {tenant && (
+          {tenant ? (
             <div className={styles.tenantInfo}>
-              <span className={styles.tenantIcon}>🏢</span>
+              <span className={styles.tenantIcon}>{isFreelancer ? '🎯' : '🏢'}</span>
               <div className={styles.tenantDetails}>
                 <span className={styles.tenantName}>{tenant.name}</span>
                 {role && <span className={styles.tenantRole}>{role}</span>}
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </aside>
 

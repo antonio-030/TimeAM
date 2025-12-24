@@ -7,7 +7,8 @@ import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
-import { initializeFirebaseAdmin } from './core/firebase';
+import { initializeFirebaseAdmin, getAdminFirestore } from './core/firebase';
+import { FieldValue } from 'firebase-admin/firestore';
 import { requireAuth, type AuthenticatedRequest } from './core/auth';
 import { getTenantForUser, createTenant } from './core/tenancy';
 import { timeTrackingRouter } from './modules/time-tracking';
@@ -18,6 +19,8 @@ import { notificationsRouter } from './modules/notifications';
 import { settingsRouter } from './modules/settings';
 import { adminRouter } from './modules/admin';
 import { reportsRouter } from './modules/reports';
+import { freelancerRouter } from './modules/freelancer';
+import { supportRouter } from './modules/support';
 
 // Firebase Admin initialisieren
 initializeFirebaseAdmin();
@@ -63,7 +66,9 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
-app.use(express.json());
+// Body-Parser für JSON (erhöhtes Limit für größere Payloads)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Request Logging (Development)
 app.use((req, _res, next) => {
@@ -110,8 +115,114 @@ app.get('/api', (_req, res) => {
 app.get('/api/me', requireAuth, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
 
-  try {
-    // Tenant-Daten laden
+    try {
+      // Prüfen ob User ein Freelancer oder Dev-Mitarbeiter ist
+      const db = getAdminFirestore();
+      const userDoc = await db.collection('users').doc(user.uid).get();
+      const userData = userDoc.data();
+      const isFreelancer = userData?.isFreelancer === true;
+
+      // Prüfen ob User ein Dev-Mitarbeiter ist (inkl. Super-Admins)
+      const { isDevStaff, ensureDevStaffForSuperAdmin } = await import('./modules/support/service');
+      
+      // Super-Admins automatisch als Dev-Staff registrieren (falls nicht vorhanden)
+      await ensureDevStaffForSuperAdmin(user.uid, user.email || '');
+      
+      const isDev = await isDevStaff(user.uid);
+
+      // Wenn Dev-Mitarbeiter, Dev-Tenant-Daten laden
+      if (isDev) {
+        const { getTenantForUser } = await import('./core/tenancy');
+        const tenantData = await getTenantForUser(user.uid);
+        
+        if (tenantData) {
+          res.json({
+            uid: user.uid,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            isDevStaff: true,
+            needsOnboarding: false,
+            tenant: {
+              id: tenantData.tenant.id,
+              name: tenantData.tenant.name,
+            },
+            role: tenantData.member.role,
+            entitlements: tenantData.entitlements,
+          });
+        } else {
+          // Dev-Tenant erstellen falls nicht vorhanden
+          const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service');
+          const tenantId = await getOrCreateDevTenant(user.uid);
+          await assignDevStaffToTenant(user.uid, user.email || '');
+          
+          // Nochmal laden
+          const newTenantData = await getTenantForUser(user.uid);
+          if (newTenantData) {
+            res.json({
+              uid: user.uid,
+              email: user.email,
+              emailVerified: user.emailVerified,
+              isDevStaff: true,
+              needsOnboarding: false,
+              tenant: {
+                id: newTenantData.tenant.id,
+                name: newTenantData.tenant.name,
+              },
+              role: newTenantData.member.role,
+              entitlements: newTenantData.entitlements,
+            });
+          } else {
+            res.json({
+              uid: user.uid,
+              email: user.email,
+              emailVerified: user.emailVerified,
+              isDevStaff: true,
+              needsOnboarding: true,
+              entitlements: {},
+            });
+          }
+        }
+        return;
+      }
+
+      // Wenn Freelancer, Tenant-Daten laden (Freelancer haben auch einen Tenant)
+      if (isFreelancer) {
+        const { getFreelancerEntitlements } = await import('./core/tenancy');
+        const { getTenantForUser } = await import('./core/tenancy');
+        
+        // Tenant-Daten laden (Freelancer haben einen eigenen Tenant)
+        const tenantData = await getTenantForUser(user.uid);
+        const entitlements = await getFreelancerEntitlements(user.uid);
+        
+        if (tenantData) {
+          res.json({
+            uid: user.uid,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            isFreelancer: true,
+            needsOnboarding: false,
+            tenant: {
+              id: tenantData.tenant.id,
+              name: tenantData.tenant.name,
+            },
+            role: tenantData.member.role,
+            entitlements,
+          });
+        } else {
+          // Kein Tenant gefunden → Onboarding nötig (für bestehende Freelancer ohne Tenant)
+          res.json({
+            uid: user.uid,
+            email: user.email,
+            emailVerified: user.emailVerified,
+            isFreelancer: true,
+            needsOnboarding: true, // Freelancer braucht Tenant-Erstellung
+            entitlements: {},
+          });
+        }
+        return;
+      }
+
+    // Tenant-Daten laden (nur für normale User)
     const tenantData = await getTenantForUser(user.uid);
 
     if (!tenantData) {
@@ -121,6 +232,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
         email: user.email,
         emailVerified: user.emailVerified,
         needsOnboarding: true,
+        isFreelancer: false,
       });
       return;
     }
@@ -131,6 +243,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
       email: user.email,
       emailVerified: user.emailVerified,
       needsOnboarding: false,
+      isFreelancer: false,
       tenant: {
         id: tenantData.tenant.id,
         name: tenantData.tenant.name,
@@ -173,6 +286,12 @@ app.post('/api/onboarding/create-tenant', requireAuth, async (req, res) => {
       return;
     }
 
+    // Prüfen ob User ein Freelancer ist
+    const db = getAdminFirestore();
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    const userData = userDoc.data();
+    const isFreelancer = userData?.isFreelancer === true;
+
     // Tenant erstellen
     const { tenantId, entitlements } = await createTenant(
       user.uid,
@@ -181,6 +300,21 @@ app.post('/api/onboarding/create-tenant', requireAuth, async (req, res) => {
     );
 
     console.log(`✅ Tenant created: ${tenantId} by ${user.uid}`);
+
+    // Wenn Freelancer: Freelancer-Dokument aktualisieren
+    if (isFreelancer) {
+      const freelancerRef = db.collection('freelancers').doc(user.uid);
+      const freelancerDoc = await freelancerRef.get();
+      
+      if (freelancerDoc.exists) {
+        await freelancerRef.update({
+          companyName: tenantName.trim(),
+          tenantId: tenantId,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        console.log(`✅ Updated freelancer document with tenant ${tenantId}`);
+      }
+    }
 
     res.status(201).json({
       tenant: {
@@ -224,6 +358,12 @@ app.use('/api/admin', adminRouter);
 // Reports & Analytics Module
 app.use('/api/reports', reportsRouter);
 
+// Freelancer Module
+app.use('/api/freelancer', freelancerRouter);
+
+// Support Module (Dev-Mitarbeiter)
+app.use('/api', supportRouter);
+
 // =============================================================================
 // 404 Handler
 // =============================================================================
@@ -250,6 +390,7 @@ app.listen(PORT, () => {
 ⚙️ Settings: http://localhost:${PORT}/api/settings/* (tenant-admin)
 🔐 Admin:  http://localhost:${PORT}/api/admin/* (super-admin only)
 📈 Reports: http://localhost:${PORT}/api/reports/* (auth + entitlement)
+👨‍💼 Freelancer: http://localhost:${PORT}/api/freelancer/* (public register, auth for me)
 🌐 CORS:   localhost:5173-5175, localhost:3000
   `);
 });

@@ -35,6 +35,11 @@ export interface MemberDoc {
   hourlyRate?: number;
   skills?: string[];
   notes?: string;
+  // Security-spezifische Qualifikationen
+  hasSachkunde?: boolean;
+  hasFuehrerschein?: boolean;
+  hasUnterweisung?: boolean;
+  securityQualifications?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
   invitedByUid?: string;

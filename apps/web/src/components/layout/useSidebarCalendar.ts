@@ -10,10 +10,11 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getMyShifts, getAdminShifts, type MyShift, type AdminShift } from '../../modules/shift-pool/api';
+import { getFreelancerShifts, type FreelancerShift } from '../../modules/freelancer/api';
 import { getEntries, type TimeEntry } from '../../modules/time-tracking/api';
 import type { CalendarDayEvent } from './MiniCalendar';
 
-type UserRole = 'admin' | 'manager' | 'employee' | null;
+type UserRole = 'admin' | 'manager' | 'employee' | 'freelancer' | null;
 
 interface UseSidebarCalendarOptions {
   /** Benutzer-Rolle für rollenbasierte Ansicht */
@@ -70,6 +71,32 @@ function myShiftsToEvents(shifts: MyShift[]): Record<string, CalendarDayEvent[]>
     events[dateKey].push({
       id: shift.id,
       title: shift.title,
+      type: 'shift',
+      time: `${startTime} - ${endTime}`,
+    });
+  }
+
+  return events;
+}
+
+/**
+ * Konvertiert Freelancer-Schichten zu Kalender-Events.
+ */
+function freelancerShiftsToEvents(shifts: FreelancerShift[]): Record<string, CalendarDayEvent[]> {
+  const events: Record<string, CalendarDayEvent[]> = {};
+
+  for (const shift of shifts) {
+    const dateKey = formatDateKey(new Date(shift.startsAt));
+    const startTime = formatTime(shift.startsAt);
+    const endTime = formatTime(shift.endsAt);
+
+    if (!events[dateKey]) {
+      events[dateKey] = [];
+    }
+
+    events[dateKey].push({
+      id: shift.id,
+      title: `${shift.title} (${shift.tenantName})`,
       type: 'shift',
       time: `${startTime} - ${endTime}`,
     });
@@ -193,9 +220,11 @@ export function useSidebarCalendar(
   } = options;
   
   const isAdminOrManager = role === 'admin' || role === 'manager';
+  const isFreelancer = role === 'freelancer';
   
   const [myShifts, setMyShifts] = useState<MyShift[]>([]);
   const [adminShifts, setAdminShifts] = useState<AdminShift[]>([]);
+  const [freelancerShifts, setFreelancerShifts] = useState<FreelancerShift[]>([]);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -208,7 +237,14 @@ export function useSidebarCalendar(
       const promises: Promise<void>[] = [];
 
       if (includeShifts) {
-        if (isAdminOrManager) {
+        if (isFreelancer) {
+          // Freelancer: Nur eigene angenommene Schichten
+          promises.push(
+            getFreelancerShifts(true)
+              .then((res) => setFreelancerShifts(res.shifts))
+              .catch(() => setFreelancerShifts([]))
+          );
+        } else if (isAdminOrManager) {
           // Admin/Manager: Alle Schichten laden
           promises.push(
             getAdminShifts()
@@ -225,7 +261,8 @@ export function useSidebarCalendar(
         }
       }
 
-      if (includeTimeEntries) {
+      if (includeTimeEntries && !isFreelancer) {
+        // Freelancer haben keine Zeiterfassung
         promises.push(
           getEntries(100)
             .then((res) => setTimeEntries(res.entries))
@@ -240,7 +277,7 @@ export function useSidebarCalendar(
     } finally {
       setLoading(false);
     }
-  }, [includeShifts, includeTimeEntries, isAdminOrManager]);
+  }, [includeShifts, includeTimeEntries, isAdminOrManager, isFreelancer]);
 
   useEffect(() => {
     fetchData();
@@ -251,7 +288,10 @@ export function useSidebarCalendar(
     let shiftEvents: Record<string, CalendarDayEvent[]> = {};
     
     if (includeShifts) {
-      if (isAdminOrManager) {
+      if (isFreelancer) {
+        // Freelancer sehen nur eigene angenommene Schichten
+        shiftEvents = freelancerShiftsToEvents(freelancerShifts);
+      } else if (isAdminOrManager) {
         // Admin/Manager sehen alle vergebenen Schichten
         shiftEvents = adminShiftsToEvents(adminShifts);
       } else {
@@ -260,9 +300,9 @@ export function useSidebarCalendar(
       }
     }
     
-    const timeEvents = includeTimeEntries ? timeEntriesToEvents(timeEntries) : {};
+    const timeEvents = includeTimeEntries && !isFreelancer ? timeEntriesToEvents(timeEntries) : {};
     return mergeEvents(shiftEvents, timeEvents);
-  }, [myShifts, adminShifts, timeEntries, includeShifts, includeTimeEntries, isAdminOrManager]);
+  }, [myShifts, adminShifts, freelancerShifts, timeEntries, includeShifts, includeTimeEntries, isAdminOrManager, isFreelancer]);
 
   return {
     events,

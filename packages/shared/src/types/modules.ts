@@ -83,6 +83,14 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     icon: '🔔',
     category: MODULE_CATEGORY.CORE,
   },
+
+  'support': {
+    id: 'support',
+    displayName: 'Support',
+    description: 'Verifizierungen prüfen und verwalten',
+    icon: '🛠️',
+    category: MODULE_CATEGORY.CORE,
+  },
   
   // ===========================================================================
   // OPTIONAL MODULES - Können pro Tenant aktiviert/deaktiviert werden
@@ -113,6 +121,46 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     icon: '📈',
     category: MODULE_CATEGORY.OPTIONAL,
     entitlementKey: 'module.reports',
+  },
+
+  // ===========================================================================
+  // FREELANCER MODULES - Für Freelancer-Accounts
+  // ===========================================================================
+
+  'freelancer-dashboard': {
+    id: 'freelancer-dashboard',
+    displayName: 'Dashboard',
+    description: 'Übersicht für Freelancer mit Bewerbungen und Statistiken',
+    icon: '📊',
+    category: MODULE_CATEGORY.CORE,
+  },
+
+  'freelancer-calendar': {
+    id: 'freelancer-calendar',
+    displayName: 'Kalender',
+    description: 'Kalender für Freelancer-Schichten und Termine',
+    icon: '📅',
+    category: MODULE_CATEGORY.CORE,
+    dependencies: ['calendar-core'],
+  },
+
+  'freelancer-my-shifts': {
+    id: 'freelancer-my-shifts',
+    displayName: 'Meine Schichten',
+    description: 'Übersicht aller angenommenen Schichten',
+    icon: '✅',
+    category: MODULE_CATEGORY.CORE,
+  },
+
+  'freelancer-pool': {
+    id: 'freelancer-pool',
+    displayName: 'Security Freelancer Pool',
+    description: 'Freelancer-Pool für Sicherheitsfirmen - Öffentliche Schichten ausschreiben und Freelancer-Bewerbungen prüfen',
+    icon: '🔒',
+    category: MODULE_CATEGORY.CORE,
+    // Nur für Security-Firmen verfügbar
+    requiredEntitlements: ['module.shift_pool'],
+    tags: ['security', 'freelancer'],
   },
 } as const;
 

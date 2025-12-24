@@ -28,12 +28,31 @@ VITE_FIREBASE_MEASUREMENT_ID=G-XXXXXXX
 
 # Optional: API Base URL (falls nicht gleicher Origin)
 VITE_API_BASE_URL=http://localhost:3000
+
+# Google Maps API Key (für Adress-Autocomplete und Karten)
+# Erstelle einen API Key in der Google Cloud Console:
+# https://console.cloud.google.com/google/maps-apis/credentials
+# Aktiviere: "Maps JavaScript API" und "Places API"
+VITE_GOOGLE_MAPS_API_KEY=AIza...
 ```
 
 ### Woher kommen die Werte?
+
+**Firebase Config:**
 1. Firebase Console → Project Settings → General
 2. Unter "Your apps" → Web App auswählen
 3. Firebase SDK snippet → Config kopieren
+
+**Google Maps API Key:**
+1. Google Cloud Console → https://console.cloud.google.com/
+2. Projekt auswählen (oder neues erstellen)
+3. APIs & Services → Credentials
+4. "Create Credentials" → "API Key"
+5. API Key erstellen und kopieren
+6. APIs aktivieren:
+   - Maps JavaScript API
+   - Places API
+7. Optional: API Key einschränken (HTTP referrers für Web-Anwendung)
 
 ### Warum sind diese Werte öffentlich?
 - Sie sind nur Identifikatoren, keine Zugriffsschlüssel

@@ -2,7 +2,7 @@
  * TimeAM Web – Root App Component
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AuthProvider, useAuth } from './core/auth';
 import { TenantProvider, useTenant } from './core/tenant';
 import { ConsentProvider } from './core/consent';
@@ -20,18 +20,56 @@ import { MembersPage } from './modules/members';
 import { CalendarPage } from './modules/calendar-core';
 import { AdminDashboard, useSuperAdminCheck } from './modules/admin';
 import { ReportsPage } from './modules/reports';
+import { SupportDashboard, DevStaffAdminPage, useDevStaffCheck } from './modules/support';
+import { FreelancerPoolPage } from './modules/freelancer/FreelancerPoolPage';
+import { FreelancerLoginForm } from './modules/freelancer/FreelancerLoginForm';
+import { FreelancerRegisterForm } from './modules/freelancer/FreelancerRegisterForm';
+import { FreelancerDashboard } from './modules/freelancer/FreelancerDashboard';
+import { FreelancerDashboardPage } from './modules/freelancer/FreelancerDashboardPage';
+import { FreelancerMyShiftsPage } from './modules/freelancer/FreelancerMyShiftsPage';
 import styles from './App.module.css';
 
-type Page = 'dashboard' | 'time-tracking' | 'calendar' | 'shifts' | 'my-shifts' | 'admin-shifts' | 'members' | 'reports' | 'dev-dashboard';
+type Page = 'dashboard' | 'time-tracking' | 'calendar' | 'shifts' | 'my-shifts' | 'admin-shifts' | 'members' | 'reports' | 'dev-dashboard' | 'support' | 'dev-staff-admin' | 'freelancer-dashboard' | 'freelancer-my-shifts' | 'freelancer-pool';
 type LegalPage = 'privacy' | 'imprint' | null;
 
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
-  const { needsOnboarding, loading: tenantLoading, hasEntitlement, role } = useTenant();
+  const { needsOnboarding, isFreelancer, loading: tenantLoading, hasEntitlement, role } = useTenant();
   const { isSuperAdmin } = useSuperAdminCheck();
-  const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  const { isDevStaff } = useDevStaffCheck();
+  
+  // Initial page basierend auf User-Typ
+  const getInitialPage = (): Page => {
+    if (isDevStaff) {
+      return 'support';
+    }
+    if (isFreelancer) {
+      return 'freelancer-dashboard';
+    }
+    return 'dashboard';
+  };
+  
+  const [currentPage, setCurrentPage] = useState<Page>(getInitialPage());
+  
+  // Update page wenn isFreelancer oder isDevStaff sich ändert
+  useEffect(() => {
+    if (!tenantLoading) {
+      setCurrentPage(getInitialPage());
+    }
+  }, [isFreelancer, isDevStaff, tenantLoading]);
   const [showLanding, setShowLanding] = useState(true);
   const [legalPage, setLegalPage] = useState<LegalPage>(null);
+  const [showFreelancerPool, setShowFreelancerPool] = useState(false);
+  const [showFreelancerLogin, setShowFreelancerLogin] = useState(false);
+  const [showFreelancerRegister, setShowFreelancerRegister] = useState(false);
+
+  // Prüfe URL-Parameter für Freelancer Pool
+  useEffect(() => {
+    if (window.location.pathname === '/freelancer-pool' || window.location.pathname.includes('freelancer-pool')) {
+      setShowFreelancerPool(true);
+      setShowLanding(false);
+    }
+  }, []);
 
   // Prüfung auf Admin oder Manager Rolle
   const isAdminOrManager = role === 'admin' || role === 'manager';
@@ -59,15 +97,68 @@ function AppContent() {
     );
   }
 
-  // Nicht eingeloggt → Landing Page oder Login-Screen
+  // Nicht eingeloggt → Landing Page, Freelancer Pool, Freelancer Login/Register oder Login-Screen
   if (!user) {
+    if (showFreelancerRegister) {
+      return (
+        <>
+          <FreelancerRegisterForm
+            onSuccess={() => {
+              setShowFreelancerRegister(false);
+              setShowFreelancerPool(true);
+            }}
+            onCancel={() => {
+              setShowFreelancerRegister(false);
+              setShowFreelancerLogin(true);
+            }}
+          />
+          <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
+        </>
+      );
+    }
+    if (showFreelancerLogin) {
+      return (
+        <>
+          <FreelancerLoginForm
+            onSuccess={() => {
+              setShowFreelancerLogin(false);
+              setShowFreelancerPool(true);
+            }}
+            onRegisterClick={() => {
+              setShowFreelancerLogin(false);
+              setShowFreelancerRegister(true);
+            }}
+          />
+          <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
+        </>
+      );
+    }
+    if (showFreelancerPool) {
+      return (
+        <>
+          <FreelancerPoolPage 
+            onLoginClick={() => {
+              setShowFreelancerPool(false);
+              setShowFreelancerLogin(true);
+            }}
+            onPrivacyClick={() => setLegalPage('privacy')}
+            onImprintClick={() => setLegalPage('imprint')}
+          />
+          <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
+        </>
+      );
+    }
     if (showLanding) {
       return (
         <>
-          <LandingPage 
+          <LandingPage
             onGetStarted={() => setShowLanding(false)}
             onPrivacyClick={() => setLegalPage('privacy')}
             onImprintClick={() => setLegalPage('imprint')}
+            onFreelancerPoolClick={() => {
+              setShowFreelancerPool(true);
+              setShowLanding(false);
+            }}
           />
           <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
         </>
@@ -93,13 +184,40 @@ function AppContent() {
     );
   }
 
-  // User braucht Onboarding → Tenant erstellen
+  // User braucht Onboarding → Tenant erstellen (auch für Freelancer)
   if (needsOnboarding) {
     return <CreateTenantForm />;
   }
 
   // Entitlement- und Rollen-geprüfte Navigation
   const handleNavigate = (page: string) => {
+    // Freelancer-Navigation
+    if (isFreelancer) {
+      // Freelancer-Dashboard ist immer verfügbar
+      if (page === 'freelancer-dashboard') {
+        setCurrentPage('freelancer-dashboard');
+        return;
+      }
+      // Kalender ist Core-Modul, immer verfügbar
+      if (page === 'calendar') {
+        setCurrentPage('calendar');
+        return;
+      }
+      // Freelancer "Meine Schichten" - Core-Modul, immer verfügbar
+      if (page === 'freelancer-my-shifts') {
+        setCurrentPage('freelancer-my-shifts');
+        return;
+      }
+      // Freelancer-Pool - Core-Modul, immer verfügbar
+      if (page === 'freelancer-pool') {
+        setCurrentPage('freelancer-pool');
+        return;
+      }
+      // Andere Seiten nicht für Freelancer
+      return;
+    }
+
+    // Normale Mitarbeiter-Navigation
     // Prüfe Entitlements für geschützte Seiten
     if (page === 'time-tracking' && !hasEntitlement('module.time_tracking')) {
       return;
@@ -125,6 +243,14 @@ function AppContent() {
     }
     // Developer Dashboard nur für Super-Admins
     if (page === 'dev-dashboard' && !isSuperAdmin) {
+      return;
+    }
+    // Support nur für Dev-Mitarbeiter
+    if (page === 'support' && !isDevStaff) {
+      return;
+    }
+    // Dev-Mitarbeiter Verwaltung nur für Super-Admins
+    if (page === 'dev-staff-admin' && !isSuperAdmin) {
       return;
     }
     setCurrentPage(page as Page);
@@ -217,8 +343,57 @@ function AppContent() {
           </div>
         );
 
+      case 'support':
+        return isDevStaff ? (
+          <SupportDashboard />
+        ) : (
+          <div className={styles.noAccess}>
+            <span>🔒</span>
+            <p>Kein Zugriff auf Support</p>
+          </div>
+        );
+
+      case 'dev-staff-admin':
+        return isSuperAdmin ? (
+          <DevStaffAdminPage />
+        ) : (
+          <div className={styles.noAccess}>
+            <span>🔒</span>
+            <p>Kein Zugriff auf Dev-Mitarbeiter Verwaltung</p>
+          </div>
+        );
+
+      case 'freelancer-dashboard':
+        return (
+          <ModuleBoundary moduleId="freelancer-dashboard" moduleName="Freelancer Dashboard">
+            <FreelancerDashboardPage onNavigate={handleNavigate} />
+          </ModuleBoundary>
+        );
+
+      case 'freelancer-my-shifts':
+        return (
+          <ModuleBoundary moduleId="freelancer-my-shifts" moduleName="Meine Schichten">
+            <FreelancerMyShiftsPage />
+          </ModuleBoundary>
+        );
+
+      case 'freelancer-pool':
+        return (
+          <ModuleBoundary moduleId="freelancer-pool" moduleName="Schicht-Pool">
+            <FreelancerPoolPage />
+          </ModuleBoundary>
+        );
+
       case 'dashboard':
       default:
+        // Für Freelancer: Standard-Dashboard ist Freelancer-Dashboard
+        if (isFreelancer) {
+          return (
+            <ModuleBoundary moduleId="freelancer-dashboard" moduleName="Freelancer Dashboard">
+              <FreelancerDashboardPage onNavigate={handleNavigate} />
+            </ModuleBoundary>
+          );
+        }
         return <DashboardPage onNavigate={handleNavigate} />;
     }
   };

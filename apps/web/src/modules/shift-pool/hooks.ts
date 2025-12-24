@@ -21,9 +21,21 @@ import {
   rejectApplication as apiRejectApplication,
   revokeApplication as apiRevokeApplication,
   getMyShifts,
+  getShiftTimeEntries,
+  createShiftTimeEntry as apiCreateShiftTimeEntry,
+  updateShiftTimeEntry as apiUpdateShiftTimeEntry,
+  getShiftDocuments,
+  uploadShiftDocument as apiUploadShiftDocument,
+  downloadShiftDocument as apiDownloadShiftDocument,
   type MyShift,
 } from './api';
-import type { CreateShiftRequest } from '@timeam/shared';
+import type {
+  CreateShiftRequest,
+  ShiftTimeEntry,
+  CreateShiftTimeEntryRequest,
+  UpdateShiftTimeEntryRequest,
+  ShiftDocument,
+} from '@timeam/shared';
 
 // =============================================================================
 // User Hooks
@@ -500,5 +512,181 @@ export function useShiftAssignments(shiftId: string | null) {
     refresh,
     assignMember,
     removeAssignment,
+  };
+}
+
+// =============================================================================
+// Shift Time Entries Hooks
+// =============================================================================
+
+/**
+ * Hook für Zeiteinträge einer Schicht.
+ */
+export function useShiftTimeEntries(shiftId: string | null) {
+  const [entries, setEntries] = useState<ShiftTimeEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shiftId) {
+      setEntries([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await getShiftTimeEntries(shiftId);
+      setEntries(data.entries);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+    } finally {
+      setLoading(false);
+    }
+  }, [shiftId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const createEntry = useCallback(
+    async (data: CreateShiftTimeEntryRequest) => {
+      if (!shiftId) return;
+      setError(null);
+
+      try {
+        await apiCreateShiftTimeEntry(shiftId, data);
+        await refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Erstellen';
+        setError(message);
+        throw err;
+      }
+    },
+    [shiftId, refresh]
+  );
+
+  const updateEntry = useCallback(
+    async (entryId: string, data: UpdateShiftTimeEntryRequest) => {
+      if (!shiftId) return;
+      setError(null);
+
+      try {
+        await apiUpdateShiftTimeEntry(shiftId, entryId, data);
+        await refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Aktualisieren';
+        setError(message);
+        throw err;
+      }
+    },
+    [shiftId, refresh]
+  );
+
+  return {
+    entries,
+    loading,
+    error,
+    refresh,
+    createEntry,
+    updateEntry,
+  };
+}
+
+// =============================================================================
+// Shift Documents Hooks
+// =============================================================================
+
+/**
+ * Hook für Dokumente einer Schicht.
+ */
+export function useShiftDocuments(shiftId: string | null) {
+  const [documents, setDocuments] = useState<ShiftDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    if (!shiftId) {
+      setDocuments([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await getShiftDocuments(shiftId);
+      setDocuments(data.documents);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+    } finally {
+      setLoading(false);
+    }
+  }, [shiftId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const uploadDocument = useCallback(
+    async (file: File) => {
+      if (!shiftId) return;
+      setError(null);
+
+      try {
+        await apiUploadShiftDocument(shiftId, file);
+        await refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Hochladen';
+        setError(message);
+        throw err;
+      }
+    },
+    [shiftId, refresh]
+  );
+
+  const downloadDocument = useCallback(
+    async (documentId: string) => {
+      if (!shiftId) return;
+
+      try {
+        const result = await apiDownloadShiftDocument(shiftId, documentId);
+        window.open(result.downloadUrl, '_blank');
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Download';
+        throw new Error(message);
+      }
+    },
+    [shiftId]
+  );
+
+  const deleteDocument = useCallback(
+    async (documentId: string) => {
+      if (!shiftId) return;
+      setError(null);
+
+      try {
+        await apiDeleteShiftDocument(shiftId, documentId);
+        await refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Löschen';
+        setError(message);
+        throw err;
+      }
+    },
+    [shiftId, refresh]
+  );
+
+  return {
+    documents,
+    loading,
+    error,
+    refresh,
+    uploadDocument,
+    downloadDocument,
+    deleteDocument,
   };
 }

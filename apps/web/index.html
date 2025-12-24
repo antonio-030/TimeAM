@@ -9,6 +9,24 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Google Places API Script wird dynamisch geladen, wenn benötigt
+      window.loadGooglePlacesScript = function(apiKey) {
+        if (document.querySelector('script[src*="maps.googleapis.com"]')) {
+          return Promise.resolve();
+        }
+        return new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          // loading=async Parameter hinzufügen für bessere Performance
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&language=de&loading=async`;
+          script.async = true;
+          script.defer = true;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error('Failed to load Google Places API'));
+          document.head.appendChild(script);
+        });
+      };
+    </script>
   </body>
 </html>
 

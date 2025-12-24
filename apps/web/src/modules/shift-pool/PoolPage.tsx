@@ -1,13 +1,14 @@
 /**
- * Pool Page
+ * Public Freelancer Pool Page
  *
- * Liste der verfügbaren Schichten für User.
- * Optimierte, moderne Ansicht.
+ * Öffentliche Seite für die Suche nach verfügbaren Schichten.
+ * Modern gestaltet mit Landing Page Design.
  */
 
 import { useState, useMemo } from 'react';
 import { usePool, useShiftDetail } from './hooks';
 import { APPLICATION_STATUS, type PoolShift, type ApplicationStatus } from '@timeam/shared';
+import { openAddressInMaps } from './mapsUtils';
 import styles from './ShiftPool.module.css';
 
 // =============================================================================
@@ -307,7 +308,25 @@ function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                 <span className={styles.quickInfoIcon}>📍</span>
                 <div>
                   <div className={styles.quickInfoLabel}>Ort</div>
-                  <div className={styles.quickInfoValue}>{shift.location.name}</div>
+                  <div className={styles.quickInfoValue}>
+                    {shift.location.name}
+                    {shift.location.address && (
+                      <span
+                        style={{
+                          display: 'block',
+                          color: 'var(--color-primary)',
+                          marginTop: '4px',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          fontSize: 'var(--font-size-sm)'
+                        }}
+                        onClick={() => openAddressInMaps(shift.location)}
+                        title="In Google Maps öffnen"
+                      >
+                        🗺️ {shift.location.address}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               {shift.payRate && (
@@ -418,7 +437,15 @@ function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
 // Main Component
 // =============================================================================
 
-export function PoolPage() {
+interface PoolPageProps {
+  onLoginClick?: () => void;
+  onPrivacyClick?: () => void;
+  onImprintClick?: () => void;
+}
+
+export function PoolPage({ onLoginClick, onPrivacyClick, onImprintClick }: PoolPageProps = {}) {
+  // Prüfen ob eingeloggt (wenn keine Props übergeben werden, ist man eingeloggt)
+  const isLoggedIn = !onLoginClick && !onPrivacyClick && !onImprintClick;
   const { shifts, loading, error, refresh } = usePool();
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -480,45 +507,85 @@ export function PoolPage() {
   };
 
   return (
-    <div className={styles.poolPage}>
-      {/* Header */}
-      <div className={styles.poolHeader}>
-        <div className={styles.poolHeaderTop}>
-          <h1 className={styles.poolTitle}>Verfügbare Schichten</h1>
-          <button className={styles.refreshBtn} onClick={refresh} title="Aktualisieren">
-            🔄
-          </button>
-        </div>
-        
-        {/* Quick Stats */}
-        {!loading && futureShifts.length > 0 && (
-          <div className={styles.poolStats}>
-            <span className={styles.poolStatItem}>
-              <strong>{stats.available}</strong> verfügbar
-            </span>
-            {stats.applied > 0 && (
-              <>
-                <span className={styles.poolStatDivider}>•</span>
-                <span className={styles.poolStatItem}>
-                  <strong>{stats.applied}</strong> beworben
-                </span>
-              </>
-            )}
-            {stats.accepted > 0 && (
-              <>
-                <span className={styles.poolStatDivider}>•</span>
-                <span className={`${styles.poolStatItem} ${styles.poolStatAccepted}`}>
-                  <strong>{stats.accepted}</strong> eingeteilt
-                </span>
-              </>
-            )}
+    <div className={isLoggedIn ? styles.poolPage : styles.publicPoolPage}>
+      {/* Header nur wenn nicht eingeloggt */}
+      {!isLoggedIn && (
+        <section className={styles.publicShiftsSection} aria-labelledby="shifts-heading">
+          <div className={styles.publicShiftsContainer}>
+            <div className={styles.publicShiftsHeader}>
+              <div className={styles.publicShiftsHeaderLeft}>
+                <h2 id="shifts-heading" className={styles.publicShiftsTitle}>
+                  Verfügbare Schichten
+                </h2>
+                {!loading && futureShifts.length > 0 && (
+                  <div className={styles.compactStats}>
+                    <span className={styles.compactStatItem}>
+                      <strong>{stats.available}</strong> verfügbar
+                    </span>
+                    {stats.applied > 0 && (
+                      <>
+                        <span className={styles.compactStatDivider}>•</span>
+                        <span className={styles.compactStatItem}>
+                          <strong>{stats.applied}</strong> beworben
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                className={styles.publicRefreshBtn}
+                onClick={refresh}
+                aria-label="Schichten aktualisieren"
+                title="Aktualisieren"
+              >
+                🔄
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </section>
+      )}
 
-      {/* Filter Bar */}
-      {!loading && futureShifts.length > 0 && (
-        <div className={styles.poolFilterBar}>
+      {/* Schichten Section */}
+      <section className={isLoggedIn ? styles.poolPageSection : styles.publicShiftsSection} aria-labelledby="shifts-heading">
+        <div className={isLoggedIn ? styles.poolPageContainer : styles.publicShiftsContainer}>
+          {/* Header für eingeloggte Ansicht */}
+          {isLoggedIn && (
+            <div className={styles.poolPageHeader}>
+              <div className={styles.poolPageHeaderLeft}>
+                <h1 id="shifts-heading" className={styles.poolPageTitle}>
+                  Schicht-Pool
+                </h1>
+                {!loading && futureShifts.length > 0 && (
+                  <div className={styles.poolPageStats}>
+                    <span className={styles.poolPageStatItem}>
+                      <strong>{stats.available}</strong> verfügbar
+                    </span>
+                    {stats.applied > 0 && (
+                      <>
+                        <span className={styles.poolPageStatDivider}>•</span>
+                        <span className={styles.poolPageStatItem}>
+                          <strong>{stats.applied}</strong> beworben
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                className={styles.poolPageRefreshBtn}
+                onClick={refresh}
+                aria-label="Schichten aktualisieren"
+                title="Aktualisieren"
+              >
+                🔄
+              </button>
+            </div>
+          )}
+
+          {/* Filter Bar */}
+          {!loading && futureShifts.length > 0 && (
+            <div className={styles.poolFilterBar}>
           <input
             type="text"
             className={styles.poolSearchInput}
@@ -657,6 +724,8 @@ export function PoolPage() {
           }}
         />
       )}
+        </div>
+      </section>
     </div>
   );
 }

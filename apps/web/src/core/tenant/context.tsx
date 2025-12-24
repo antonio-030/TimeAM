@@ -36,6 +36,9 @@ interface TenantContextValue {
   /** User braucht Onboarding (kein Tenant) */
   needsOnboarding: boolean;
 
+  /** User ist Freelancer */
+  isFreelancer: boolean;
+
   /** Aktueller Tenant */
   tenant: { id: string; name: string } | null;
 
@@ -67,6 +70,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [isFreelancer, setIsFreelancer] = useState(false);
   const [tenant, setTenant] = useState<{ id: string; name: string } | null>(null);
   const [role, setRole] = useState<MemberRole | null>(null);
   const [entitlements, setEntitlements] = useState<TenantEntitlements>({});
@@ -82,6 +86,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       setRole(null);
       setEntitlements({});
       setNeedsOnboarding(false);
+      setIsFreelancer(false);
       return;
     }
 
@@ -91,12 +96,21 @@ export function TenantProvider({ children }: TenantProviderProps) {
     try {
       const data = await apiGet<MeResponse>('/api/me');
 
-      if (data.needsOnboarding) {
+      if (data.isFreelancer) {
+        setIsFreelancer(true);
+        setNeedsOnboarding(false);
+        // Freelancer haben auch einen Tenant (ihre eigene Firma)
+        setTenant(data.tenant || null);
+        setRole(data.role || null);
+        setEntitlements(data.entitlements || {});
+      } else if (data.needsOnboarding) {
+        setIsFreelancer(false);
         setNeedsOnboarding(true);
         setTenant(null);
         setRole(null);
         setEntitlements({});
       } else {
+        setIsFreelancer(false);
         setNeedsOnboarding(false);
         setTenant(data.tenant || null);
         setRole(data.role || null);
@@ -148,13 +162,14 @@ export function TenantProvider({ children }: TenantProviderProps) {
     loading,
     error,
     needsOnboarding,
+    isFreelancer,
     tenant,
     role,
     entitlements,
     hasEntitlement,
     createTenant,
     refresh: loadTenantData,
-  }), [loading, error, needsOnboarding, tenant, role, entitlements, hasEntitlement, createTenant, loadTenantData]);
+  }), [loading, error, needsOnboarding, isFreelancer, tenant, role, entitlements, hasEntitlement, createTenant, loadTenantData]);
 
   return (
     <TenantContext.Provider value={value}>

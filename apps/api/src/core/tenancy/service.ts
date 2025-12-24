@@ -218,6 +218,74 @@ export async function getEntitlements(
 }
 
 /**
+ * Lädt alle Entitlements für einen Freelancer.
+ */
+export async function getFreelancerEntitlements(
+  freelancerUid: string
+): Promise<Record<string, boolean | string | number>> {
+  const db = getAdminFirestore();
+  const freelancerRef = db.collection('freelancers').doc(freelancerUid);
+  
+  // Prüfe ob Freelancer existiert
+  const freelancerSnap = await freelancerRef.get();
+  if (!freelancerSnap.exists) {
+    return {};
+  }
+  
+  const entitlementsSnap = await freelancerRef.collection('entitlements').get();
+  const entitlements: Record<string, boolean | string | number> = {};
+  
+  entitlementsSnap.forEach((doc) => {
+    const data = doc.data() as EntitlementDoc;
+    entitlements[data.key] = data.value;
+  });
+  
+  return entitlements;
+}
+
+/**
+ * Setzt ein Entitlement für einen Freelancer.
+ */
+export async function setFreelancerEntitlement(
+  freelancerUid: string,
+  key: string,
+  value: boolean | string | number
+): Promise<void> {
+  const db = getAdminFirestore();
+  const freelancerRef = db.collection('freelancers').doc(freelancerUid);
+  
+  // Prüfe, ob Freelancer existiert
+  const freelancerSnap = await freelancerRef.get();
+  if (!freelancerSnap.exists) {
+    throw new Error(`Freelancer ${freelancerUid} not found`);
+  }
+  
+  // Suche bestehendes Entitlement mit diesem Key
+  const entitlementsSnap = await freelancerRef.collection('entitlements')
+    .where('key', '==', key)
+    .limit(1)
+    .get();
+  
+  if (!entitlementsSnap.empty) {
+    // Update bestehendes Entitlement
+    const docRef = entitlementsSnap.docs[0].ref;
+    await docRef.update({
+      value,
+      grantedAt: FieldValue.serverTimestamp(),
+    });
+    console.log(`✅ Updated entitlement ${key} = ${value} for freelancer ${freelancerUid}`);
+  } else {
+    // Neues Entitlement erstellen
+    await freelancerRef.collection('entitlements').doc().set({
+      key,
+      value,
+      grantedAt: FieldValue.serverTimestamp(),
+    });
+    console.log(`✅ Created entitlement ${key} = ${value} for freelancer ${freelancerUid}`);
+  }
+}
+
+/**
  * Erstellt einen neuen Tenant mit dem User als Admin.
  */
 export async function createTenant(

@@ -2,7 +2,7 @@
  * Shift Pool API Client
  */
 
-import { apiGet, apiPost, apiPut, apiDelete } from '../../core/api';
+import { apiGet, apiPost, apiPut, apiDelete, apiRequest } from '../../core/api';
 import type {
   Shift,
   PoolShift,
@@ -12,6 +12,11 @@ import type {
   CreateShiftRequest,
   ApplyToShiftRequest,
   PoolQueryParams,
+  ShiftTimeEntry,
+  CreateShiftTimeEntryRequest,
+  UpdateShiftTimeEntryRequest,
+  ShiftDocument,
+  ShiftDocumentDownloadResponse,
 } from '@timeam/shared';
 
 // =============================================================================
@@ -192,6 +197,24 @@ export function removeAssignment(assignmentId: string): Promise<{ success: boole
 // =============================================================================
 
 /**
+ * Lädt die öffentliche Pool-Liste (ohne Auth).
+ */
+export function getPublicPool(params: PoolQueryParams = {}): Promise<{
+  shifts: Array<PoolShift & { tenantName: string; tenantId: string }>;
+  count: number;
+}> {
+  const searchParams = new URLSearchParams();
+  if (params.from) searchParams.set('from', params.from);
+  if (params.to) searchParams.set('to', params.to);
+  if (params.location) searchParams.set('location', params.location);
+  if (params.q) searchParams.set('q', params.q);
+
+  const queryString = searchParams.toString();
+  const url = queryString ? `/api/shift-pool/public/pool?${queryString}` : '/api/shift-pool/public/pool';
+  return apiGet<{ shifts: Array<PoolShift & { tenantName: string; tenantId: string }>; count: number }>(url);
+}
+
+/**
  * Lädt die Pool-Liste.
  */
 export function getPool(params: PoolQueryParams = {}): Promise<PoolListResponse> {
@@ -218,6 +241,13 @@ export function getShiftDetail(shiftId: string): Promise<ShiftDetailResponse> {
  */
 export function applyToShift(shiftId: string, data: ApplyToShiftRequest = {}): Promise<ApplicationResponse> {
   return apiPost<ApplicationResponse>(`/api/shift-pool/shifts/${shiftId}/apply`, data);
+}
+
+/**
+ * Bewirbt sich auf eine öffentliche Schicht als Freelancer.
+ */
+export function applyToPublicShift(shiftId: string, data: ApplyToShiftRequest = {}): Promise<ApplicationResponse & { tenantId: string }> {
+  return apiPost<ApplicationResponse & { tenantId: string }>(`/api/shift-pool/public/shifts/${shiftId}/apply`, data);
 }
 
 /**
@@ -252,6 +282,7 @@ export interface MyShift {
   payRate?: number;
   requirements?: string[];
   status: string;
+  crewLeaderUid?: string;
   assignmentId: string;
   assignmentStatus: string;
   colleagues: Array<{ uid: string; displayName: string }>;
@@ -274,4 +305,128 @@ export function getMyShifts(options: { includeCompleted?: boolean } = {}): Promi
   const queryString = params.toString();
   const url = queryString ? `/api/shift-pool/my-shifts?${queryString}` : '/api/shift-pool/my-shifts';
   return apiGet<MyShiftsResponse>(url);
+}
+
+// =============================================================================
+// Shift Completion
+// =============================================================================
+
+/**
+ * Beendet eine Schicht (nur Crew-Leiter).
+ */
+export function completeShift(shiftId: string): Promise<ShiftResponse> {
+  return apiPost<ShiftResponse>(`/api/shift-pool/shifts/${shiftId}/complete`);
+}
+
+// =============================================================================
+// Shift Time Entries
+// =============================================================================
+
+interface ShiftTimeEntriesResponse {
+  entries: ShiftTimeEntry[];
+  count: number;
+}
+
+interface ShiftTimeEntryResponse {
+  entry: ShiftTimeEntry;
+  message?: string;
+}
+
+/**
+ * Lädt alle Zeiteinträge einer Schicht.
+ */
+export function getShiftTimeEntries(shiftId: string): Promise<ShiftTimeEntriesResponse> {
+  return apiGet<ShiftTimeEntriesResponse>(`/api/shift-pool/shifts/${shiftId}/time-entries`);
+}
+
+/**
+ * Erstellt oder aktualisiert einen Zeiteintrag.
+ */
+export function createShiftTimeEntry(
+  shiftId: string,
+  data: CreateShiftTimeEntryRequest
+): Promise<ShiftTimeEntryResponse> {
+  return apiPost<ShiftTimeEntryResponse>(`/api/shift-pool/shifts/${shiftId}/time-entries`, data);
+}
+
+/**
+ * Aktualisiert einen Zeiteintrag.
+ */
+export function updateShiftTimeEntry(
+  shiftId: string,
+  entryId: string,
+  data: UpdateShiftTimeEntryRequest
+): Promise<ShiftTimeEntryResponse> {
+  return apiPut<ShiftTimeEntryResponse>(
+    `/api/shift-pool/shifts/${shiftId}/time-entries/${entryId}`,
+    data
+  );
+}
+
+// =============================================================================
+// Shift Documents
+// =============================================================================
+
+interface ShiftDocumentsResponse {
+  documents: ShiftDocument[];
+  count: number;
+}
+
+interface ShiftDocumentUploadResponse {
+  document: ShiftDocument;
+  message?: string;
+}
+
+/**
+ * Lädt ein Dokument hoch.
+ */
+export async function uploadShiftDocument(
+  shiftId: string,
+  file: File
+): Promise<ShiftDocumentUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return apiRequest<ShiftDocumentUploadResponse>(
+    `/api/shift-pool/shifts/${shiftId}/documents`,
+    {
+      method: 'POST',
+      body: formData,
+      headers: {}, // Kein Content-Type Header, Browser setzt automatisch mit Boundary
+    }
+  );
+}
+
+/**
+ * Lädt alle Dokumente einer Schicht.
+ */
+export function getShiftDocuments(shiftId: string): Promise<ShiftDocumentsResponse> {
+  return apiGet<ShiftDocumentsResponse>(`/api/shift-pool/shifts/${shiftId}/documents`);
+}
+
+/**
+ * Generiert eine Download-URL für ein Dokument.
+ */
+export function downloadShiftDocument(
+  shiftId: string,
+  documentId: string
+): Promise<ShiftDocumentDownloadResponse> {
+  return apiGet<ShiftDocumentDownloadResponse>(
+    `/api/shift-pool/shifts/${shiftId}/documents/${documentId}/download`
+  );
+}
+
+/**
+ * Löscht ein Dokument.
+ */
+export function deleteShiftDocument(
+  shiftId: string,
+  documentId: string
+): Promise<{ success: boolean; message?: string }> {
+  return apiRequest<{ success: boolean; message?: string }>(
+    `/api/shift-pool/shifts/${shiftId}/documents/${documentId}`,
+    {
+      method: 'DELETE',
+    }
+  );
 }

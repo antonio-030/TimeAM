@@ -16,6 +16,7 @@ export const SHIFT_STATUS = {
   PUBLISHED: 'PUBLISHED',
   CLOSED: 'CLOSED',
   CANCELLED: 'CANCELLED',
+  COMPLETED: 'COMPLETED',
 } as const;
 
 export type ShiftStatus = (typeof SHIFT_STATUS)[keyof typeof SHIFT_STATUS];
@@ -52,6 +53,7 @@ export const AUDIT_ACTIONS = {
   SHIFT_PUBLISH: 'SHIFT_PUBLISH',
   SHIFT_CLOSE: 'SHIFT_CLOSE',
   SHIFT_CANCEL: 'SHIFT_CANCEL',
+  SHIFT_COMPLETE: 'SHIFT_COMPLETE',
   APP_CREATE: 'APP_CREATE',
   APP_ACCEPT: 'APP_ACCEPT',
   APP_REJECT: 'APP_REJECT',
@@ -72,6 +74,8 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
 export interface ShiftLocation {
   name: string;
   address?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 // =============================================================================
@@ -93,9 +97,11 @@ export interface Shift {
   requirements?: string[];
   applyDeadline?: string; // ISO string
   status: ShiftStatus;
+  crewLeaderUid?: string;
   createdByUid: string;
   createdAt: string;
   updatedAt: string;
+  isPublicPool?: boolean; // Freigabe für Freelancer Pool
 }
 
 /**
@@ -130,6 +136,7 @@ export interface Application {
   status: ApplicationStatus;
   createdAt: string;
   updatedAt: string;
+  isFreelancer?: boolean; // Freelancer-Bewerbung
 }
 
 /**
@@ -168,6 +175,8 @@ export interface CreateShiftRequest {
   payRate?: number;
   requirements?: string[];
   applyDeadline?: string; // ISO string
+  crewLeaderUid?: string;
+  isPublicPool?: boolean; // Freigabe für Freelancer Pool
 }
 
 /**
@@ -248,4 +257,91 @@ export function isValidApplicationStatus(
   status: string
 ): status is ApplicationStatus {
   return Object.values(APPLICATION_STATUS).includes(status as ApplicationStatus);
+}
+
+// =============================================================================
+// Shift Time Entry Types
+// =============================================================================
+
+/**
+ * Zeiteintrag für eine Schicht (API Response).
+ */
+export interface ShiftTimeEntry {
+  id: string;
+  shiftId: string;
+  uid: string;
+  actualClockIn: string; // ISO string
+  actualClockOut: string; // ISO string
+  durationMinutes: number;
+  enteredByUid: string;
+  note?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Request: Zeiteintrag erstellen/aktualisieren.
+ */
+export interface CreateShiftTimeEntryRequest {
+  uid: string;
+  actualClockIn: string; // ISO string
+  actualClockOut: string; // ISO string
+  note?: string;
+}
+
+/**
+ * Request: Zeiteintrag aktualisieren.
+ */
+export interface UpdateShiftTimeEntryRequest {
+  actualClockIn?: string; // ISO string
+  actualClockOut?: string; // ISO string
+  note?: string;
+}
+
+/**
+ * Response: Zeiteinträge einer Schicht.
+ */
+export interface ShiftTimeEntriesResponse {
+  entries: ShiftTimeEntry[];
+  count: number;
+}
+
+/**
+ * Response: Einzelner Zeiteintrag.
+ */
+export interface ShiftTimeEntryResponse {
+  entry: ShiftTimeEntry;
+}
+
+// =============================================================================
+// Shift Document Types
+// =============================================================================
+
+/**
+ * Dokument einer Schicht (API Response).
+ */
+export interface ShiftDocument {
+  id: string;
+  shiftId: string;
+  uploadedByUid: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+}
+
+/**
+ * Response: Dokumente einer Schicht.
+ */
+export interface ShiftDocumentsResponse {
+  documents: ShiftDocument[];
+  count: number;
+}
+
+/**
+ * Response: Download-URL für ein Dokument.
+ */
+export interface ShiftDocumentDownloadResponse {
+  downloadUrl: string;
+  expiresAt: string; // ISO string
 }

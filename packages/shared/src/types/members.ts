@@ -44,6 +44,11 @@ export interface Member {
   hourlyRate?: number;
   skills?: string[];
   notes?: string;
+  // Security-spezifische Qualifikationen
+  hasSachkunde?: boolean; // Sachkunde/Einweisung
+  hasFuehrerschein?: boolean; // Führerschein
+  hasUnterweisung?: boolean; // Unterweisung
+  securityQualifications?: string[]; // Weitere Security-Qualifikationen
   createdAt: string;
   updatedAt: string;
   invitedByUid?: string;
@@ -79,6 +84,11 @@ export interface InviteMemberRequest {
   hourlyRate?: number;
   skills?: string[];
   notes?: string;
+  // Security-spezifische Qualifikationen
+  hasSachkunde?: boolean;
+  hasFuehrerschein?: boolean;
+  hasUnterweisung?: boolean;
+  securityQualifications?: string[];
 }
 
 /**
@@ -94,6 +104,11 @@ export interface UpdateMemberRequest {
   hourlyRate?: number;
   skills?: string[];
   notes?: string;
+  // Security-spezifische Qualifikationen
+  hasSachkunde?: boolean;
+  hasFuehrerschein?: boolean;
+  hasUnterweisung?: boolean;
+  securityQualifications?: string[];
 }
 
 // =============================================================================

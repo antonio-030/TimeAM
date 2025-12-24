@@ -6,6 +6,12 @@
 
 import { useState } from 'react';
 import { useMyShifts } from './hooks';
+import { useAuth } from '../../core/auth';
+import { useTenant } from '../../core/tenant';
+import { completeShift } from './api';
+import { ShiftTimeEntryList } from './ShiftTimeEntryList';
+import { ShiftDocumentList } from './ShiftDocumentList';
+import { openAddressInMaps } from './mapsUtils';
 import type { MyShift } from './api';
 import styles from './ShiftPool.module.css';
 
@@ -136,21 +142,101 @@ function ShiftCard({ shift, onClick }: ShiftCardProps) {
 interface ShiftDetailModalProps {
   shift: MyShift;
   onClose: () => void;
+  onComplete: () => void;
+  isCrewLeader: boolean;
+  isCompleted: boolean;
 }
 
-function ShiftDetailModal({ shift, onClose }: ShiftDetailModalProps) {
+function ShiftDetailModal({ shift, onClose, onComplete, isCrewLeader, isCompleted }: ShiftDetailModalProps) {
+  const { role } = useTenant();
+  const [completing, setCompleting] = useState(false);
+  const [completeError, setCompleteError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'details' | 'time' | 'documents'>('details');
+
+  const handleComplete = async () => {
+    if (!confirm('Möchtest du diese Schicht wirklich beenden?')) {
+      return;
+    }
+
+    setCompleting(true);
+    setCompleteError(null);
+
+    try {
+      await completeShift(shift.id);
+      onComplete();
+      onClose();
+    } catch (err) {
+      setCompleteError(err instanceof Error ? err.message : 'Fehler beim Beenden der Schicht');
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const canComplete = isCrewLeader && !isCompleted && new Date(shift.startsAt) <= new Date();
+  const canEditTime = isCrewLeader || role === 'admin' || role === 'manager';
+  const canViewDocuments = isCrewLeader || role === 'admin' || role === 'manager';
+  const canUploadDocuments = true; // Alle zugewiesenen Mitarbeiter können hochladen
+
+  // Alle zugewiesenen UIDs sammeln (inkl. aktueller User)
+  const { user } = useAuth();
+  const assignedMemberUids = [
+    ...(user?.uid ? [user.uid] : []),
+    ...shift.colleagues.map((c) => c.uid),
+  ];
+
   return (
     <div className={styles.modal} onClick={onClose}>
-      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
         <h2 className={styles.modalTitle}>{shift.title}</h2>
 
-        <div className={styles.detailInfo}>
+        {/* Tabs */}
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tab} ${activeTab === 'details' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('details')}
+          >
+            📋 Details
+          </button>
+          {canEditTime && (
+            <button
+              className={`${styles.tab} ${activeTab === 'time' ? styles.tabActive : ''}`}
+              onClick={() => setActiveTab('time')}
+            >
+              ⏱️ Zeiterfassung
+            </button>
+          )}
+          <button
+            className={`${styles.tab} ${activeTab === 'documents' ? styles.tabActive : ''}`}
+            onClick={() => setActiveTab('documents')}
+          >
+            📎 Dokumente
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'details' && (
+          <>
+            <div className={styles.detailInfo}>
           <div className={styles.detailInfoItem}>
             <span className={styles.detailInfoLabel}>Standort</span>
             <span className={styles.detailInfoValue}>
               {shift.location.name}
-              {shift.location.address && <br />}
-              {shift.location.address}
+              {shift.location.address && (
+                <>
+                  <br />
+                  <span
+                    style={{
+                      color: 'var(--color-primary)',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                    onClick={() => openAddressInMaps(shift.location)}
+                    title="In Google Maps öffnen"
+                  >
+                    🗺️ {shift.location.address}
+                  </span>
+                </>
+              )}
             </span>
           </div>
 
@@ -179,6 +265,20 @@ function ShiftDetailModal({ shift, onClose }: ShiftDetailModalProps) {
               <span className={styles.detailInfoValue}>{shift.requirements.join(', ')}</span>
             </div>
           )}
+
+          {isCrewLeader && (
+            <div className={styles.detailInfoItem}>
+              <span className={styles.detailInfoLabel}>Rolle</span>
+              <span className={styles.detailInfoValue}>👑 Crew-Leiter</span>
+            </div>
+          )}
+
+          {isCompleted && (
+            <div className={styles.detailInfoItem}>
+              <span className={styles.detailInfoLabel}>Status</span>
+              <span className={styles.detailInfoValue}>✓ Beendet</span>
+            </div>
+          )}
         </div>
 
         {/* Kollegen Anzeige */}
@@ -202,14 +302,69 @@ function ShiftDetailModal({ shift, onClose }: ShiftDetailModalProps) {
           </div>
         )}
 
-        <div className={styles.formActions}>
-          <button
-            className={`${styles.button} ${styles.buttonSecondary}`}
-            onClick={onClose}
-          >
-            Schließen
-          </button>
-        </div>
+            {completeError && (
+              <div className={styles.error} style={{ marginBottom: '1rem' }}>
+                ⚠️ {completeError}
+              </div>
+            )}
+
+            <div className={styles.formActions}>
+              {canComplete && (
+                <button
+                  className={`${styles.button} ${styles.buttonPrimary}`}
+                  onClick={handleComplete}
+                  disabled={completing}
+                >
+                  {completing ? 'Wird beendet...' : 'Schicht beenden'}
+                </button>
+              )}
+              <button
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                onClick={onClose}
+              >
+                Schließen
+              </button>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'time' && canEditTime && (
+          <div style={{ marginTop: '1rem' }}>
+            <ShiftTimeEntryList
+              shiftId={shift.id}
+              canEdit={canEditTime}
+              assignedMemberUids={assignedMemberUids}
+              shiftStartsAt={shift.startsAt}
+              shiftEndsAt={shift.endsAt}
+            />
+            <div className={styles.formActions}>
+              <button
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                onClick={onClose}
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <div style={{ marginTop: '1rem' }}>
+            <ShiftDocumentList
+              shiftId={shift.id}
+              canView={canViewDocuments}
+              canUpload={canUploadDocuments}
+            />
+            <div className={styles.formActions}>
+              <button
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                onClick={onClose}
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -220,6 +375,7 @@ function ShiftDetailModal({ shift, onClose }: ShiftDetailModalProps) {
 // =============================================================================
 
 export function MyShiftsPage() {
+  const { user } = useAuth();
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const { shifts, loading, error, refresh } = useMyShifts({ includeCompleted });
   const [selectedShift, setSelectedShift] = useState<MyShift | null>(null);
@@ -358,6 +514,9 @@ export function MyShiftsPage() {
         <ShiftDetailModal
           shift={selectedShift}
           onClose={() => setSelectedShift(null)}
+          onComplete={refresh}
+          isCrewLeader={user?.uid === selectedShift.crewLeaderUid}
+          isCompleted={selectedShift.status === 'COMPLETED'}
         />
       )}
     </div>

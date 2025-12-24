@@ -16,6 +16,7 @@ export interface MeResponse {
   email?: string;
   emailVerified: boolean;
   needsOnboarding: boolean;
+  isFreelancer?: boolean;
   tenant?: {
     id: string;
     name: string;
