@@ -3,7 +3,17 @@
  */
 
 // Load environment variables FIRST
-import 'dotenv/config';
+// PM2 läuft vom Root, daher müssen wir den Pfad zur .env explizit angeben
+import { config } from 'dotenv';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// .env liegt in apps/api/, aber dist/ liegt in apps/api/dist/
+// Daher müssen wir zwei Ebenen nach oben gehen
+const envPath = resolve(__dirname, '../.env');
+config({ path: envPath });
 
 import express from 'express';
 import cors from 'cors';
