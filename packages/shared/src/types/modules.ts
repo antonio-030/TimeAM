@@ -5,7 +5,7 @@
  * Core-Module laufen immer, optionale können pro Tenant aktiviert werden.
  */
 
-import type { EntitlementKey } from './entitlements';
+import type { EntitlementKey } from './entitlements.js';
 
 /**
  * Modul-Kategorie
