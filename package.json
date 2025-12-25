@@ -11,7 +11,7 @@
     "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev:web\" \"npm run dev:api\"",
     "dev:web": "npm run dev -w @timeam/web",
     "dev:api": "npm run dev -w @timeam/api",
-    "build": "npm run build -w @timeam/web && npm run build -w @timeam/api",
+    "build": "npm run build -w @timeam/shared && npm run build -w @timeam/web && npm run build -w @timeam/api",
     "build:web": "npm run build -w @timeam/web",
     "build:api": "npm run build -w @timeam/api",
     "lint": "eslint . --ext .ts,.tsx",

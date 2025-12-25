@@ -8,7 +8,7 @@ export {
   type EntitlementValue,
   type TenantEntitlements,
   hasEntitlement,
-} from './entitlements';
+} from './entitlements.js';
 
 export {
   MEMBER_ROLES,
@@ -16,13 +16,13 @@ export {
   type Tenant,
   type TenantMember,
   type UserDocument,
-} from './tenant';
+} from './tenant.js';
 
 export {
   type MeResponse,
   type CreateTenantRequest,
   type CreateTenantResponse,
-} from './api';
+} from './api.js';
 
 // Shift Pool
 export {
@@ -59,7 +59,7 @@ export {
   type ShiftDocumentDownloadResponse,
   isValidShiftStatus,
   isValidApplicationStatus,
-} from './shift-pool';
+} from './shift-pool.js';
 
 // Members
 export {
@@ -75,7 +75,7 @@ export {
   isValidMemberStatus,
   getMemberRoleLabel,
   getMemberStatusLabel,
-} from './members';
+} from './members.js';
 
 // Calendar Core
 export {
@@ -90,7 +90,7 @@ export {
   type CalendarEventsResponse,
   isValidSourceModule,
   isValidEventRefType,
-} from './calendar';
+} from './calendar.js';
 
 // Notifications
 export {
@@ -103,7 +103,7 @@ export {
   type UnreadCountResponse,
   isValidNotificationType,
   getNotificationIcon,
-} from './notifications';
+} from './notifications.js';
 
 // Modules Registry
 export {
@@ -118,4 +118,4 @@ export {
   getModuleById,
   isCoreModule,
   isModuleActive,
-} from './modules';
+} from './modules.js';

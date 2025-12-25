@@ -8,8 +8,7 @@ module.exports = {
   apps: [
     {
       name: 'timeam-api',
-      script: 'tsx',
-      args: 'apps/api/src/index.ts',
+      script: './apps/api/dist/index.js',
       cwd: './',
       instances: 1,
       exec_mode: 'fork',

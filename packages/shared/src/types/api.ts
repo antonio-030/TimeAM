@@ -4,8 +4,8 @@
  * Gemeinsame API-Typen für Frontend und Backend.
  */
 
-import type { MemberRole } from './tenant';
-import type { TenantEntitlements } from './entitlements';
+import type { MemberRole } from './tenant.js';
+import type { TenantEntitlements } from './entitlements.js';
 
 /**
  * Response von GET /api/me
