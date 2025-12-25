@@ -80,7 +80,7 @@ export interface NotificationDoc {
   message: string;
   read: boolean;
   recipientUid: string;
-  createdAt: FirebaseFirestore.Timestamp;
+  createdAt: string | { toDate: () => Date };
   ref?: {
     type: 'shift' | 'application' | 'assignment';
     id: string;

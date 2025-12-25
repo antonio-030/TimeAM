@@ -13,6 +13,7 @@ import {
   getShiftApplications,
   createShift as apiCreateShift,
   updateShift as apiUpdateShift,
+  deleteShiftDocument,
   deleteShift as apiDeleteShift,
   publishShift as apiPublishShift,
   closeShift as apiCloseShift,
@@ -687,7 +688,7 @@ export function useShiftDocuments(shiftId: string | null) {
       setError(null);
 
       try {
-        await apiDeleteShiftDocument(shiftId, documentId);
+        await deleteShiftDocument(shiftId, documentId);
         await refresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Fehler beim Löschen';

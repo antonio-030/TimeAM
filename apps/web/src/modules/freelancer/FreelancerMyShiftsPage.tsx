@@ -185,11 +185,7 @@ interface ShiftDetailModalProps {
 
 function ShiftDetailModal({ shift, onClose }: ShiftDetailModalProps) {
   const handleMapClick = () => {
-    if (shift.location.coordinates) {
-      openAddressInMaps(shift.location.coordinates.lat, shift.location.coordinates.lng);
-    } else if (shift.location.address) {
-      openAddressInMaps(shift.location.address);
-    }
+    openAddressInMaps(shift.location);
   };
 
   const duration = Math.round((new Date(shift.endsAt).getTime() - new Date(shift.startsAt).getTime()) / (1000 * 60 * 60 * 100)) / 10;

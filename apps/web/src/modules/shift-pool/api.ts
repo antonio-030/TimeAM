@@ -6,7 +6,6 @@ import { apiGet, apiPost, apiPut, apiDelete, apiRequest } from '../../core/api';
 import type {
   Shift,
   PoolShift,
-  AdminShift,
   Application,
   Assignment,
   CreateShiftRequest,
@@ -18,6 +17,10 @@ import type {
   ShiftDocument,
   ShiftDocumentDownloadResponse,
 } from '@timeam/shared';
+import type { AdminShift } from '@timeam/shared';
+
+// Re-export for use in other modules
+export type { AdminShift };
 
 // =============================================================================
 // Response Types

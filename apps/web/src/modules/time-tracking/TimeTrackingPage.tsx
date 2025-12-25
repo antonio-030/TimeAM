@@ -708,7 +708,11 @@ export function TimeTrackingPage() {
       {/* Modals */}
       {showCreateModal && (
         <EntryModal
-          onSubmit={handleCreateEntry}
+          onSubmit={async (data) => {
+            if ('clockIn' in data && 'clockOut' in data) {
+              await handleCreateEntry(data as CreateTimeEntryRequest);
+            }
+          }}
           onClose={() => setShowCreateModal(false)}
         />
       )}

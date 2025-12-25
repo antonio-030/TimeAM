@@ -4,11 +4,14 @@
 
 import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from '../../core/api';
 import type {
-  Member,
   MemberStats,
   InviteMemberRequest,
   UpdateMemberRequest,
 } from '@timeam/shared';
+import type { Member } from '@timeam/shared';
+
+// Re-export for use in other modules
+export type { Member };
 
 // =============================================================================
 // Response Types
