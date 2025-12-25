@@ -199,7 +199,7 @@ router.delete('/me', requireAuth, async (req, res) => {
     const deletionRequest = await createDeletionRequest(
       user.uid,
       user.email || freelancer.email,
-      user.displayName || freelancer.displayName,
+      freelancer.displayName || user.email || '',
       'freelancer',
       reason
     );

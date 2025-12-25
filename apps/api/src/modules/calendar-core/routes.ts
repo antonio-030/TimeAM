@@ -37,7 +37,7 @@ const calendarMiddleware = [
  * - to: ISO 8601 Datum (required)
  * - includeModules: Komma-separierte Liste (optional, z.B. "shift-pool,time-tracking")
  */
-router.get('/events', calendarMiddleware, async (req, res) => {
+router.get('/events', calendarMiddleware, async (req: import('express').Request, res: import('express').Response) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant, entitlements } = req as TenantRequest;
   const { from, to, includeModules } = req.query;

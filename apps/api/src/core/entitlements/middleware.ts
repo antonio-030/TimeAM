@@ -8,7 +8,7 @@ import type { Request, Response, NextFunction } from 'express';
 import type { AuthenticatedRequest } from '../auth';
 import { getTenantForUser, getFreelancerEntitlements } from '../tenancy';
 import { getAdminFirestore } from '../firebase';
-import { EntitlementError, type EntitlementKey } from './types';
+import { type EntitlementKey } from './types';
 
 /**
  * Request mit Tenant-Kontext.

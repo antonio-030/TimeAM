@@ -37,7 +37,7 @@ const notificationsMiddleware = [requireAuth, requireTenantOnly()];
  * - limit: Max. Anzahl (default: 50)
  * - unreadOnly: Nur ungelesene (default: false)
  */
-router.get('/', notificationsMiddleware, async (req, res) => {
+router.get('/', notificationsMiddleware, async (req: import('express').Request, res: import('express').Response) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { limit, unreadOnly } = req.query;
@@ -67,7 +67,7 @@ router.get('/', notificationsMiddleware, async (req, res) => {
  *
  * Gibt nur die Anzahl ungelesener Benachrichtigungen zurück.
  */
-router.get('/unread-count', notificationsMiddleware, async (req, res) => {
+router.get('/unread-count', notificationsMiddleware, async (req: import('express').Request, res: import('express').Response) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
 
@@ -88,7 +88,7 @@ router.get('/unread-count', notificationsMiddleware, async (req, res) => {
  *
  * Markiert eine Benachrichtigung als gelesen.
  */
-router.post('/:id/read', notificationsMiddleware, async (req, res) => {
+router.post('/:id/read', notificationsMiddleware, async (req: import('express').Request, res: import('express').Response) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { id } = req.params;
@@ -116,7 +116,7 @@ router.post('/:id/read', notificationsMiddleware, async (req, res) => {
  *
  * Markiert alle Benachrichtigungen als gelesen.
  */
-router.post('/read-all', notificationsMiddleware, async (req, res) => {
+router.post('/read-all', notificationsMiddleware, async (req: import('express').Request, res: import('express').Response) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
 
@@ -137,7 +137,7 @@ router.post('/read-all', notificationsMiddleware, async (req, res) => {
  *
  * Löscht eine Benachrichtigung.
  */
-router.delete('/:id', notificationsMiddleware, async (req, res) => {
+router.delete('/:id', notificationsMiddleware, async (req: import('express').Request, res: import('express').Response) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { id } = req.params;

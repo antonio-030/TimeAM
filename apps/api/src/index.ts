@@ -152,7 +152,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
         } else {
           // Dev-Tenant erstellen falls nicht vorhanden
           const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service');
-          const tenantId = await getOrCreateDevTenant(user.uid);
+          await getOrCreateDevTenant(user.uid);
           await assignDevStaffToTenant(user.uid, user.email || '');
           
           // Nochmal laden

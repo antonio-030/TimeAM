@@ -1180,7 +1180,7 @@ export async function applyToPublicShift(
       const shiftData = shiftSnap.data() as ShiftDoc;
       // Prüfen ob Schicht öffentlich und veröffentlicht ist
       if (shiftData.isPublicPool && shiftData.status === SHIFT_STATUS.PUBLISHED) {
-        shiftDoc = shiftSnap;
+        shiftDoc = shiftSnap as import('firebase-admin/firestore').QueryDocumentSnapshot<import('firebase-admin/firestore').DocumentData>;
         tenantId = currentTenantId;
         break;
       }
@@ -1561,7 +1561,7 @@ export async function acceptApplication(
           id: assignmentDoc.id,
           shiftId: assignment.shiftId,
           uid: assignment.uid,
-          status: assignment.status,
+          status: assignment.status as AssignmentStatus,
           createdAt: assignment.createdAt.toDate().toISOString(),
         },
       };
@@ -2627,6 +2627,10 @@ export async function removeAssignment(
   }
 
   const assignmentData = assignmentSnap.data();
+  
+  if (!assignmentData) {
+    throw new Error('Assignment data not found');
+  }
 
   if (assignmentData.status !== ASSIGNMENT_STATUS.CONFIRMED) {
     throw new Error('Assignment is not active');
@@ -2654,13 +2658,17 @@ export async function removeAssignment(
     }
 
     const assignmentDataInTransaction = assignmentSnapInTransaction.data();
+    
+    if (!assignmentDataInTransaction) {
+      throw new Error('Assignment data not found in transaction');
+    }
 
     if (assignmentDataInTransaction.status !== ASSIGNMENT_STATUS.CONFIRMED) {
       throw new Error('Assignment is not active');
     }
 
     // Schicht laden
-    const shiftRef = db.collection('tenants').doc(tenantId).collection('shifts').doc(assignmentData.shiftId);
+    const shiftRef = db.collection('tenants').doc(tenantId).collection('shifts').doc(assignmentData!.shiftId);
     const shiftSnap = await transaction.get(shiftRef);
 
     if (!shiftSnap.exists) {
@@ -2700,10 +2708,10 @@ export async function removeAssignment(
 
     // Daten für Benachrichtigung merken
     return {
-      memberUid: assignmentData.uid,
+      memberUid: assignmentData!.uid,
       shiftTitle: shiftData.title,
       startsAt: shiftData.startsAt,
-      shiftId: assignmentData.shiftId,
+      shiftId: assignmentData!.shiftId,
     };
   }).then(async (result) => {
     // Audit Log
@@ -2840,9 +2848,9 @@ export async function completeShift(
 
   // Prüfen ob User Crew-Leiter, Manager oder Admin ist
   const isLeader = await isCrewLeader(tenantId, shiftId, actorUid);
-  const isAdminOrManager = await isAdminOrManager(tenantId, actorUid);
+  const hasAdminOrManagerRole = await isAdminOrManager(tenantId, actorUid);
   
-  if (!isLeader && !isAdminOrManager) {
+  if (!isLeader && !hasAdminOrManagerRole) {
     throw new Error('Only the crew leader, manager or admin can complete a shift');
   }
 
