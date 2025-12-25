@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTimeTrackingStatus, useTimeEntries } from './hooks';
 import type { TimeEntry, CreateTimeEntryRequest, UpdateTimeEntryRequest } from './api';
+import { formatTime, formatDate, formatDateShort } from '../../utils/dateTime';
 import styles from './TimeTrackingPage.module.css';
 
 // =============================================================================
@@ -23,39 +24,6 @@ function formatDuration(minutes: number): string {
   if (hours === 0) return `${mins}min`;
   if (mins === 0) return `${hours}h`;
   return `${hours}h ${mins}min`;
-}
-
-/**
- * Formatiert ISO-String als Uhrzeit.
- */
-function formatTime(isoString: string): string {
-  return new Date(isoString).toLocaleTimeString('de-DE', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-/**
- * Formatiert ISO-String als Datum.
- */
-function formatDate(isoString: string): string {
-  return new Date(isoString).toLocaleDateString('de-DE', {
-    weekday: 'long',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-}
-
-/**
- * Formatiert ISO-String als kurzes Datum.
- */
-function formatDateShort(isoString: string): string {
-  return new Date(isoString).toLocaleDateString('de-DE', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-  });
 }
 
 /**
