@@ -36,6 +36,10 @@ export interface Member {
   uid: string;
   email: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  employeeNumber?: string; // Personalnummer
   role: MemberRole;
   status: MemberStatus;
   phone?: string;
@@ -78,6 +82,10 @@ export interface MemberStats {
 export interface InviteMemberRequest {
   email: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  employeeNumber?: string; // Personalnummer
   role: MemberRole;
   department?: string;
   position?: string;
@@ -96,6 +104,10 @@ export interface InviteMemberRequest {
  */
 export interface UpdateMemberRequest {
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  employeeNumber?: string; // Personalnummer
   role?: MemberRole;
   status?: MemberStatus;
   phone?: string;

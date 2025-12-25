@@ -7,13 +7,18 @@
  * - Mitarbeiter-Suche nur für Admin/Manager
  */
 
-import { type ReactNode, useCallback, useState, useMemo, useEffect } from 'react';
+import { type ReactNode, useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
 import { useDevStaffCheck } from '../../modules/support/hooks';
 import { NotificationBell } from '../../modules/notifications';
 import { MiniCalendar } from './MiniCalendar';
 import { useSidebarCalendar } from './useSidebarCalendar';
+import { FreelancerProfileModal } from '../../modules/freelancer/FreelancerProfileModal';
+import { getFreelancer, type FreelancerResponse } from '../../modules/freelancer/api';
+import { MemberProfileModal } from '../../modules/members/MemberProfileModal';
+import { getMemberProfile } from '../../modules/members/api';
+import { MEMBER_ROLES, type Member } from '@timeam/shared';
 import styles from './AppLayout.module.css';
 
 interface AppLayoutProps {
@@ -26,23 +31,149 @@ interface AppLayoutProps {
 export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isSuperAdmin = false }: AppLayoutProps) {
   const { user, signOut } = useAuth();
   const { tenant, role, hasEntitlement, isFreelancer } = useTenant();
-  
-  // Benutzername extrahieren (Name oder E-Mail-Benutzername)
-  const userName = user?.displayName || user?.email?.split('@')[0] || 'Nutzer';
-  const userInitials = userName
-    .split(' ')
-    .map(n => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2) || user?.email?.[0].toUpperCase() || '?';
   const { isDevStaff } = useDevStaffCheck();
+  
+  // State-Deklarationen
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showMemberProfileModal, setShowMemberProfileModal] = useState(false);
+  const [freelancerProfile, setFreelancerProfile] = useState<FreelancerResponse | null>(null);
+  const [memberProfile, setMemberProfile] = useState<Member | null>(null);
+  const [loadingFreelancerProfile, setLoadingFreelancerProfile] = useState(false);
+  const [loadingMemberProfile, setLoadingMemberProfile] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Prüfung auf Admin oder Manager Rolle
-  const isAdminOrManager = role === 'admin' || role === 'manager';
+  // Prüfen ob User Admin oder Manager ist
+  const isAdminOrManager = useMemo(() => {
+    return role === MEMBER_ROLES.ADMIN || role === MEMBER_ROLES.MANAGER;
+  }, [role]);
+
+  // Freelancer-Profil laden (für User-Menü)
+  useEffect(() => {
+    if (isFreelancer && user) {
+      setLoadingFreelancerProfile(true);
+      getFreelancer()
+        .then((response) => {
+          setFreelancerProfile(response.freelancer);
+        })
+        .catch((err) => {
+          console.error('Fehler beim Laden des Freelancer-Profils:', err);
+        })
+        .finally(() => {
+          setLoadingFreelancerProfile(false);
+        });
+    } else {
+      setFreelancerProfile(null);
+    }
+  }, [isFreelancer, user]);
+
+  // Member-Profil laden (für Admins/Manager im User-Menü)
+  useEffect(() => {
+    if (!isFreelancer && isAdminOrManager && user) {
+      setLoadingMemberProfile(true);
+      getMemberProfile()
+        .then((response) => {
+          setMemberProfile(response.member);
+        })
+        .catch((err) => {
+          console.error('Fehler beim Laden des Member-Profils:', err);
+        })
+        .finally(() => {
+          setLoadingMemberProfile(false);
+        });
+    } else {
+      setMemberProfile(null);
+    }
+  }, [isFreelancer, isAdminOrManager, user]);
+
+  // Profil nach Modal-Update neu laden
+  const handleProfileUpdated = useCallback(() => {
+    if (isFreelancer && user) {
+      getFreelancer()
+        .then((response) => {
+          setFreelancerProfile(response.freelancer);
+        })
+        .catch((err) => {
+          console.error('Fehler beim Neuladen des Freelancer-Profils:', err);
+        });
+    } else if (!isFreelancer && isAdminOrManager && user) {
+      getMemberProfile()
+        .then((response) => {
+          setMemberProfile(response.member);
+        })
+        .catch((err) => {
+          console.error('Fehler beim Neuladen des Member-Profils:', err);
+        });
+    }
+  }, [isFreelancer, isAdminOrManager, user]);
+
+  // Benutzername extrahieren (für Freelancer/Member aus Profil, sonst aus Auth)
+  const userName = useMemo(() => {
+    if (isFreelancer && freelancerProfile) {
+      // Für Freelancer: Vollständiger Name aus Profil
+      if (freelancerProfile.firstName && freelancerProfile.lastName) {
+        return `${freelancerProfile.firstName} ${freelancerProfile.lastName}`;
+      }
+      return freelancerProfile.displayName || freelancerProfile.email?.split('@')[0] || 'Freelancer';
+    }
+    if (!isFreelancer && memberProfile) {
+      // Für Admins/Manager: Vollständiger Name aus Profil
+      if (memberProfile.firstName && memberProfile.lastName) {
+        return `${memberProfile.firstName} ${memberProfile.lastName}`;
+      }
+      return memberProfile.displayName || memberProfile.email?.split('@')[0] || 'Nutzer';
+    }
+    return user?.displayName || user?.email?.split('@')[0] || 'Nutzer';
+  }, [isFreelancer, freelancerProfile, memberProfile, user]);
+
+  const userEmail = useMemo(() => {
+    if (isFreelancer && freelancerProfile) {
+      return freelancerProfile.email || user?.email || '';
+    }
+    if (!isFreelancer && memberProfile) {
+      return memberProfile.email || user?.email || '';
+    }
+    return user?.email || '';
+  }, [isFreelancer, freelancerProfile, memberProfile, user]);
+
+  const userInitials = useMemo(() => {
+    if (isFreelancer && freelancerProfile) {
+      // Für Freelancer: Initialen aus Vor- und Nachname
+      if (freelancerProfile.firstName && freelancerProfile.lastName) {
+        return `${freelancerProfile.firstName[0]}${freelancerProfile.lastName[0]}`.toUpperCase();
+      }
+      // Fallback: Aus displayName
+      const name = freelancerProfile.displayName || '';
+      const parts = name.split(' ');
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+      }
+      return name.slice(0, 2).toUpperCase() || freelancerProfile.email?.[0].toUpperCase() || '?';
+    }
+    if (!isFreelancer && memberProfile) {
+      // Für Admins/Manager: Initialen aus Vor- und Nachname
+      if (memberProfile.firstName && memberProfile.lastName) {
+        return `${memberProfile.firstName[0]}${memberProfile.lastName[0]}`.toUpperCase();
+      }
+      // Fallback: Aus displayName
+      const name = memberProfile.displayName || '';
+      const parts = name.split(' ');
+      if (parts.length >= 2) {
+        return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+      }
+      return name.slice(0, 2).toUpperCase() || memberProfile.email?.[0].toUpperCase() || '?';
+    }
+    // Normale User: Aus displayName oder Email
+    const name = userName;
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase() || user?.email?.[0].toUpperCase() || '?';
+  }, [isFreelancer, freelancerProfile, memberProfile, userName, user]);
 
   // Echte Events laden
   // Admin/Manager: Alle Schichten | Mitarbeiter: Nur eigene
@@ -96,8 +227,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
   // Click außerhalb schließt das User-Menü
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (isUserMenuOpen && !target.closest(`.${styles.userMenu}`)) {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setIsUserMenuOpen(false);
       }
     };
@@ -344,7 +474,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
             {user && (
               <>
                 <NotificationBell onNavigate={handleNotificationNavigate} />
-                <div className={styles.userMenu}>
+                <div className={styles.userMenu} ref={userMenuRef}>
                   <button 
                     className={styles.userMenuButton}
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -366,10 +496,42 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
                         </div>
                         <div className={styles.userMenuInfo}>
                           <span className={styles.userMenuName}>{userName}</span>
-                          <span className={styles.userMenuEmail}>{user.email}</span>
+                          <span className={styles.userMenuEmail}>{userEmail}</span>
                         </div>
                       </div>
                       <div className={styles.userMenuDivider} />
+                      {/* Profil bearbeiten - für Freelancer */}
+                      {isFreelancer && (
+                        <>
+                          <button 
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              setShowProfileModal(true);
+                            }} 
+                            className={styles.userMenuItem}
+                          >
+                            <span className={styles.userMenuItemIcon}>👤</span>
+                            <span>Profil bearbeiten</span>
+                          </button>
+                          <div className={styles.userMenuDivider} />
+                        </>
+                      )}
+                      {/* Profil bearbeiten - für Admins/Manager */}
+                      {!isFreelancer && isAdminOrManager && (
+                        <>
+                          <button 
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              setShowMemberProfileModal(true);
+                            }} 
+                            className={styles.userMenuItem}
+                          >
+                            <span className={styles.userMenuItemIcon}>👤</span>
+                            <span>Profil bearbeiten</span>
+                          </button>
+                          <div className={styles.userMenuDivider} />
+                        </>
+                      )}
                       <button 
                         onClick={() => {
                           handleSignOut();
@@ -393,6 +555,28 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
           {children}
         </main>
       </div>
+
+      {/* Profil-Modal für Freelancer */}
+      {isFreelancer && (
+        <FreelancerProfileModal
+          open={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+          onProfileUpdated={handleProfileUpdated}
+          onAccountDeleted={() => {
+            // Wird aufgerufen wenn Account gelöscht wurde
+            // Logout erfolgt automatisch im Modal
+          }}
+        />
+      )}
+
+      {/* Profil-Modal für Admins/Manager */}
+      {!isFreelancer && isAdminOrManager && (
+        <MemberProfileModal
+          open={showMemberProfileModal}
+          onClose={() => setShowMemberProfileModal(false)}
+          onProfileUpdated={handleProfileUpdated}
+        />
+      )}
     </div>
   );
 }

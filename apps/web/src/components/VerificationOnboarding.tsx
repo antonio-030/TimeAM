@@ -44,9 +44,78 @@ export function VerificationOnboarding({
     }
   }, [onClose]);
 
-  // Wenn bereits approved, Modal nicht anzeigen
-  if (currentStatus === 'approved' || !open) {
+  // Wenn Modal geschlossen, nicht anzeigen
+  if (!open) {
     return null;
+  }
+
+  // Wenn bereits verifiziert (approved), Erfolgs-Ansicht anzeigen
+  if (currentStatus === 'approved') {
+    return (
+      <div className={styles.modalOverlay} ref={modalRef} onClick={handleBackdropClick}>
+        <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+          {onClose && (
+            <button
+              onClick={() => {
+                onClose();
+              }}
+              className={styles.modalClose}
+              aria-label="Schließen"
+              type="button"
+            >
+              ✕
+            </button>
+          )}
+          <div className={styles.statusHeader}>
+            <span className={styles.statusIconSuccess}>✓</span>
+            <h2 className={styles.statusTitle}>Verifizierung abgeschlossen</h2>
+          </div>
+          <div className={styles.statusContent}>
+            <p className={styles.statusDescription}>
+              Ihr Gewerbeschein wurde erfolgreich geprüft und bestätigt. Sie können sich jetzt auf Schichten bewerben und Rechnungen schreiben.
+            </p>
+            <div className={styles.successBenefits}>
+              <div className={styles.successBenefitItem}>
+                <span className={styles.successBenefitIcon}>✓</span>
+                <div>
+                  <strong>Bewerbungen möglich</strong>
+                  <p>Bewerben Sie sich auf interessante Schichten im Pool</p>
+                </div>
+              </div>
+              <div className={styles.successBenefitItem}>
+                <span className={styles.successBenefitIcon}>✓</span>
+                <div>
+                  <strong>Rechnungsstellung</strong>
+                  <p>Sie können Rechnungen für Ihre Arbeit schreiben</p>
+                </div>
+              </div>
+              <div className={styles.successBenefitItem}>
+                <span className={styles.successBenefitIcon}>✓</span>
+                <div>
+                  <strong>Vertrauenswürdig</strong>
+                  <p>Unternehmen sehen, dass Sie verifiziert sind</p>
+                </div>
+              </div>
+            </div>
+            <div className={styles.verificationCompleteNotice}>
+              <span className={styles.verificationCompleteIcon}>🎉</span>
+              <p>Sie haben den Verifizierungsprozess erfolgreich durchlaufen!</p>
+            </div>
+            <div className={styles.modalActions}>
+              <button 
+                onClick={() => {
+                  onClose?.();
+                }} 
+                className={styles.modalActionButton}
+                type="button"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Wenn rejected, direkt zum Upload-Schritt

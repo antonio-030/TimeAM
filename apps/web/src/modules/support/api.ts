@@ -150,3 +150,65 @@ export function deleteDevStaff(uid: string): Promise<{ message: string }> {
   return apiDelete<{ message: string }>(`/api/admin/dev-staff/${uid}`);
 }
 
+// =============================================================================
+// Account Deletion Requests
+// =============================================================================
+
+export type DeletionRequestStatus = 'pending' | 'approved' | 'rejected' | 'completed';
+
+export interface AccountDeletionRequestOverview {
+  uid: string;
+  email: string;
+  displayName: string;
+  userType: 'freelancer' | 'employee' | 'dev-staff';
+  status: DeletionRequestStatus;
+  requestedAt: string;
+  requestedReason?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectionReason?: string;
+  scheduledDeletionAt?: string;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
+interface GetDeletionRequestsResponse {
+  requests: AccountDeletionRequestOverview[];
+}
+
+interface ApproveDeletionRequestRequest {
+  reason?: string;
+}
+
+interface RejectDeletionRequestRequest {
+  reason: string;
+}
+
+/**
+ * Lädt alle Löschaufträge (nur Dev-Mitarbeiter).
+ */
+export function getDeletionRequests(): Promise<GetDeletionRequestsResponse> {
+  return apiGet<GetDeletionRequestsResponse>('/api/support/deletion-requests');
+}
+
+/**
+ * Genehmigt einen Löschauftrag (nur Dev-Mitarbeiter).
+ */
+export function approveDeletionRequest(uid: string, data?: ApproveDeletionRequestRequest): Promise<{ message: string }> {
+  return apiPost<{ message: string }>(`/api/support/deletion-requests/${uid}/approve`, data || {});
+}
+
+/**
+ * Lehnt einen Löschauftrag ab (nur Dev-Mitarbeiter).
+ */
+export function rejectDeletionRequest(uid: string, data: RejectDeletionRequestRequest): Promise<{ message: string }> {
+  return apiPost<{ message: string }>(`/api/support/deletion-requests/${uid}/reject`, data);
+}
+
+/**
+ * Führt die tatsächliche Löschung durch (nur Dev-Mitarbeiter).
+ */
+export function executeDeletionRequest(uid: string): Promise<{ message: string }> {
+  return apiPost<{ message: string }>(`/api/support/deletion-requests/${uid}/execute`, {});
+}
+

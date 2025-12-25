@@ -2,7 +2,7 @@
  * Freelancer API Client
  */
 
-import { apiGet, apiPost, apiRequest } from '../../core/api';
+import { apiGet, apiPost, apiRequest, apiPatch, apiDelete } from '../../core/api';
 
 // =============================================================================
 // Types
@@ -24,6 +24,8 @@ export interface FreelancerResponse {
   uid: string;
   email: string;
   displayName: string;
+  firstName?: string;
+  lastName?: string;
   companyName?: string;
   tenantId?: string;
   phone?: string;
@@ -179,5 +181,50 @@ export function getVerificationStatus(): Promise<VerificationStatusResponse> {
  */
 export function getVerificationDocumentUrl(): Promise<VerificationDocumentResponse> {
   return apiGet<VerificationDocumentResponse>('/api/freelancer/verification/document');
+}
+
+// =============================================================================
+// Profile Update & Delete
+// =============================================================================
+
+export interface UpdateFreelancerProfileRequest {
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  companyName?: string;
+}
+
+interface UpdateFreelancerProfileResponse {
+  freelancer: FreelancerResponse;
+  message: string;
+}
+
+/**
+ * Aktualisiert das eigene Freelancer-Profil.
+ */
+export function updateFreelancerProfile(
+  data: UpdateFreelancerProfileRequest
+): Promise<UpdateFreelancerProfileResponse> {
+  return apiPatch<UpdateFreelancerProfileResponse>('/api/freelancer/me', data);
+}
+
+interface DeleteAccountResponse {
+  message: string;
+  deleted: boolean;
+}
+
+/**
+ * Erstellt einen Löschauftrag für das eigene Freelancer-Konto (DSGVO-konform).
+ * Erfordert Bestätigung mit "DELETE_MY_ACCOUNT".
+ * Das Konto wird nicht sofort gelöscht, sondern ein Antrag wird an das Support-Team gesendet.
+ */
+export function deleteFreelancerAccount(reason?: string): Promise<DeleteAccountResponse> {
+  return apiDelete<DeleteAccountResponse>('/api/freelancer/me', { 
+    confirmation: 'DELETE_MY_ACCOUNT',
+    reason,
+  });
 }
 

@@ -2,7 +2,7 @@
  * Members API Client
  */
 
-import { apiGet, apiPost, apiPut, apiDelete } from '../../core/api';
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from '../../core/api';
 import type {
   Member,
   MemberStats,
@@ -129,4 +129,18 @@ export function getMemberShifts(
     : `/api/members/${memberId}/shifts`;
   
   return apiGet<MemberShiftsResponse>(url);
+}
+
+/**
+ * Lädt das eigene Profil (für Admins/Manager).
+ */
+export function getMemberProfile(): Promise<MemberResponse> {
+  return apiGet<MemberResponse>('/api/members/me');
+}
+
+/**
+ * Aktualisiert das eigene Profil (für Admins/Manager).
+ */
+export function updateMemberProfile(data: UpdateMemberRequest): Promise<MemberResponse> {
+  return apiPatch<MemberResponse>('/api/members/me', data);
 }

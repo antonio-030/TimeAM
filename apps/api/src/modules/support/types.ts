@@ -88,3 +88,74 @@ export interface UpdateDevStaffPermissionsRequest {
   permissions: string[];
 }
 
+// =============================================================================
+// Account Deletion Request Types
+// =============================================================================
+
+/**
+ * Status für Löschaufträge.
+ */
+export const DELETION_REQUEST_STATUS = {
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  COMPLETED: 'completed',
+} as const;
+
+export type DeletionRequestStatus = (typeof DELETION_REQUEST_STATUS)[keyof typeof DELETION_REQUEST_STATUS];
+
+/**
+ * Löschauftrag-Dokument in Firestore.
+ * Pfad: /account-deletion-requests/{uid}
+ */
+export interface AccountDeletionRequestDoc {
+  uid: string; // User-UID
+  email: string;
+  displayName: string;
+  userType: 'freelancer' | 'employee' | 'dev-staff'; // Typ des Benutzers
+  status: DeletionRequestStatus;
+  requestedAt: Timestamp; // Wann wurde der Antrag gestellt
+  requestedReason?: string; // Optional: Grund des Benutzers
+  reviewedAt?: Timestamp; // Wann wurde der Antrag geprüft
+  reviewedBy?: string; // UID des Dev-Mitarbeiters
+  rejectionReason?: string; // Grund bei Ablehnung
+  scheduledDeletionAt?: Timestamp; // Wann soll gelöscht werden (30 Tage nach Genehmigung)
+  deletedAt?: Timestamp; // Wann wurde tatsächlich gelöscht
+  deletedBy?: string; // UID des Dev-Mitarbeiters, der gelöscht hat
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/**
+ * Response: Löschauftrag-Übersicht.
+ */
+export interface AccountDeletionRequestOverview {
+  uid: string;
+  email: string;
+  displayName: string;
+  userType: 'freelancer' | 'employee' | 'dev-staff';
+  status: DeletionRequestStatus;
+  requestedAt: string;
+  requestedReason?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectionReason?: string;
+  scheduledDeletionAt?: string;
+  deletedAt?: string;
+  deletedBy?: string;
+}
+
+/**
+ * Request: Löschauftrag genehmigen.
+ */
+export interface ApproveDeletionRequestRequest {
+  reason?: string; // Optional: Notiz des Support-Mitarbeiters
+}
+
+/**
+ * Request: Löschauftrag ablehnen.
+ */
+export interface RejectDeletionRequestRequest {
+  reason: string; // Begründung der Ablehnung
+}
+

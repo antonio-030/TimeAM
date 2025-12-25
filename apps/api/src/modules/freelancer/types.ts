@@ -29,6 +29,8 @@ export interface FreelancerDoc {
   uid: string;
   email: string;
   displayName: string;
+  firstName?: string; // Vorname
+  lastName?: string; // Nachname
   companyName?: string; // Firmenname (Tenant-Name)
   tenantId?: string; // Haupt-Tenant-ID (eigene Firma)
   phone?: string;
@@ -71,6 +73,8 @@ export interface FreelancerResponse {
   uid: string;
   email: string;
   displayName: string;
+  firstName?: string; // Vorname
+  lastName?: string; // Nachname
   companyName?: string;
   tenantId?: string;
   phone?: string;

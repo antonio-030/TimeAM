@@ -55,6 +55,31 @@ router.get('/', ...membersGuard, async (req, res) => {
 });
 
 /**
+ * GET /api/members/me
+ * Eigenes Profil laden (für Admins/Manager).
+ */
+router.get('/me', ...membersGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+
+  try {
+    const { getMemberByUid } = await import('./service');
+    const member = await getMemberByUid(tenant.id, user.uid);
+
+    if (!member) {
+      res.status(404).json({ error: 'Member profile not found', code: 'NOT_FOUND' });
+      return;
+    }
+
+    res.json({ member });
+  } catch (error) {
+    console.error('Error in GET /members/me:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get member profile';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
  * GET /api/members/:memberId
  * Details eines Mitarbeiters.
  */
@@ -143,6 +168,62 @@ router.post('/', ...membersGuard, async (req, res) => {
     }
 
     console.error('Error in POST /members:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * PATCH /api/members/me
+ * Eigenes Profil aktualisieren (für Admins/Manager).
+ */
+router.patch('/me', ...membersGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const body = req.body as UpdateMemberRequest;
+
+  try {
+    const { getMemberByUid, updateMember } = await import('./service');
+    const currentMember = await getMemberByUid(tenant.id, user.uid);
+
+    if (!currentMember) {
+      res.status(404).json({ error: 'Member profile not found', code: 'NOT_FOUND' });
+      return;
+    }
+
+    // Nur bestimmte Felder erlauben (keine Rolle/Status-Änderung)
+    const allowedFields: UpdateMemberRequest = {
+      displayName: body.displayName,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      address: body.address,
+      employeeNumber: body.employeeNumber,
+      phone: body.phone,
+      department: body.department,
+      position: body.position,
+      hourlyRate: body.hourlyRate,
+      skills: body.skills,
+      notes: body.notes,
+      hasSachkunde: body.hasSachkunde,
+      hasFuehrerschein: body.hasFuehrerschein,
+      hasUnterweisung: body.hasUnterweisung,
+      securityQualifications: body.securityQualifications,
+    };
+
+    const member = await updateMember(tenant.id, currentMember.id, allowedFields);
+
+    res.json({
+      member,
+      message: 'Profile updated successfully',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update profile';
+
+    if (message === 'Member not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+
+    console.error('Error in PATCH /members/me:', error);
     res.status(500).json({ error: message });
   }
 });

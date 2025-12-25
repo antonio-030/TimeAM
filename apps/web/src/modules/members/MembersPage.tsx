@@ -120,6 +120,10 @@ interface InviteMemberModalProps {
 function InviteMemberModal({ onSubmit, onClose }: InviteMemberModalProps) {
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [address, setAddress] = useState('');
+  const [employeeNumber, setEmployeeNumber] = useState('');
   const [role, setRole] = useState<MemberRole>(MEMBER_ROLES.EMPLOYEE);
   const [department, setDepartment] = useState('');
   const [position, setPosition] = useState('');
@@ -141,6 +145,10 @@ function InviteMemberModal({ onSubmit, onClose }: InviteMemberModalProps) {
       await onSubmit({
         email: email.trim(),
         displayName: displayName.trim() || undefined,
+        firstName: firstName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
+        address: address.trim() || undefined,
+        employeeNumber: employeeNumber.trim() || undefined,
         role,
         department: department.trim() || undefined,
         position: position.trim() || undefined,
@@ -185,6 +193,52 @@ function InviteMemberModal({ onSubmit, onClose }: InviteMemberModalProps) {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Max Mustermann"
+            />
+          </div>
+
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Vorname</label>
+              <input
+                type="text"
+                className={styles.formInput}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Max"
+              />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Nachname</label>
+              <input
+                type="text"
+                className={styles.formInput}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Mustermann"
+              />
+            </div>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Adresse</label>
+            <input
+              type="text"
+              className={styles.formInput}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Musterstraße 123, 12345 Musterstadt"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Personalnummer</label>
+            <input
+              type="text"
+              className={styles.formInput}
+              value={employeeNumber}
+              onChange={(e) => setEmployeeNumber(e.target.value)}
+              placeholder="z.B. 12345"
             />
           </div>
 
@@ -402,6 +456,10 @@ interface EditMemberModalProps {
 
 function EditMemberModal({ member, onSubmit, onClose }: EditMemberModalProps) {
   const [displayName, setDisplayName] = useState(member.displayName || '');
+  const [firstName, setFirstName] = useState(member.firstName || '');
+  const [lastName, setLastName] = useState(member.lastName || '');
+  const [address, setAddress] = useState(member.address || '');
+  const [employeeNumber, setEmployeeNumber] = useState(member.employeeNumber || '');
   const [role, setRole] = useState<MemberRole>(member.role);
   const [department, setDepartment] = useState(member.department || '');
   const [position, setPosition] = useState(member.position || '');
@@ -425,6 +483,10 @@ function EditMemberModal({ member, onSubmit, onClose }: EditMemberModalProps) {
     try {
       await onSubmit(member.id, {
         displayName: displayName.trim() || undefined,
+        firstName: firstName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
+        address: address.trim() || undefined,
+        employeeNumber: employeeNumber.trim() || undefined,
         role,
         department: department.trim() || undefined,
         position: position.trim() || undefined,
@@ -471,6 +533,52 @@ function EditMemberModal({ member, onSubmit, onClose }: EditMemberModalProps) {
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Max Mustermann"
+            />
+          </div>
+
+          <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Vorname</label>
+              <input
+                type="text"
+                className={styles.formInput}
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                placeholder="Max"
+              />
+            </div>
+
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>Nachname</label>
+              <input
+                type="text"
+                className={styles.formInput}
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                placeholder="Mustermann"
+              />
+            </div>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Adresse</label>
+            <input
+              type="text"
+              className={styles.formInput}
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Musterstraße 123, 12345 Musterstadt"
+            />
+          </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Personalnummer</label>
+            <input
+              type="text"
+              className={styles.formInput}
+              value={employeeNumber}
+              onChange={(e) => setEmployeeNumber(e.target.value)}
+              placeholder="z.B. 12345"
             />
           </div>
 

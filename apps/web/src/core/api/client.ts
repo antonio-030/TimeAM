@@ -110,7 +110,20 @@ export function apiPut<T>(endpoint: string, body?: unknown): Promise<T> {
 /**
  * DELETE Request.
  */
-export function apiDelete<T>(endpoint: string): Promise<T> {
-  return apiRequest<T>(endpoint, { method: 'DELETE' });
+export function apiDelete<T>(endpoint: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(endpoint, { 
+    method: 'DELETE',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+/**
+ * PATCH Request.
+ */
+export function apiPatch<T>(endpoint: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(endpoint, {
+    method: 'PATCH',
+    body: body ? JSON.stringify(body) : undefined,
+  });
 }
 

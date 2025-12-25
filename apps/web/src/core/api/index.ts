@@ -8,6 +8,7 @@ export {
   apiPost,
   apiPut,
   apiDelete,
+  apiPatch,
   ApiError,
   type ApiResponse,
 } from './client';

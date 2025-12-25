@@ -26,6 +26,8 @@ function freelancerToResponse(doc: FreelancerDoc): FreelancerResponse {
     uid: doc.uid,
     email: doc.email,
     displayName: doc.displayName,
+    firstName: doc.firstName,
+    lastName: doc.lastName,
     companyName: doc.companyName,
     tenantId: doc.tenantId,
     phone: doc.phone,
@@ -301,5 +303,233 @@ export async function getVerificationDocumentUrl(
   });
 
   return url;
+}
+
+// =============================================================================
+// Profile Update & Delete (DSGVO)
+// =============================================================================
+
+/**
+ * Request für Profil-Update
+ */
+export interface UpdateFreelancerProfileRequest {
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string; // Email-Update
+  phone?: string;
+  address?: string;
+  companyName?: string;
+}
+
+/**
+ * Aktualisiert das Freelancer-Profil.
+ */
+export async function updateFreelancerProfile(
+  uid: string,
+  data: UpdateFreelancerProfileRequest
+): Promise<FreelancerResponse> {
+  const db = getAdminFirestore();
+  const auth = getAdminAuth();
+
+  const freelancerRef = db.collection('freelancers').doc(uid);
+  const freelancerSnap = await freelancerRef.get();
+
+  if (!freelancerSnap.exists) {
+    throw new Error('Freelancer not found');
+  }
+
+  const updateData: Record<string, unknown> = {
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  // Nur gesetzte Felder aktualisieren
+  if (data.displayName !== undefined) {
+    const trimmed = data.displayName.trim();
+    if (trimmed.length < 2) {
+      throw new Error('Display name must be at least 2 characters');
+    }
+    updateData.displayName = trimmed;
+    
+    // Firebase Auth displayName auch aktualisieren
+    await auth.updateUser(uid, { displayName: trimmed });
+  }
+
+  if (data.firstName !== undefined) {
+    updateData.firstName = data.firstName.trim();
+  }
+
+  if (data.lastName !== undefined) {
+    updateData.lastName = data.lastName.trim();
+  }
+
+  // Email-Update (mit Validierung)
+  if (data.email !== undefined) {
+    const trimmedEmail = data.email.toLowerCase().trim();
+    
+    // Validierung
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      throw new Error('Valid email is required');
+    }
+
+    // Prüfen ob Email bereits von anderem User verwendet wird
+    try {
+      const existingUser = await auth.getUserByEmail(trimmedEmail).catch(() => null);
+      if (existingUser && existingUser.uid !== uid) {
+        throw new Error('This email is already in use by another account');
+      }
+    } catch (emailCheckError) {
+      if (emailCheckError instanceof Error && emailCheckError.message.includes('already in use')) {
+        throw emailCheckError;
+      }
+      // Andere Fehler ignorieren (z.B. User nicht gefunden ist OK)
+    }
+
+    // Email in Firebase Auth aktualisieren
+    await auth.updateUser(uid, { email: trimmedEmail });
+    
+    // Email in Freelancer-Dokument aktualisieren
+    updateData.email = trimmedEmail;
+    
+    // Email auch in users Collection aktualisieren
+    await db.collection('users').doc(uid).update({
+      email: trimmedEmail,
+    });
+  }
+
+  if (data.phone !== undefined) {
+    updateData.phone = data.phone.trim();
+  }
+
+  if (data.address !== undefined) {
+    updateData.address = data.address.trim();
+  }
+
+  if (data.companyName !== undefined) {
+    const trimmed = data.companyName.trim();
+    if (trimmed.length < 2) {
+      throw new Error('Company name must be at least 2 characters');
+    }
+    updateData.companyName = trimmed;
+  }
+
+  await freelancerRef.update(updateData);
+
+  const updatedDoc = await freelancerRef.get();
+  return freelancerToResponse(updatedDoc.data() as FreelancerDoc);
+}
+
+/**
+ * Löscht einen Freelancer-Account komplett (DSGVO-konform).
+ * - Löscht Firebase Auth User
+ * - Löscht Freelancer-Dokument
+ * - Löscht User-Dokument
+ * - Löscht alle Storage-Dateien (Verifizierungsdokumente)
+ * - Löscht Bewerbungen
+ */
+export async function deleteFreelancerAccount(uid: string): Promise<void> {
+  const db = getAdminFirestore();
+  const auth = getAdminAuth();
+  const storage = getAdminStorage();
+
+  // Freelancer-Dokument prüfen
+  const freelancerRef = db.collection('freelancers').doc(uid);
+  const freelancerSnap = await freelancerRef.get();
+
+  if (!freelancerSnap.exists) {
+    throw new Error('Freelancer not found');
+  }
+
+  const freelancerData = freelancerSnap.data() as FreelancerDoc;
+
+  console.log(`🗑️ Deleting freelancer account: ${uid} (${freelancerData.email})`);
+
+  // 1. Storage-Dateien löschen (Verifizierungsdokumente)
+  try {
+    const bucket = storage.bucket();
+    const [files] = await bucket.getFiles({
+      prefix: `freelancers/${uid}/`,
+    });
+
+    for (const file of files) {
+      await file.delete();
+      console.log(`  ✓ Deleted file: ${file.name}`);
+    }
+  } catch (storageError) {
+    console.warn('⚠️ Error deleting storage files:', storageError);
+    // Fahre trotzdem fort
+  }
+
+  // 2. Bewerbungen des Freelancers anonymisieren/löschen
+  try {
+    const applicationsSnap = await db
+      .collectionGroup('applications')
+      .where('uid', '==', uid)
+      .get();
+
+    for (const appDoc of applicationsSnap.docs) {
+      // Bewerbung anonymisieren (für Audit-Trail)
+      await appDoc.ref.update({
+        uid: '[DELETED]',
+        email: '[DELETED]',
+        note: '[DELETED]',
+        freelancerProfile: FieldValue.delete(),
+        anonymizedAt: FieldValue.serverTimestamp(),
+      });
+      console.log(`  ✓ Anonymized application: ${appDoc.id}`);
+    }
+  } catch (appError) {
+    console.warn('⚠️ Error anonymizing applications:', appError);
+  }
+
+  // 3. Tenant des Freelancers löschen (falls vorhanden)
+  if (freelancerData.tenantId) {
+    try {
+      // Tenant-Members löschen
+      const membersSnap = await db
+        .collection('tenants')
+        .doc(freelancerData.tenantId)
+        .collection('members')
+        .get();
+      
+      for (const memberDoc of membersSnap.docs) {
+        await memberDoc.ref.delete();
+      }
+
+      // Entitlements löschen
+      const entitlementsRef = db
+        .collection('tenants')
+        .doc(freelancerData.tenantId)
+        .collection('entitlements')
+        .doc('default');
+      await entitlementsRef.delete();
+
+      // Tenant-Dokument löschen
+      await db.collection('tenants').doc(freelancerData.tenantId).delete();
+      console.log(`  ✓ Deleted tenant: ${freelancerData.tenantId}`);
+    } catch (tenantError) {
+      console.warn('⚠️ Error deleting tenant:', tenantError);
+    }
+  }
+
+  // 4. Freelancer-Dokument löschen
+  await freelancerRef.delete();
+  console.log(`  ✓ Deleted freelancer document`);
+
+  // 5. User-Dokument löschen
+  const userRef = db.collection('users').doc(uid);
+  await userRef.delete();
+  console.log(`  ✓ Deleted user document`);
+
+  // 6. Firebase Auth User löschen (zuletzt)
+  try {
+    await auth.deleteUser(uid);
+    console.log(`  ✓ Deleted Firebase Auth user`);
+  } catch (authError) {
+    console.error('❌ Error deleting Firebase Auth user:', authError);
+    throw new Error('Failed to delete authentication account');
+  }
+
+  console.log(`✅ Freelancer account ${uid} completely deleted`);
 }
 

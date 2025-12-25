@@ -13,7 +13,9 @@ import {
   getFreelancer,
   uploadVerificationDocument,
   getVerificationDocumentUrl,
+  updateFreelancerProfile,
 } from './service';
+import { createDeletionRequest } from '../support/service';
 import {
   getFreelancerEntitlements,
   setFreelancerEntitlement,
@@ -102,6 +104,120 @@ router.get('/me', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error in GET /freelancer/me:', error);
     const message = error instanceof Error ? error.message : 'Failed to get freelancer';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * PATCH /api/freelancer/me
+ * Aktualisiert das eigene Freelancer-Profil.
+ */
+router.patch('/me', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+
+  try {
+    // Prüfen ob User ein Freelancer ist
+    const db = getAdminFirestore();
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    const userData = userDoc.data();
+    
+    if (!userData?.isFreelancer) {
+      res.status(403).json({ error: 'Only freelancers can update their profile' });
+      return;
+    }
+
+    const { displayName, firstName, lastName, email, phone, address, companyName } = req.body;
+
+    const updatedFreelancer = await updateFreelancerProfile(user.uid, {
+      displayName,
+      firstName,
+      lastName,
+      email,
+      phone,
+      address,
+      companyName,
+    });
+
+    res.json({ 
+      freelancer: updatedFreelancer,
+      message: 'Profile updated successfully',
+    });
+  } catch (error) {
+    console.error('Error in PATCH /freelancer/me:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update profile';
+    
+    if (message.includes('must be at least')) {
+      res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+    if (message === 'Freelancer not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * DELETE /api/freelancer/me
+ * Erstellt einen Löschauftrag für das eigene Freelancer-Konto (DSGVO-konform).
+ * Das Konto wird nicht sofort gelöscht, sondern ein Antrag wird an das Support-Team gesendet.
+ */
+router.delete('/me', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+
+  try {
+    // Prüfen ob User ein Freelancer ist
+    const db = getAdminFirestore();
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    const userData = userDoc.data();
+    
+    if (!userData?.isFreelancer) {
+      res.status(403).json({ error: 'Only freelancers can request account deletion' });
+      return;
+    }
+
+    // Bestätigung erforderlich
+    const { confirmation, reason } = req.body;
+    if (confirmation !== 'DELETE_MY_ACCOUNT') {
+      res.status(422).json({ 
+        error: 'Confirmation required. Send { "confirmation": "DELETE_MY_ACCOUNT" }',
+        code: 'CONFIRMATION_REQUIRED',
+      });
+      return;
+    }
+
+    // Freelancer-Daten laden
+    const freelancer = await getFreelancer(user.uid);
+    if (!freelancer) {
+      res.status(404).json({ error: 'Freelancer profile not found', code: 'NOT_FOUND' });
+      return;
+    }
+
+    // Löschauftrag erstellen
+    const deletionRequest = await createDeletionRequest(
+      user.uid,
+      user.email || freelancer.email,
+      user.displayName || freelancer.displayName,
+      'freelancer',
+      reason
+    );
+
+    res.json({ 
+      message: 'Deletion request submitted successfully. Your account will be reviewed by our support team. Data will be retained for 30 days after approval before permanent deletion.',
+      requestId: deletionRequest.uid,
+      status: deletionRequest.status,
+    });
+  } catch (error) {
+    console.error('Error in DELETE /freelancer/me:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create deletion request';
+    
+    if (message.includes('already exists')) {
+      res.status(409).json({ error: message, code: 'DUPLICATE_REQUEST' });
+      return;
+    }
+    
     res.status(500).json({ error: message });
   }
 });

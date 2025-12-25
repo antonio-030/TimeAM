@@ -27,6 +27,10 @@ export interface MemberDoc {
   uid: string;
   email: string;
   displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
+  employeeNumber?: string; // Personalnummer
   role: string;
   status: string;
   phone?: string;

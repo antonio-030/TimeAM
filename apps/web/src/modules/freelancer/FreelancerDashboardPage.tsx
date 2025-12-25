@@ -285,6 +285,41 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
             <h1 className={styles.greeting}>
               {greeting === 'Morgen' ? '🌅' : greeting === 'Tag' ? '☀️' : '🌙'} Guten {greeting}, {userName}!
             </h1>
+            {/* Verifizierungs-Badge */}
+            <button
+              className={`${styles.verificationBadge} ${
+                verificationStatus === 'approved' 
+                  ? styles.verificationBadgeApproved 
+                  : verificationStatus === 'pending'
+                    ? styles.verificationBadgePending
+                    : styles.verificationBadgeNotVerified
+              }`}
+              onClick={() => setShowVerificationModal(true)}
+              title={
+                verificationStatus === 'approved' 
+                  ? 'Verifiziert - Klicken für Details' 
+                  : verificationStatus === 'pending'
+                    ? 'Verifizierung wird geprüft'
+                    : 'Noch nicht verifiziert - Jetzt verifizieren'
+              }
+            >
+              {verificationStatus === 'approved' ? (
+                <>
+                  <span className={styles.verificationBadgeIcon}>✓</span>
+                  <span className={styles.verificationBadgeText}>Verifiziert</span>
+                </>
+              ) : verificationStatus === 'pending' ? (
+                <>
+                  <span className={styles.verificationBadgeIcon}>⏳</span>
+                  <span className={styles.verificationBadgeText}>In Prüfung</span>
+                </>
+              ) : (
+                <>
+                  <span className={styles.verificationBadgeIcon}>⚠️</span>
+                  <span className={styles.verificationBadgeText}>Noch zu verifizieren</span>
+                </>
+              )}
+            </button>
           </div>
           <p className={styles.subtitle}>
             Freelancer Account • {activeModules} Module aktiv

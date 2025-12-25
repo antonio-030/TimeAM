@@ -15,6 +15,9 @@ import type {
   VerificationOverview,
   CreateDevStaffRequest,
   UpdateDevStaffPermissionsRequest,
+  AccountDeletionRequestDoc,
+  AccountDeletionRequestOverview,
+  DeletionRequestStatus,
 } from './types';
 import type { VerificationStatus } from '../freelancer/types';
 import type { FreelancerDoc } from '../freelancer/types';
@@ -502,5 +505,248 @@ export async function assignDevStaffToTenant(uid: string, email: string): Promis
 
     console.log(`✅ Dev-Mitarbeiter ${uid} zum Dev-Tenant hinzugefügt`);
   }
+}
+
+// =============================================================================
+// Account Deletion Request Operations
+// =============================================================================
+
+/**
+ * Konvertiert AccountDeletionRequestDoc zu API Response.
+ */
+function deletionRequestToOverview(doc: AccountDeletionRequestDoc): AccountDeletionRequestOverview {
+  return {
+    uid: doc.uid,
+    email: doc.email,
+    displayName: doc.displayName,
+    userType: doc.userType,
+    status: doc.status,
+    requestedAt: doc.requestedAt.toDate().toISOString(),
+    requestedReason: doc.requestedReason,
+    reviewedAt: doc.reviewedAt?.toDate().toISOString(),
+    reviewedBy: doc.reviewedBy,
+    rejectionReason: doc.rejectionReason,
+    scheduledDeletionAt: doc.scheduledDeletionAt?.toDate().toISOString(),
+    deletedAt: doc.deletedAt?.toDate().toISOString(),
+    deletedBy: doc.deletedBy,
+  };
+}
+
+/**
+ * Erstellt einen Löschauftrag.
+ */
+export async function createDeletionRequest(
+  uid: string,
+  email: string,
+  displayName: string,
+  userType: 'freelancer' | 'employee' | 'dev-staff',
+  reason?: string
+): Promise<AccountDeletionRequestOverview> {
+  const db = getAdminFirestore();
+  const requestRef = db.collection('account-deletion-requests').doc(uid);
+
+  // Prüfen ob bereits ein Antrag existiert
+  const existingSnap = await requestRef.get();
+  if (existingSnap.exists) {
+    const existing = existingSnap.data() as AccountDeletionRequestDoc;
+    if (existing.status === 'pending' || existing.status === 'approved') {
+      throw new Error('A deletion request already exists for this account');
+    }
+  }
+
+  const requestData: AccountDeletionRequestDoc = {
+    uid,
+    email,
+    displayName,
+    userType,
+    status: 'pending',
+    requestedAt: FieldValue.serverTimestamp() as Timestamp,
+    requestedReason: reason,
+    createdAt: FieldValue.serverTimestamp() as Timestamp,
+    updatedAt: FieldValue.serverTimestamp() as Timestamp,
+  };
+
+  await requestRef.set(requestData);
+
+  const savedDoc = await requestRef.get();
+  return deletionRequestToOverview(savedDoc.data() as AccountDeletionRequestDoc);
+}
+
+/**
+ * Lädt alle Löschaufträge.
+ */
+export async function getAllDeletionRequests(): Promise<AccountDeletionRequestOverview[]> {
+  const db = getAdminFirestore();
+  const snapshot = await db.collection('account-deletion-requests').get();
+
+  const requests: AccountDeletionRequestOverview[] = [];
+
+  for (const doc of snapshot.docs) {
+    requests.push(deletionRequestToOverview(doc.data() as AccountDeletionRequestDoc));
+  }
+
+  // Sortieren: pending zuerst, dann nach requestedAt
+  requests.sort((a, b) => {
+    if (a.status === 'pending' && b.status !== 'pending') return -1;
+    if (a.status !== 'pending' && b.status === 'pending') return 1;
+    if (a.requestedAt && b.requestedAt) {
+      return new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime();
+    }
+    return 0;
+  });
+
+  return requests;
+}
+
+/**
+ * Genehmigt einen Löschauftrag.
+ * Setzt scheduledDeletionAt auf 30 Tage in der Zukunft.
+ */
+export async function approveDeletionRequest(
+  uid: string,
+  reviewedByUid: string,
+  reason?: string
+): Promise<void> {
+  const db = getAdminFirestore();
+  const requestRef = db.collection('account-deletion-requests').doc(uid);
+
+  const requestSnap = await requestRef.get();
+  if (!requestSnap.exists) {
+    throw new Error('Deletion request not found');
+  }
+
+  const requestData = requestSnap.data() as AccountDeletionRequestDoc;
+  if (requestData.status !== 'pending') {
+    throw new Error(`Cannot approve deletion request with status: ${requestData.status}`);
+  }
+
+  // 30 Tage in der Zukunft
+  const scheduledDeletionDate = new Date();
+  scheduledDeletionDate.setDate(scheduledDeletionDate.getDate() + 30);
+
+  await requestRef.update({
+    status: 'approved',
+    reviewedAt: FieldValue.serverTimestamp(),
+    reviewedBy: reviewedByUid,
+    scheduledDeletionAt: Timestamp.fromDate(scheduledDeletionDate),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  console.log(`✅ Deletion request approved for ${uid}. Scheduled deletion: ${scheduledDeletionDate.toISOString()}`);
+}
+
+/**
+ * Lehnt einen Löschauftrag ab.
+ */
+export async function rejectDeletionRequest(
+  uid: string,
+  reviewedByUid: string,
+  reason: string
+): Promise<void> {
+  const db = getAdminFirestore();
+  const requestRef = db.collection('account-deletion-requests').doc(uid);
+
+  const requestSnap = await requestRef.get();
+  if (!requestSnap.exists) {
+    throw new Error('Deletion request not found');
+  }
+
+  const requestData = requestSnap.data() as AccountDeletionRequestDoc;
+  if (requestData.status !== 'pending') {
+    throw new Error(`Cannot reject deletion request with status: ${requestData.status}`);
+  }
+
+  if (!reason || reason.trim().length < 3) {
+    throw new Error('Rejection reason is required (min. 3 characters)');
+  }
+
+  await requestRef.update({
+    status: 'rejected',
+    reviewedAt: FieldValue.serverTimestamp(),
+    reviewedBy: reviewedByUid,
+    rejectionReason: reason.trim(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  console.log(`❌ Deletion request rejected for ${uid}. Reason: ${reason}`);
+}
+
+/**
+ * Führt die tatsächliche Löschung eines Kontos durch.
+ * Wird vom Support-Mitarbeiter aufgerufen oder automatisch nach 30 Tagen.
+ */
+export async function executeDeletionRequest(
+  uid: string,
+  executedByUid: string
+): Promise<void> {
+  const db = getAdminFirestore();
+  const auth = getAdminAuth();
+  const storage = getAdminStorage();
+
+  const requestRef = db.collection('account-deletion-requests').doc(uid);
+  const requestSnap = await requestRef.get();
+
+  if (!requestSnap.exists) {
+    throw new Error('Deletion request not found');
+  }
+
+  const requestData = requestSnap.data() as AccountDeletionRequestDoc;
+  if (requestData.status !== 'approved') {
+    throw new Error(`Cannot execute deletion request with status: ${requestData.status}`);
+  }
+
+  // Prüfen ob scheduledDeletionAt erreicht wurde
+  if (requestData.scheduledDeletionAt) {
+    const scheduledDate = requestData.scheduledDeletionAt.toDate();
+    const now = new Date();
+    if (now < scheduledDate) {
+      throw new Error(`Deletion is scheduled for ${scheduledDate.toISOString()}. Cannot execute yet.`);
+    }
+  }
+
+  console.log(`🗑️ Executing deletion for account: ${uid} (${requestData.email})`);
+
+  // Je nach User-Typ unterschiedlich löschen
+  if (requestData.userType === 'freelancer') {
+    // Freelancer-Löschung (aus dem Freelancer-Service)
+    const { deleteFreelancerAccount } = await import('../freelancer/service');
+    await deleteFreelancerAccount(uid);
+  } else {
+    // Employee oder Dev-Staff - ähnliche Löschung
+    // Storage-Dateien löschen
+    try {
+      const bucket = storage.bucket();
+      const [files] = await bucket.getFiles({
+        prefix: `users/${uid}/`,
+      });
+
+      for (const file of files) {
+        await file.delete();
+      }
+    } catch (storageError) {
+      console.warn('⚠️ Error deleting storage files:', storageError);
+    }
+
+    // User-Dokument löschen
+    await db.collection('users').doc(uid).delete();
+
+    // Firebase Auth User löschen
+    try {
+      await auth.deleteUser(uid);
+    } catch (authError) {
+      console.error('❌ Error deleting Firebase Auth user:', authError);
+      throw new Error('Failed to delete authentication account');
+    }
+  }
+
+  // Löschauftrag als completed markieren
+  await requestRef.update({
+    status: 'completed',
+    deletedAt: FieldValue.serverTimestamp(),
+    deletedBy: executedByUid,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  console.log(`✅ Account ${uid} successfully deleted`);
 }
 

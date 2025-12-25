@@ -59,6 +59,10 @@ function memberToResponse(id: string, doc: Record<string, unknown>): Member {
     uid: (doc.uid as string) || id, // Fallback: Dokument-ID als UID
     email: (doc.email as string) || '',
     displayName: doc.displayName as string | undefined,
+    firstName: doc.firstName as string | undefined,
+    lastName: doc.lastName as string | undefined,
+    address: doc.address as string | undefined,
+    employeeNumber: doc.employeeNumber as string | undefined,
     role: (doc.role as MemberRole) || MEMBER_ROLES.EMPLOYEE,
     status: status as MemberStatus,
     phone: doc.phone as string | undefined,
@@ -267,6 +271,18 @@ export async function inviteMember(
   if (data.displayName?.trim()) {
     memberData.displayName = data.displayName.trim();
   }
+  if (data.firstName?.trim()) {
+    memberData.firstName = data.firstName.trim();
+  }
+  if (data.lastName?.trim()) {
+    memberData.lastName = data.lastName.trim();
+  }
+  if (data.address?.trim()) {
+    memberData.address = data.address.trim();
+  }
+  if (data.employeeNumber?.trim()) {
+    memberData.employeeNumber = data.employeeNumber.trim();
+  }
   if (data.department?.trim()) {
     memberData.department = data.department.trim();
   }
@@ -345,6 +361,18 @@ export async function updateMember(
   // Nur geänderte Felder hinzufügen
   if (data.displayName !== undefined) {
     updateData.displayName = data.displayName?.trim() || null;
+  }
+  if (data.firstName !== undefined) {
+    updateData.firstName = data.firstName?.trim() || null;
+  }
+  if (data.lastName !== undefined) {
+    updateData.lastName = data.lastName?.trim() || null;
+  }
+  if (data.address !== undefined) {
+    updateData.address = data.address?.trim() || null;
+  }
+  if (data.employeeNumber !== undefined) {
+    updateData.employeeNumber = data.employeeNumber?.trim() || null;
   }
   if (data.role !== undefined) {
     updateData.role = data.role;

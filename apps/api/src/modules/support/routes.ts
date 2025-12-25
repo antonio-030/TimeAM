@@ -19,6 +19,10 @@ import {
   approveVerification,
   rejectVerification,
   getVerificationDocumentUrlForDev,
+  getAllDeletionRequests,
+  approveDeletionRequest,
+  rejectDeletionRequest,
+  executeDeletionRequest,
 } from './service';
 import type {
   CreateDevStaffRequest,
@@ -319,6 +323,151 @@ router.get('/support/verifications/:freelancerUid/document', requireAuth, async 
     }
 
     console.error('Error in GET /support/verifications/:freelancerUid/document:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+// =============================================================================
+// Account Deletion Requests
+// =============================================================================
+
+/**
+ * GET /api/support/deletion-requests
+ * Lädt alle Löschaufträge (nur Dev-Mitarbeiter).
+ */
+router.get('/support/deletion-requests', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+
+  try {
+    // Prüfen ob User ein Dev-Mitarbeiter ist
+    const isDev = await isDevStaff(user.uid);
+    if (!isDev) {
+      res.status(403).json({ error: 'Dev staff access required' });
+      return;
+    }
+
+    const requests = await getAllDeletionRequests();
+
+    res.json({ requests });
+  } catch (error) {
+    console.error('Error in GET /support/deletion-requests:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get deletion requests';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/support/deletion-requests/:uid/approve
+ * Genehmigt einen Löschauftrag (nur Dev-Mitarbeiter).
+ */
+router.post('/support/deletion-requests/:uid/approve', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { uid } = req.params;
+  const body = req.body as { reason?: string };
+
+  try {
+    // Prüfen ob User ein Dev-Mitarbeiter ist
+    const isDev = await isDevStaff(user.uid);
+    if (!isDev) {
+      res.status(403).json({ error: 'Dev staff access required' });
+      return;
+    }
+
+    await approveDeletionRequest(uid, user.uid, body.reason);
+
+    res.json({ message: 'Deletion request approved. Account will be deleted in 30 days.' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to approve deletion request';
+
+    if (message === 'Deletion request not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message.includes('status')) {
+      res.status(422).json({ error: message, code: 'INVALID_STATUS' });
+      return;
+    }
+
+    console.error('Error in POST /support/deletion-requests/:uid/approve:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/support/deletion-requests/:uid/reject
+ * Lehnt einen Löschauftrag ab (nur Dev-Mitarbeiter).
+ */
+router.post('/support/deletion-requests/:uid/reject', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { uid } = req.params;
+  const body = req.body as { reason: string };
+
+  try {
+    // Prüfen ob User ein Dev-Mitarbeiter ist
+    const isDev = await isDevStaff(user.uid);
+    if (!isDev) {
+      res.status(403).json({ error: 'Dev staff access required' });
+      return;
+    }
+
+    if (!body.reason || body.reason.trim().length < 3) {
+      res.status(422).json({ error: 'Rejection reason is required (min. 3 characters)', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    await rejectDeletionRequest(uid, user.uid, body.reason);
+
+    res.json({ message: 'Deletion request rejected successfully' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to reject deletion request';
+
+    if (message === 'Deletion request not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message.includes('status') || message.includes('required')) {
+      res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    console.error('Error in POST /support/deletion-requests/:uid/reject:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/support/deletion-requests/:uid/execute
+ * Führt die tatsächliche Löschung durch (nur Dev-Mitarbeiter).
+ * Kann nur ausgeführt werden, wenn scheduledDeletionAt erreicht wurde.
+ */
+router.post('/support/deletion-requests/:uid/execute', requireAuth, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { uid } = req.params;
+
+  try {
+    // Prüfen ob User ein Dev-Mitarbeiter ist
+    const isDev = await isDevStaff(user.uid);
+    if (!isDev) {
+      res.status(403).json({ error: 'Dev staff access required' });
+      return;
+    }
+
+    await executeDeletionRequest(uid, user.uid);
+
+    res.json({ message: 'Account deleted successfully' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to execute deletion';
+
+    if (message === 'Deletion request not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message.includes('status') || message.includes('scheduled')) {
+      res.status(422).json({ error: message, code: 'INVALID_STATUS' });
+      return;
+    }
+
+    console.error('Error in POST /support/deletion-requests/:uid/execute:', error);
     res.status(500).json({ error: message });
   }
 });

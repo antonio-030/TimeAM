@@ -11,6 +11,9 @@
   max-width: var(--max-content-width);
   margin: 0 auto;
   padding: var(--spacing-xl);
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Header */
@@ -581,9 +584,286 @@
   gap: var(--spacing-lg);
 }
 
-@media (max-width: 600px) {
+/* Formular für mobile optimieren - Neue Schicht erstellen */
+@media (max-width: 768px) {
   .formRow {
     grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .form {
+    gap: var(--spacing-md);
+  }
+
+  .formGroup {
+    gap: var(--spacing-xs);
+  }
+
+  .formLabel {
+    font-size: var(--font-size-sm);
+  }
+
+  .formInput,
+  .formTextarea,
+  .formSelect {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-base);
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 44px;
+  }
+
+  .formInput[type="datetime-local"] {
+    font-size: var(--font-size-base);
+  }
+
+  .formInput[type="number"] {
+    font-size: var(--font-size-base);
+  }
+
+  .formHint,
+  .preAssignHint {
+    font-size: var(--font-size-xs);
+    line-height: 1.4;
+  }
+
+  .formActions {
+    flex-direction: column-reverse;
+    gap: var(--spacing-sm);
+    position: sticky;
+    bottom: 0;
+    background: var(--color-bg-primary);
+    padding: var(--spacing-md);
+    margin: var(--spacing-lg) calc(-1 * var(--spacing-md)) calc(-1 * var(--spacing-md));
+    border-top: 1px solid var(--color-border-light, #e5e7eb);
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  }
+
+  .formActions button {
+    width: 100%;
+    padding: var(--spacing-md);
+    font-size: var(--font-size-base);
+    min-height: 44px;
+  }
+
+  .preAssignSection {
+    padding: var(--spacing-md);
+  }
+
+  .preAssignCount {
+    display: block;
+    margin-top: var(--spacing-xs);
+    margin-left: 0;
+  }
+
+  .memberCheckboxList {
+    grid-template-columns: 1fr;
+    max-height: 250px;
+    gap: var(--spacing-xs);
+  }
+
+  .memberCheckboxItem {
+    padding: var(--spacing-sm);
+    min-height: 44px;
+  }
+
+  .memberCheckboxAvatar {
+    width: 28px;
+    height: 28px;
+    font-size: var(--font-size-xs);
+  }
+
+  .memberCheckboxName {
+    font-size: var(--font-size-sm);
+  }
+}
+
+/* Kleine Handys (unter 600px) */
+@media (max-width: 600px) {
+  .page {
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .adminHeader {
+    padding: 2px 0;
+    margin-bottom: 2px;
+    gap: 2px;
+  }
+
+  .adminTitle {
+    font-size: 11px;
+  }
+
+  .pendingBadge {
+    font-size: 7px;
+    padding: 1px 3px;
+  }
+
+  .adminHeader > .button {
+    font-size: 9px;
+    padding: 3px 6px;
+  }
+
+  /* Mini Stats verstecken auf sehr kleinen Geräten */
+  .miniStats {
+    display: none;
+  }
+
+  .filterBar {
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .searchInput {
+    padding: 3px 6px;
+    font-size: 10px;
+    min-height: 24px;
+    height: 24px;
+  }
+
+  .filterSelect {
+    font-size: 9px;
+    padding: 3px 4px;
+    min-height: 22px;
+    height: 22px;
+  }
+
+  .viewToggleBtn,
+  .refreshBtn {
+    min-height: 22px;
+    min-width: 22px;
+    font-size: 10px;
+    padding: 2px;
+  }
+
+  .shiftsTable {
+    font-size: 7px;
+  }
+
+  .shiftsTable th {
+    padding: 2px 3px;
+    font-size: 7px;
+  }
+
+  .shiftsTable td {
+    padding: 2px 3px;
+  }
+
+  .statusPill {
+    font-size: 6px;
+    padding: 1px 2px;
+  }
+
+  .shiftCell {
+    max-width: 70px;
+  }
+
+  .shiftCell strong {
+    font-size: 8px;
+    max-width: 70px;
+  }
+
+  .locationText {
+    font-size: 6px;
+    max-width: 60px;
+  }
+
+  .dateCell span:first-child {
+    font-size: 8px;
+  }
+
+  .timeText {
+    font-size: 6px;
+  }
+
+  .occupancyBar {
+    width: 16px;
+    height: 2px;
+  }
+
+  .occupancyText {
+    font-size: 7px;
+    min-width: 14px;
+  }
+
+  .applicationsPill,
+  .applicationsLink,
+  .noApplications {
+    font-size: 6px;
+  }
+
+  .actionBtn {
+    width: 18px;
+    height: 18px;
+    font-size: 7px;
+  }
+
+  .actionButtons {
+    gap: 1px;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+
+  .form {
+    gap: var(--spacing-sm);
+  }
+
+  .formInput,
+  .formTextarea,
+  .formSelect {
+    padding: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    min-height: 36px;
+  }
+
+  .title {
+    font-size: var(--font-size-base);
+    gap: var(--spacing-xs);
+  }
+
+  .titleIcon {
+    font-size: var(--font-size-lg);
+  }
+
+  .backButton {
+    margin-bottom: var(--spacing-xs);
+    padding: var(--spacing-xs);
+    font-size: 10px;
+  }
+
+  .card {
+    padding: var(--spacing-xs);
+  }
+
+  .cardHeader {
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  .cardTitle {
+    font-size: var(--font-size-xs);
+  }
+
+  .cardMeta {
+    gap: 4px;
+  }
+
+  .cardMetaItem {
+    font-size: 9px;
+  }
+
+  .cardFooter button {
+    font-size: 9px;
+    padding: 4px;
+  }
+
+  .cardFooter button {
+    font-size: 10px;
+    padding: 4px 8px;
   }
 }
 
@@ -1383,15 +1663,25 @@
 /* Tabelle */
 .tableWrapper {
   overflow-x: auto;
+  overflow-y: visible;
   border: 1px solid var(--color-border-light, #e5e7eb);
   border-radius: var(--radius-lg);
   background: var(--color-white, #fff);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .shiftsTable {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
+  table-layout: auto;
+}
+
+.shiftsTable th,
+.shiftsTable td {
+  box-sizing: border-box;
 }
 
 .shiftsTable th {
@@ -1565,43 +1855,449 @@
   font-size: var(--font-size-sm);
 }
 
-/* Responsive */
+/* Responsive - Admin Verwaltungsseite */
 @media (max-width: 768px) {
-  .adminHeader {
-    flex-direction: column;
-    gap: var(--spacing-md);
-    align-items: stretch;
+  .page {
+    padding: 4px;
+    gap: 4px;
   }
 
+  /* Admin Header - kompakt */
+  .adminHeader {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 4px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    margin-bottom: 4px;
+    border-bottom: none;
+  }
+
+  .adminHeaderLeft {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .adminTitle {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pendingBadge {
+    font-size: 8px;
+    padding: 2px 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .adminHeader > .button {
+    padding: 4px 8px;
+    font-size: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Mini Stats - kompakt */
+  .miniStats {
+    display: flex;
+    flex-wrap: nowrap;
+    font-size: 9px;
+    padding: 3px 6px;
+    gap: 6px;
+    margin-bottom: 4px;
+    background: var(--color-bg-secondary, #f9fafb);
+    border-radius: 4px;
+  }
+
+  .miniStat {
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  .miniStat strong {
+    font-size: 10px;
+  }
+
+  .miniStatDivider {
+    display: inline;
+    opacity: 0.3;
+  }
+
+  /* Filter Bar - SEHR kompakt */
   .filterBar {
-    flex-direction: column;
-    align-items: stretch;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    padding: 4px;
+    margin-bottom: 4px;
+    border-radius: 4px;
   }
 
   .filterGroup {
-    justify-content: space-between;
+    display: contents;
   }
 
+  .filterGroup:first-child {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+  }
+
+  /* Suche - kompakt */
   .searchInput {
-    min-width: 100%;
+    flex: 1 1 100%;
+    width: 100%;
+    padding: 4px 8px;
+    font-size: 11px;
+    min-height: 28px;
+    height: 28px;
+    border-radius: 4px;
   }
 
+  /* Alle Selects nebeneinander */
   .filterSelect {
+    flex: 1 1 calc(50% - 2px);
+    min-width: 0;
+    padding: 4px 6px;
+    font-size: 10px;
+    min-height: 26px;
+    height: 26px;
+    border-radius: 4px;
+    background-color: var(--color-white, #fff);
+  }
+
+  /* Letzte Zeile: Sortierung + Buttons */
+  .filterGroup:last-child {
+    flex: 1 1 100%;
+    display: flex;
+    flex-direction: row;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .filterGroup:last-child .filterSelect {
     flex: 1;
-    min-width: auto;
+    min-width: 0;
+  }
+
+  .viewToggle {
+    display: flex;
+    flex-shrink: 0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .viewToggleBtn {
+    padding: 4px 6px;
+    font-size: 11px;
+    min-height: 26px;
+    min-width: 26px;
+    border-radius: 0;
+  }
+
+  .refreshBtn {
+    padding: 4px;
+    font-size: 11px;
+    min-height: 26px;
+    min-width: 26px;
+    flex-shrink: 0;
+  }
+
+  /* Tabelle - SEHR kompakt */
+  .tableWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 4px;
+    margin: 0;
   }
 
   .shiftsTable {
-    font-size: var(--font-size-xs);
+    font-size: 9px;
+    min-width: 100%;
+    width: max-content;
+    border-collapse: collapse;
   }
 
-  .shiftsTable th,
+  .shiftsTable th {
+    padding: 3px 4px;
+    font-size: 8px;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
   .shiftsTable td {
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: 3px 4px;
+  }
+
+  /* Sticky Status-Spalte */
+  .shiftsTable th:first-child,
+  .shiftsTable td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--color-white, #fff);
+    z-index: 2;
+    box-shadow: 1px 0 2px rgba(0,0,0,0.05);
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .shiftsTable th:first-child {
+    background: var(--color-bg-secondary, #f9fafb);
+  }
+
+  .statusPill {
+    font-size: 7px;
+    padding: 1px 3px;
+    border-radius: 3px;
+  }
+
+  .shiftCell {
+    max-width: 90px;
+  }
+
+  .shiftCell strong {
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 90px;
+  }
+
+  .locationText {
+    font-size: 7px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
+    display: block;
+    color: var(--color-text-light);
+  }
+
+  .dateCell {
+    white-space: nowrap;
+  }
+
+  .dateCell span:first-child {
+    font-size: 9px;
+  }
+
+  .timeText {
+    font-size: 7px;
+  }
+
+  .occupancyCell {
+    min-width: 40px;
+  }
+
+  .occupancyBar {
+    width: 20px;
+    height: 2px;
+  }
+
+  .occupancyText {
+    font-size: 8px;
+    min-width: 18px;
+  }
+
+  .applicationsPill {
+    font-size: 7px;
+    padding: 1px 3px;
+  }
+
+  .applicationsLink {
+    font-size: 7px;
+  }
+
+  .noApplications {
+    font-size: 7px;
+  }
+
+  /* Action Buttons kompakter */
+  .actionButtons {
+    display: flex;
+    gap: 2px;
+    flex-wrap: nowrap;
+  }
+
+  .actionBtn {
+    width: 22px;
+    height: 22px;
+    font-size: 9px;
+    padding: 0;
+    border-radius: 3px;
   }
 
   .actionButtons {
+    gap: 2px;
+  }
+
+  .actionBtn {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+    padding: 0;
+  }
+
+  /* Cards Ansicht */
+  .grid {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+  }
+
+  .card {
+    padding: var(--spacing-sm);
+  }
+
+  .cardHeader {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .cardTitle {
+    font-size: var(--font-size-sm);
+    line-height: 1.3;
+  }
+
+  .cardBadge {
+    font-size: 9px;
+    padding: 2px 4px;
+  }
+
+  .cardMeta {
+    gap: var(--spacing-xs);
+  }
+
+  .cardMetaItem {
+    font-size: 11px;
+  }
+
+  .cardMetaIcon {
+    width: 14px;
+    font-size: 12px;
+  }
+
+  .cardFooter {
+    flex-direction: row;
     flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+  }
+
+  .cardFooter > div {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
+  .cardFooter button {
+    flex: 1;
+    min-width: auto;
+    font-size: 10px;
+    padding: var(--spacing-xs) var(--spacing-xs);
+  }
+
+  /* Result Count */
+  .resultCount {
+    font-size: 11px;
+    padding: var(--spacing-xs);
+  }
+
+  /* Detail View */
+  .detail {
+    padding: var(--spacing-sm);
+  }
+
+  .detailHeader {
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-md);
+  }
+
+  .detailInfo {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+  }
+
+  /* Form Actions */
+  .formActions {
+    flex-direction: column-reverse;
+    gap: var(--spacing-xs);
+  }
+
+  .formActions button {
+    width: 100%;
+  }
+
+  /* Application Row */
+  .applicationRow {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
+  }
+
+  .applicationActions {
+    width: 100%;
+    display: flex;
+    gap: var(--spacing-xs);
+  }
+
+  .applicationActions button {
+    flex: 1;
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-xs);
+  }
+
+  /* Modal */
+  .modalContent {
+    margin: var(--spacing-xs);
+    padding: var(--spacing-sm);
+    max-height: 95vh;
+    border-radius: var(--radius-md);
+  }
+
+  .modalContentWide {
+    max-width: calc(100vw - var(--spacing-sm) * 2);
+  }
+
+  .modalTitle {
+    font-size: var(--font-size-base);
+    margin-bottom: var(--spacing-sm);
+    padding-bottom: var(--spacing-xs);
+  }
+
+  /* Title und Back Button */
+  .title {
+    font-size: var(--font-size-lg);
+    gap: var(--spacing-xs);
+  }
+
+  .titleIcon {
+    font-size: var(--font-size-xl);
+  }
+
+  .backButton {
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-xs);
+    font-size: var(--font-size-xs);
   }
 }
 
@@ -2856,9 +3552,63 @@
 @media (max-width: 1024px) {
   .editLayout {
     grid-template-columns: 1fr;
+    gap: var(--spacing-lg);
   }
   
   .memberCheckboxList {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .editLayout {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .editFormSection,
+  .editAssignmentsSection {
+    padding: var(--spacing-md);
+  }
+
+  .editSectionTitle {
+    font-size: var(--font-size-base);
+  }
+
+  .editFormSection > div:first-child {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .editFormSection > div:first-child button {
+    width: 100%;
+  }
+
+  .assignmentsTitle {
+    font-size: var(--font-size-base);
+  }
+
+  .assignmentItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .assignmentInfo {
+    width: 100%;
+  }
+
+  .addAssignmentForm {
+    flex-direction: column;
+  }
+
+  .memberSelect {
+    width: 100%;
+  }
+
+  .memberCheckboxList {
+    grid-template-columns: 1fr;
+    max-height: none;
   }
 }
