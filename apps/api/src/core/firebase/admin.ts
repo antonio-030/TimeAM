@@ -10,7 +10,8 @@ import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage, type Storage } from 'firebase-admin/storage';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 let app: App | null = null;
 let authInstance: Auth | null = null;
@@ -78,8 +79,13 @@ export function initializeFirebaseAdmin(): App {
 
   // Option 2: Service Account aus Datei laden
   if (credentialsPath) {
-    // Pfad relativ zum API-Verzeichnis auflösen
-    const absolutePath = resolve(process.cwd(), credentialsPath);
+    // Pfad relativ zum API-Verzeichnis auflösen (nicht zum cwd, da PM2 vom Root läuft)
+    // Diese Datei liegt in apps/api/src/core/firebase/admin.ts
+    // Daher: 3 Ebenen nach oben = apps/api/
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const apiDir = resolve(__dirname, '../../../');
+    const absolutePath = resolve(apiDir, credentialsPath);
     console.log(`🔐 Firebase Admin: Loading service account from ${absolutePath}`);
 
     try {
