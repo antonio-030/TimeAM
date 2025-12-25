@@ -4,7 +4,7 @@
  * Typen für die Mitarbeiterverwaltung.
  */
 
-import { MEMBER_ROLES, type MemberRole } from './tenant.js';
+import { MEMBER_ROLES, type MemberRole } from './tenant';
 
 // Re-export for convenience
 export { MEMBER_ROLES, type MemberRole };
