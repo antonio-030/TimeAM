@@ -4,7 +4,7 @@
  * Firestore-Operationen für Zeiterfassung.
  */
 
-import { getAdminFirestore } from '../../core/firebase';
+import { getAdminFirestore } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   TIME_ENTRY_STATUS,

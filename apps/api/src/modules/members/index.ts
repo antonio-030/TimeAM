@@ -4,5 +4,5 @@
  * Exports für das Mitarbeiterverwaltungs-Modul.
  */
 
-export { membersRouter } from './routes';
-export * from './types';
+export { membersRouter } from './routes.js';
+export * from './types.js';

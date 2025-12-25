@@ -5,15 +5,15 @@
  */
 
 import { Router } from 'express';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
+import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements/index.js';
 import {
   generateTimeSummaryReport,
   generateShiftOverviewReport,
   generateMemberActivityReport,
   getDashboardWidgets,
-} from './service';
-import type { ReportRequest, ReportPeriod, ReportType } from './types';
+} from './service.js';
+import type { ReportRequest, ReportPeriod, ReportType } from './types.js';
 
 const router = Router();
 

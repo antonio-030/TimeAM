@@ -6,9 +6,9 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireSuperAdmin, isSuperAdmin } from '../../core/super-admin';
-import { getAllTenants, getTenantDetail, toggleTenantModule, getAllFreelancers, getFreelancerDetail, toggleFreelancerModule } from './service';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
+import { requireSuperAdmin, isSuperAdmin } from '../../core/super-admin/index.js';
+import { getAllTenants, getTenantDetail, toggleTenantModule, getAllFreelancers, getFreelancerDetail, toggleFreelancerModule } from './service.js';
 import type {
   TenantsListResponse,
   TenantDetail,
@@ -16,7 +16,7 @@ import type {
   FreelancersListResponse,
   FreelancerDetail,
   ToggleFreelancerModuleResponse,
-} from './types';
+} from './types.js';
 
 const router = Router();
 

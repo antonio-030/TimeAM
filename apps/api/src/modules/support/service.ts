@@ -4,9 +4,9 @@
  * Firestore-Operationen für das Support-Modul.
  */
 
-import { getAdminFirestore, getAdminAuth, getAdminStorage } from '../../core/firebase';
+import { getAdminFirestore, getAdminAuth, getAdminStorage } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { getFreelancer } from '../freelancer/service';
+import { getFreelancer } from '../freelancer/service.js';
 import { createTenant, getTenantForUser } from '../../core/tenancy';
 import { isSuperAdmin } from '../../core/super-admin';
 import type {

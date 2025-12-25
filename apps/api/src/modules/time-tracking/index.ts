@@ -2,7 +2,7 @@
  * Time Tracking Module – Public API
  */
 
-export { timeTrackingRouter } from './routes';
+export { timeTrackingRouter } from './routes.js';
 
 export {
   TIME_ENTRY_STATUS,
@@ -11,7 +11,7 @@ export {
   type TimeEntryResponse,
   type ClockInRequest,
   type ClockOutRequest,
-} from './types';
+} from './types.js';
 
 export {
   clockIn,
@@ -19,6 +19,6 @@ export {
   getMyTimeEntries,
   getTodayStats,
   getRunningEntry,
-} from './service';
+} from './service.js';
 
 

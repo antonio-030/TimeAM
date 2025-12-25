@@ -11,12 +11,12 @@ export {
   getAdminAuth,
   getAdminFirestore,
   getAdminStorage,
-} from './admin';
+} from './admin.js';
 
 // Config
 export {
   getFirebaseAdminConfig,
   validateFirebaseAdminConfig,
   type FirebaseAdminConfig,
-} from './config';
+} from './config.js';
 

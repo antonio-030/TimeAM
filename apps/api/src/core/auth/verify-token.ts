@@ -5,8 +5,8 @@
  */
 
 import type { DecodedIdToken } from 'firebase-admin/auth';
-import { getAdminAuth } from '../firebase';
-import { AuthError, type AuthUser } from './types';
+import { getAdminAuth } from '../firebase/index.js';
+import { AuthError, type AuthUser } from './types.js';
 
 /**
  * Verifiziert einen Firebase ID Token.

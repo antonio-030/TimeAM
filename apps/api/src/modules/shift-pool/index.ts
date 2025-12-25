@@ -4,5 +4,5 @@
  * Schichtausschreibungs-Modul für TimeAM.
  */
 
-export { shiftPoolRouter } from './routes';
-export * from './types';
+export { shiftPoolRouter } from './routes.js';
+export * from './types.js';

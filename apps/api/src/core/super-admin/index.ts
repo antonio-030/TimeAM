@@ -6,7 +6,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import type { AuthenticatedRequest } from '../auth';
+import type { AuthenticatedRequest } from '../auth/index.js';
 
 /**
  * Lädt die Super-Admin UIDs aus der Umgebungsvariable.

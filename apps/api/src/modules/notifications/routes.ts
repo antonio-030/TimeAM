@@ -5,15 +5,15 @@
  */
 
 import { Router } from 'express';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireTenantOnly, type TenantRequest } from '../../core/entitlements';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
+import { requireTenantOnly, type TenantRequest } from '../../core/entitlements/index.js';
 import {
   getNotificationsForUser,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
   deleteNotification,
-} from './service';
+} from './service.js';
 
 const router = Router();
 

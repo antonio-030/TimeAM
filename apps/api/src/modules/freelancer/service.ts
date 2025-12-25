@@ -4,7 +4,7 @@
  * Firestore-Operationen für das Freelancer-Modul.
  */
 
-import { getAdminFirestore, getAdminAuth, getAdminStorage } from '../../core/firebase';
+import { getAdminFirestore, getAdminAuth, getAdminStorage } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { createTenant } from '../../core/tenancy';
 import type {

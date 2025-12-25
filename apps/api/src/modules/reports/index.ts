@@ -2,7 +2,7 @@
  * Reports & Analytics Module – Public API
  */
 
-export { reportsRouter } from './routes';
+export { reportsRouter } from './routes.js';
 
 export {
   REPORT_PERIOD,
@@ -14,11 +14,11 @@ export {
   type ShiftOverviewReport,
   type MemberActivityReport,
   type DashboardWidgets,
-} from './types';
+} from './types.js';
 
 export {
   generateTimeSummaryReport,
   generateShiftOverviewReport,
   generateMemberActivityReport,
   getDashboardWidgets,
-} from './service';
+} from './service.js';

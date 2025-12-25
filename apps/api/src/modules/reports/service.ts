@@ -4,7 +4,7 @@
  * Firestore-Operationen für Berichte und Statistiken.
  */
 
-import { getAdminFirestore } from '../../core/firebase';
+import { getAdminFirestore } from '../../core/firebase/index.js';
 import type {
   ReportPeriod,
   TimeSummaryReport,

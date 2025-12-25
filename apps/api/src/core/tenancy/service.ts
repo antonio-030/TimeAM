@@ -4,7 +4,7 @@
  * Firestore-basierte Tenant-Verwaltung.
  */
 
-import { getAdminFirestore } from '../firebase';
+import { getAdminFirestore } from '../firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 /** Tenant-Dokument */

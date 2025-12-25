@@ -10,7 +10,7 @@ export {
   type TenantScopedRequest,
   TenantError,
   type TenantErrorCode,
-} from './types';
+} from './types.js';
 
 // Service
 export {
@@ -27,5 +27,5 @@ export {
   type MemberDoc,
   type EntitlementDoc,
   type UserDoc,
-} from './service';
+} from './service.js';
 

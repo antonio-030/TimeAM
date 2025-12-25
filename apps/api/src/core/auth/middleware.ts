@@ -9,8 +9,8 @@ import {
   verifyIdToken,
   extractAuthUser,
   extractTokenFromHeader,
-} from './verify-token';
-import { AuthError, type AuthUser } from './types';
+} from './verify-token.js';
+import { AuthError, type AuthUser } from './types.js';
 
 /**
  * Ergebnis der Auth-Prüfung.

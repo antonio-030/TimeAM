@@ -4,7 +4,7 @@
  * Super-Admin / Developer Dashboard API.
  */
 
-export { adminRouter } from './routes';
+export { adminRouter } from './routes.js';
 export type {
   TenantOverview,
   TenantsListResponse,
@@ -13,4 +13,4 @@ export type {
   TenantModuleStatus,
   ToggleTenantModuleRequest,
   ToggleTenantModuleResponse,
-} from './types';
+} from './types.js';

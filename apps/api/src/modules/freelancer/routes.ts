@@ -7,20 +7,20 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { getAdminFirestore } from '../../core/firebase';
+import { getAdminFirestore } from '../../core/firebase/index.js';
 import {
   registerFreelancer,
   getFreelancer,
   uploadVerificationDocument,
   getVerificationDocumentUrl,
   updateFreelancerProfile,
-} from './service';
-import { createDeletionRequest } from '../support/service';
+} from './service.js';
+import { createDeletionRequest } from '../support/service.js';
 import {
   getFreelancerEntitlements,
   setFreelancerEntitlement,
-} from '../../core/tenancy';
-import type { RegisterFreelancerRequest } from './types';
+} from '../../core/tenancy/index.js';
+import type { RegisterFreelancerRequest } from './types.js';
 
 const router = Router();
 

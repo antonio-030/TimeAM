@@ -7,20 +7,20 @@ import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
-import { initializeFirebaseAdmin, getAdminFirestore } from './core/firebase';
+import { initializeFirebaseAdmin, getAdminFirestore } from './core/firebase/index.js';
 import { FieldValue } from 'firebase-admin/firestore';
-import { requireAuth, type AuthenticatedRequest } from './core/auth';
-import { getTenantForUser, createTenant } from './core/tenancy';
-import { timeTrackingRouter } from './modules/time-tracking';
-import { shiftPoolRouter } from './modules/shift-pool';
-import { membersRouter } from './modules/members';
-import { calendarCoreRouter } from './modules/calendar-core';
-import { notificationsRouter } from './modules/notifications';
-import { settingsRouter } from './modules/settings';
-import { adminRouter } from './modules/admin';
-import { reportsRouter } from './modules/reports';
-import { freelancerRouter } from './modules/freelancer';
-import { supportRouter } from './modules/support';
+import { requireAuth, type AuthenticatedRequest } from './core/auth/index.js';
+import { getTenantForUser, createTenant } from './core/tenancy/index.js';
+import { timeTrackingRouter } from './modules/time-tracking/index.js';
+import { shiftPoolRouter } from './modules/shift-pool/index.js';
+import { membersRouter } from './modules/members/index.js';
+import { calendarCoreRouter } from './modules/calendar-core/index.js';
+import { notificationsRouter } from './modules/notifications/index.js';
+import { settingsRouter } from './modules/settings/index.js';
+import { adminRouter } from './modules/admin/index.js';
+import { reportsRouter } from './modules/reports/index.js';
+import { freelancerRouter } from './modules/freelancer/index.js';
+import { supportRouter } from './modules/support/index.js';
 
 // Firebase Admin initialisieren
 initializeFirebaseAdmin();

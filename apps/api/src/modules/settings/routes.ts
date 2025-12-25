@@ -6,11 +6,11 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { requireAuth } from '../../core/auth';
-import { requireTenantOnly, type TenantRequest } from '../../core/entitlements';
-import { getTenantForUser, updateTenantName } from '../../core/tenancy';
-import { getModuleStatus, toggleModule } from './service';
-import type { ToggleModuleRequest, ModuleStatusResponse, ToggleModuleResponse } from './types';
+import { requireAuth } from '../../core/auth/index.js';
+import { requireTenantOnly, type TenantRequest } from '../../core/entitlements/index.js';
+import { getTenantForUser, updateTenantName } from '../../core/tenancy/index.js';
+import { getModuleStatus, toggleModule } from './service.js';
+import type { ToggleModuleRequest, ModuleStatusResponse, ToggleModuleResponse } from './types.js';
 
 const router = Router();
 

@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
+import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements/index.js';
 import {
   getMembers,
   getMemberById,
@@ -17,8 +17,8 @@ import {
   activateMember,
   deactivateMember,
   generatePasswordResetLink,
-} from './service';
-import type { InviteMemberRequest, UpdateMemberRequest } from './types';
+} from './service.js';
+import type { InviteMemberRequest, UpdateMemberRequest } from './types.js';
 
 const router = Router();
 

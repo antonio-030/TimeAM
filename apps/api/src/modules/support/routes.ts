@@ -5,9 +5,9 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireSuperAdmin } from '../../core/super-admin';
-import { getAdminFirestore } from '../../core/firebase';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
+import { requireSuperAdmin } from '../../core/super-admin/index.js';
+import { getAdminFirestore } from '../../core/firebase/index.js';
 import {
   createDevStaff,
   getAllDevStaff,
@@ -23,13 +23,13 @@ import {
   approveDeletionRequest,
   rejectDeletionRequest,
   executeDeletionRequest,
-} from './service';
+} from './service.js';
 import type {
   CreateDevStaffRequest,
   ApproveVerificationRequest,
   RejectVerificationRequest,
   UpdateDevStaffPermissionsRequest,
-} from './types';
+} from './types.js';
 
 const router = Router();
 

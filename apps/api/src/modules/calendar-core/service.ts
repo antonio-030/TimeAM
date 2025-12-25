@@ -4,7 +4,7 @@
  * Aggregiert Events aus verschiedenen Modulen für die Kalenderansicht.
  */
 
-import { getAdminFirestore } from '../../core/firebase';
+import { getAdminFirestore } from '../../core/firebase/index.js';
 import { Timestamp } from 'firebase-admin/firestore';
 import type {
   CalendarEvent,

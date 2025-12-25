@@ -5,7 +5,7 @@
  */
 
 import type { Timestamp } from 'firebase-admin/firestore';
-import type { VerificationStatus } from '../freelancer/types';
+import type { VerificationStatus } from '../freelancer/types.js';
 
 // =============================================================================
 // Firestore Document Types

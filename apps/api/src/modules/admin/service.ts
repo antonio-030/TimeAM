@@ -4,7 +4,7 @@
  * Business Logic für das Super-Admin / Developer Dashboard.
  */
 
-import { getAdminFirestore } from '../../core/firebase';
+import { getAdminFirestore } from '../../core/firebase/index.js';
 import { getEntitlements, setEntitlement, getUserDocument, getFreelancerEntitlements, setFreelancerEntitlement } from '../../core/tenancy';
 import {
   MODULE_REGISTRY,

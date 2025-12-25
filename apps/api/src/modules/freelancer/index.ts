@@ -2,5 +2,5 @@
  * Freelancer Module
  */
 
-export { freelancerRouter } from './routes';
+export { freelancerRouter } from './routes.js';
 

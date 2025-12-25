@@ -4,7 +4,7 @@
  * Firestore-Operationen für das Schichtausschreibungs-Modul.
  */
 
-import { getAdminFirestore, getAdminStorage } from '../../core/firebase';
+import { getAdminFirestore, getAdminStorage } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   SHIFT_STATUS,
@@ -31,9 +31,9 @@ import {
   type ShiftDocumentDoc,
 } from './types';
 import { NOTIFICATION_TYPES, MEMBER_STATUS } from '@timeam/shared';
-import { createNotification, createNotificationsForUsers } from '../notifications';
-import { addTenantToFreelancer, getFreelancer } from '../freelancer/service';
-import type { FreelancerDoc } from '../freelancer/types';
+import { createNotification, createNotificationsForUsers } from '../notifications/index.js';
+import { addTenantToFreelancer, getFreelancer } from '../freelancer/service.js';
+import type { FreelancerDoc } from '../freelancer/types.js';
 
 // =============================================================================
 // Helper Functions

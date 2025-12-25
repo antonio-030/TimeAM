@@ -2,7 +2,7 @@
  * Notifications Module – Public API
  */
 
-export { notificationsRouter } from './routes';
+export { notificationsRouter } from './routes.js';
 export {
   createNotification,
   createNotificationsForUsers,
@@ -10,5 +10,5 @@ export {
   getUnreadCount,
   markAsRead,
   markAllAsRead,
-} from './service';
-export type { CreateNotificationParams } from './types';
+} from './service.js';
+export type { CreateNotificationParams } from './types.js';

@@ -4,7 +4,7 @@
  * Firestore-Operationen für Mitarbeiterverwaltung.
  */
 
-import { getAdminFirestore, getAdminAuth } from '../../core/firebase';
+import { getAdminFirestore, getAdminAuth } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   MEMBER_ROLES,

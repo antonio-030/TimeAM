@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
+import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements/index.js';
 import {
   clockIn,
   clockOut,
@@ -17,8 +17,8 @@ import {
   updateTimeEntry,
   deleteTimeEntry,
   getTimeEntryById,
-} from './service';
-import type { CreateTimeEntryRequest, UpdateTimeEntryRequest } from './types';
+} from './service.js';
+import type { CreateTimeEntryRequest, UpdateTimeEntryRequest } from './types.js';
 
 const router = Router();
 

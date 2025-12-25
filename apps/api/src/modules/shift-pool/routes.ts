@@ -6,9 +6,9 @@
 
 import { Router } from 'express';
 import multer from 'multer';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireEntitlements, requireEntitlementsOrFreelancer, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements';
-import { getAdminFirestore } from '../../core/firebase';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
+import { requireEntitlements, requireEntitlementsOrFreelancer, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements/index.js';
+import { getAdminFirestore } from '../../core/firebase/index.js';
 import { MEMBER_ROLES } from '@timeam/shared';
 import {
   createShift,
@@ -44,13 +44,13 @@ import {
   getShiftDocuments,
   downloadShiftDocument,
   deleteShiftDocument,
-} from './service';
+} from './service.js';
 import type {
   CreateShiftRequest,
   ApplyToShiftRequest,
   CreateShiftTimeEntryRequest,
   UpdateShiftTimeEntryRequest,
-} from './types';
+} from './types.js';
 
 const router = Router();
 

@@ -5,10 +5,10 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import type { AuthenticatedRequest } from '../auth';
-import { getTenantForUser, getFreelancerEntitlements } from '../tenancy';
-import { getAdminFirestore } from '../firebase';
-import { type EntitlementKey } from './types';
+import type { AuthenticatedRequest } from '../auth/index.js';
+import { getTenantForUser, getFreelancerEntitlements } from '../tenancy/index.js';
+import { getAdminFirestore } from '../firebase/index.js';
+import { type EntitlementKey } from './types.js';
 
 /**
  * Request mit Tenant-Kontext.

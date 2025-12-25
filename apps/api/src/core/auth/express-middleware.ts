@@ -5,8 +5,8 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import { authenticateRequest } from './middleware';
-import type { AuthUser } from './types';
+import { authenticateRequest } from './middleware.js';
+import type { AuthUser } from './types.js';
 
 /**
  * Express Request mit Auth-Informationen.

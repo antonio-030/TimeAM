@@ -2,6 +2,6 @@
  * Calendar Core Module – Public API
  */
 
-export { calendarCoreRouter } from './routes';
-export { getCalendarEvents } from './service';
-export type { CalendarQueryParams } from './types';
+export { calendarCoreRouter } from './routes.js';
+export { getCalendarEvents } from './service.js';
+export type { CalendarQueryParams } from './types.js';

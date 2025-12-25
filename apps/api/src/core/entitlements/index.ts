@@ -11,7 +11,7 @@ export {
   type EntitlementValue,
   type TenantEntitlements,
   EntitlementError,
-} from './types';
+} from './types.js';
 
 // Middleware
 export {
@@ -20,5 +20,5 @@ export {
   requireTenantOnly,
   hasEntitlement,
   type TenantRequest,
-} from './middleware';
+} from './middleware.js';
 
