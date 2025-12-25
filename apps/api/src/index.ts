@@ -42,10 +42,11 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 // =============================================================================
 
-// CORS für Vite Dev Server
+// CORS für Vite Dev Server und Production
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     const allowedOrigins = [
+      // Development
       'http://localhost:5173',
       'http://localhost:5174',
       'http://localhost:5175',
@@ -53,6 +54,11 @@ const corsOptions: cors.CorsOptions = {
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
       'http://127.0.0.1:3000',
+      // Production
+      'https://timeog.de',
+      'https://www.timeog.de',
+      // Allow additional origins from environment variable (comma-separated)
+      ...(process.env.CORS_ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || []),
     ];
 
     if (!origin) {
