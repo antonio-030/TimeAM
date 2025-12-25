@@ -7,7 +7,7 @@
  * - Mitarbeiter-Suche nur für Admin/Manager
  */
 
-import { type ReactNode, useCallback, useState, useMemo } from 'react';
+import { type ReactNode, useCallback, useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
 import { useDevStaffCheck } from '../../modules/support/hooks';
@@ -26,9 +26,20 @@ interface AppLayoutProps {
 export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isSuperAdmin = false }: AppLayoutProps) {
   const { user, signOut } = useAuth();
   const { tenant, role, hasEntitlement, isFreelancer } = useTenant();
+  
+  // Benutzername extrahieren (Name oder E-Mail-Benutzername)
+  const userName = user?.displayName || user?.email?.split('@')[0] || 'Nutzer';
+  const userInitials = userName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || user?.email?.[0].toUpperCase() || '?';
   const { isDevStaff } = useDevStaffCheck();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   // Prüfung auf Admin oder Manager Rolle
   const isAdminOrManager = role === 'admin' || role === 'manager';
@@ -55,7 +66,46 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
 
   const handleNavClick = (page: string) => {
     onNavigate?.(page);
+    // Sidebar auf mobilen Geräten schließen nach Navigation
+    if (window.innerWidth <= 768) {
+      setIsMenuOpen(false);
+    }
   };
+
+  // Sidebar schließen bei Klick außerhalb (Overlay)
+  const handleOverlayClick = () => {
+    setIsMenuOpen(false);
+  };
+
+  // ESC-Taste schließt das Menü
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isMenuOpen) {
+          setIsMenuOpen(false);
+        }
+        if (isUserMenuOpen) {
+          setIsUserMenuOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isMenuOpen, isUserMenuOpen]);
+
+  // Click außerhalb schließt das User-Menü
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (isUserMenuOpen && !target.closest(`.${styles.userMenu}`)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isUserMenuOpen]);
 
   // Handler für Notification-Links
   const handleNotificationNavigate = useCallback((path: string) => {
@@ -178,8 +228,11 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
 
   return (
     <div className={styles.layout}>
+      {/* Overlay für mobile Ansicht */}
+      {isMenuOpen && <div className={styles.overlay} onClick={handleOverlayClick} />}
+      
       {/* Sidebar */}
-      <aside className={styles.sidebar}>
+      <aside className={`${styles.sidebar} ${isMenuOpen ? styles.sidebarOpen : ''}`}>
         {/* Logo */}
         <div className={styles.logo}>
           <img src="/logo.png" alt="TimeAM Logo" className={styles.logoImage} />
@@ -272,18 +325,63 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
       <div className={styles.main}>
         {/* Header */}
         <header className={styles.header}>
-          <div className={styles.headerTitle}>
-            {navItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
+          <div className={styles.headerLeft}>
+            {/* Burger Menu Button für mobile Ansicht */}
+            <button 
+              className={styles.burgerButton}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+              aria-label="Menü öffnen/schließen"
+            >
+              <span className={styles.burgerIcon}>
+                {isMenuOpen ? '✕' : '☰'}
+              </span>
+            </button>
+            <div className={styles.headerTitle}>
+              {navItems.find(item => item.id === currentPage)?.label || 'Dashboard'}
+            </div>
           </div>
           <div className={styles.headerActions}>
             {user && (
               <>
                 <NotificationBell onNavigate={handleNotificationNavigate} />
                 <div className={styles.userMenu}>
-                  <span className={styles.userEmail}>{user.email}</span>
-                  <button onClick={handleSignOut} className={styles.signOutBtn}>
-                    Abmelden
+                  <button 
+                    className={styles.userMenuButton}
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    aria-label="Benutzermenü"
+                  >
+                    <div className={styles.userAvatar}>
+                      {userInitials}
+                    </div>
+                    <span className={styles.userName}>{userName}</span>
+                    <span className={styles.userMenuArrow}>
+                      {isUserMenuOpen ? '▲' : '▼'}
+                    </span>
                   </button>
+                  {isUserMenuOpen && (
+                    <div className={styles.userMenuDropdown}>
+                      <div className={styles.userMenuHeader}>
+                        <div className={styles.userMenuAvatar}>
+                          {userInitials}
+                        </div>
+                        <div className={styles.userMenuInfo}>
+                          <span className={styles.userMenuName}>{userName}</span>
+                          <span className={styles.userMenuEmail}>{user.email}</span>
+                        </div>
+                      </div>
+                      <div className={styles.userMenuDivider} />
+                      <button 
+                        onClick={() => {
+                          handleSignOut();
+                          setIsUserMenuOpen(false);
+                        }} 
+                        className={styles.userMenuItem}
+                      >
+                        <span className={styles.userMenuItemIcon}>🚪</span>
+                        <span>Abmelden</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
