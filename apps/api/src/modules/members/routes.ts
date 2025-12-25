@@ -64,7 +64,7 @@ router.get('/me', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
 
   try {
-    const { getMemberByUid } = await import('./service');
+    const { getMemberByUid } = await import('./service.js');
     const member = await getMemberByUid(tenant.id, user.uid);
 
     if (!member) {
@@ -183,7 +183,7 @@ router.patch('/me', ...membersGuard, async (req, res) => {
   const body = req.body as UpdateMemberRequest;
 
   try {
-    const { getMemberByUid, updateMember } = await import('./service');
+    const { getMemberByUid, updateMember } = await import('./service.js');
     const currentMember = await getMemberByUid(tenant.id, user.uid);
 
     if (!currentMember) {

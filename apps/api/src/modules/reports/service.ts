@@ -13,7 +13,7 @@ import type {
   DashboardWidgets,
   MemberTimeSummary,
   MemberActivityStats,
-} from './types';
+} from './types.js';
 
 /**
  * Berechnet Start- und Enddatum basierend auf dem Zeitraum.

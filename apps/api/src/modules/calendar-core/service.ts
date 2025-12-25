@@ -15,7 +15,7 @@ import type {
   TimeEntryDocForCalendar,
   ShiftDocForCalendar,
   CalendarQueryParams,
-} from './types';
+} from './types.js';
 
 // =============================================================================
 // Shift Pool Events

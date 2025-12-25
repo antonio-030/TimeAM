@@ -16,7 +16,7 @@ import {
   type InviteMemberRequest,
   type UpdateMemberRequest,
   type MemberDoc,
-} from './types';
+} from './types.js';
 
 // =============================================================================
 // Helper Functions

@@ -47,7 +47,7 @@ router.post('/admin/dev-staff', requireAuth, requireSuperAdmin, async (req, res)
 
   try {
     // Dev-Tenant erstellen (falls noch nicht vorhanden)
-    const { getOrCreateDevTenant } = await import('./service');
+    const { getOrCreateDevTenant } = await import('./service.js');
     await getOrCreateDevTenant(user.uid);
 
     const devStaff = await createDevStaff(body, user.uid);

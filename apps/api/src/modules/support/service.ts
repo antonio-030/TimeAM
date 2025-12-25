@@ -7,8 +7,8 @@
 import { getAdminFirestore, getAdminAuth, getAdminStorage } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { getFreelancer } from '../freelancer/service.js';
-import { createTenant, getTenantForUser } from '../../core/tenancy';
-import { isSuperAdmin } from '../../core/super-admin';
+import { createTenant, getTenantForUser } from '../../core/tenancy/index.js';
+import { isSuperAdmin } from '../../core/super-admin/index.js';
 import type {
   DevStaffDoc,
   DevStaffResponse,
@@ -709,7 +709,7 @@ export async function executeDeletionRequest(
   // Je nach User-Typ unterschiedlich löschen
   if (requestData.userType === 'freelancer') {
     // Freelancer-Löschung (aus dem Freelancer-Service)
-    const { deleteFreelancerAccount } = await import('../freelancer/service');
+    const { deleteFreelancerAccount } = await import('../freelancer/service.js');
     await deleteFreelancerAccount(uid);
   } else {
     // Employee oder Dev-Staff - ähnliche Löschung

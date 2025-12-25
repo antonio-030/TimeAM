@@ -7,7 +7,7 @@
 import { getAdminFirestore } from '../../core/firebase/index.js';
 import { FieldValue } from 'firebase-admin/firestore';
 import type { Notification, NotificationType } from '@timeam/shared';
-import type { NotificationDoc, CreateNotificationParams } from './types';
+import type { NotificationDoc, CreateNotificationParams } from './types.js';
 
 // =============================================================================
 // Helper Functions

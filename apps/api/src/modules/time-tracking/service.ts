@@ -12,7 +12,7 @@ import {
   type TimeEntryResponse,
   type CreateTimeEntryRequest,
   type UpdateTimeEntryRequest,
-} from './types';
+} from './types.js';
 
 /**
  * Konvertiert Firestore TimeEntryDoc zu API Response.

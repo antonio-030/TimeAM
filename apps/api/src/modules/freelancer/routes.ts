@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import multer from 'multer';
-import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
+import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
 import { getAdminFirestore } from '../../core/firebase/index.js';
 import {
   registerFreelancer,

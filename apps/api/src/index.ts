@@ -123,7 +123,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
       const isFreelancer = userData?.isFreelancer === true;
 
       // Prüfen ob User ein Dev-Mitarbeiter ist (inkl. Super-Admins)
-      const { isDevStaff, ensureDevStaffForSuperAdmin } = await import('./modules/support/service');
+      const { isDevStaff, ensureDevStaffForSuperAdmin } = await import('./modules/support/service.js');
       
       // Super-Admins automatisch als Dev-Staff registrieren (falls nicht vorhanden)
       await ensureDevStaffForSuperAdmin(user.uid, user.email || '');
@@ -132,7 +132,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
 
       // Wenn Dev-Mitarbeiter, Dev-Tenant-Daten laden
       if (isDev) {
-        const { getTenantForUser } = await import('./core/tenancy');
+        const { getTenantForUser } = await import('./core/tenancy/index.js');
         const tenantData = await getTenantForUser(user.uid);
         
         if (tenantData) {
@@ -151,7 +151,7 @@ app.get('/api/me', requireAuth, async (req, res) => {
           });
         } else {
           // Dev-Tenant erstellen falls nicht vorhanden
-          const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service');
+          const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service.js');
           await getOrCreateDevTenant(user.uid);
           await assignDevStaffToTenant(user.uid, user.email || '');
           
@@ -187,8 +187,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
 
       // Wenn Freelancer, Tenant-Daten laden (Freelancer haben auch einen Tenant)
       if (isFreelancer) {
-        const { getFreelancerEntitlements } = await import('./core/tenancy');
-        const { getTenantForUser } = await import('./core/tenancy');
+        const { getFreelancerEntitlements } = await import('./core/tenancy/index.js');
+        const { getTenantForUser } = await import('./core/tenancy/index.js');
         
         // Tenant-Daten laden (Freelancer haben einen eigenen Tenant)
         const tenantData = await getTenantForUser(user.uid);

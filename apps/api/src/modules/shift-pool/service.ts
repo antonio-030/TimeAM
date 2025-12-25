@@ -29,7 +29,7 @@ import {
   type UpdateShiftTimeEntryRequest,
   type ShiftDocument,
   type ShiftDocumentDoc,
-} from './types';
+} from './types.js';
 import { NOTIFICATION_TYPES, MEMBER_STATUS } from '@timeam/shared';
 import { createNotification, createNotificationsForUsers } from '../notifications/index.js';
 import { addTenantToFreelancer, getFreelancer } from '../freelancer/service.js';

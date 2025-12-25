@@ -5,7 +5,7 @@
  */
 
 import { getAdminFirestore } from '../../core/firebase/index.js';
-import { getEntitlements, setEntitlement, getUserDocument, getFreelancerEntitlements, setFreelancerEntitlement } from '../../core/tenancy';
+import { getEntitlements, setEntitlement, getUserDocument, getFreelancerEntitlements, setFreelancerEntitlement } from '../../core/tenancy/index.js';
 import {
   MODULE_REGISTRY,
   getOptionalModules,
@@ -19,7 +19,7 @@ import type {
   TenantModuleStatus,
   FreelancerOverview,
   FreelancerDetail,
-} from './types';
+} from './types.js';
 
 /**
  * Lädt alle Tenants für das Developer Dashboard.

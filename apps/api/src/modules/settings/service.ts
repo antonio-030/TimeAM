@@ -11,8 +11,8 @@ import {
   getCoreModules,
   isCoreModule,
 } from '@timeam/shared';
-import { getEntitlements, setEntitlement } from '../../core/tenancy';
-import type { ModuleStatusItem } from './types';
+import { getEntitlements, setEntitlement } from '../../core/tenancy/index.js';
+import type { ModuleStatusItem } from './types.js';
 
 /**
  * Lädt den Status aller Module für einen Tenant.

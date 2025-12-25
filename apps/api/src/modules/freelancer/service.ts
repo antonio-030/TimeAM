@@ -6,13 +6,13 @@
 
 import { getAdminFirestore, getAdminAuth, getAdminStorage } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
-import { createTenant } from '../../core/tenancy';
+import { createTenant } from '../../core/tenancy/index.js';
 import type {
   FreelancerDoc,
   RegisterFreelancerRequest,
   FreelancerResponse,
   VerificationStatus,
-} from './types';
+} from './types.js';
 
 // =============================================================================
 // Helper Functions
