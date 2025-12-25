@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAdminShifts, useShiftApplications, useShiftAssignments, useShiftDocuments } from './hooks';
-import { SHIFT_STATUS, APPLICATION_STATUS, type Shift, type AdminShift, type Application, type ShiftStatus, type ApplicationStatus, type CreateShiftRequest, type Member } from '@timeam/shared';
+import { SHIFT_STATUS, APPLICATION_STATUS, type Shift, type AdminShift, type Application, type ShiftStatus, type ApplicationStatus, type CreateShiftRequest, type Member, type ShiftLocation } from '@timeam/shared';
 import { FreelancerDetailModal } from './FreelancerDetailModal';
 import { getMembers } from '../members/api';
 import { assignMemberToShift, completeShift } from './api';

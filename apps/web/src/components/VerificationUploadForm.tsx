@@ -119,7 +119,7 @@ export function VerificationUploadForm({
       </p>
 
       {statusMessage && (
-        <div className={`${styles.statusMessage} ${styles[`status${currentStatus?.charAt(0).toUpperCase() + currentStatus?.slice(1)}`] || ''}`}>
+        <div className={`${styles.statusMessage} ${currentStatus ? styles[`status${currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)}`] || '' : ''}`}>
           {statusMessage}
         </div>
       )}

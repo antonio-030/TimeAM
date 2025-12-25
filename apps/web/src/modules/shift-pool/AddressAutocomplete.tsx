@@ -19,9 +19,10 @@ interface AddressAutocompleteProps {
   disabled?: boolean;
 }
 
+// Google Maps Types (extern, daher any)
 declare global {
   interface Window {
-    google: typeof google;
+    google?: any;
     loadGooglePlacesScript: (apiKey: string) => Promise<void>;
   }
 }
@@ -34,7 +35,7 @@ export function AddressAutocomplete({
   disabled = false,
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const autocompleteRef = useRef<any>(null);
   const isInitializedRef = useRef(false);
   const onChangeRef = useRef(onChange);
   const lastValueRef = useRef(value);
