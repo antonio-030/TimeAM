@@ -1843,6 +1843,15 @@
   cursor: not-allowed;
 }
 
+.actionBtnSuccess {
+  background: var(--color-green);
+  color: white;
+}
+
+.actionBtnSuccess:hover:not(:disabled) {
+  background: var(--color-green-dark, #27ae60);
+}
+
 .actionBtnDanger:hover {
   background: rgba(239, 68, 68, 0.1);
   border-color: var(--color-red, #ef4444);
@@ -2282,6 +2291,59 @@
     font-size: var(--font-size-base);
     margin-bottom: var(--spacing-sm);
     padding-bottom: var(--spacing-xs);
+  }
+
+  /* Tabs mobil optimieren */
+  .tabs {
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
+  .tab {
+    flex: 1;
+    min-width: calc(50% - var(--spacing-xs) / 2);
+    font-size: var(--font-size-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  /* Zeiterfassung mobil optimieren */
+  .timeEntriesSection {
+    margin-top: var(--spacing-md);
+  }
+
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .sectionHeader button {
+    width: 100%;
+  }
+
+  /* Zeiteintrag-Karten mobil optimieren */
+  .timeEntryCard {
+    padding: var(--spacing-md);
+  }
+
+  .timeEntryHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+  }
+
+  .timeEntryHeader > div:first-child {
+    width: 100%;
+  }
+
+  .timeEntryHeader button {
+    width: 100%;
+    margin-top: var(--spacing-xs);
+  }
+
+  .timeEntryDetails {
+    grid-template-columns: 1fr !important;
+    gap: var(--spacing-sm) !important;
   }
 
   /* Title und Back Button */

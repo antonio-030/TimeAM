@@ -865,3 +865,124 @@
   color: #856404;
 }
 
+/* ============= Time Clock Widget ============= */
+
+.timeClockWidget {
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.timeClockInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.timeClockStatusActive {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-green);
+}
+
+.pulsingDot {
+  width: 8px;
+  height: 8px;
+  background: var(--color-green);
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.timeClockStatusIdle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.timeClockDuration {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.timeClockToday {
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+}
+
+.timeClockButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.timeClockButton.start {
+  background: var(--color-blue);
+  color: white;
+}
+
+.timeClockButton.start:hover {
+  background: var(--color-blue-hover);
+}
+
+.timeClockButton.stop {
+  background: var(--color-red);
+  color: white;
+}
+
+.timeClockButton.stop:hover {
+  background: #dc2626;
+}
+
+.timeClockButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ============= Reports Widget ============= */
+
+.reportsWidget {
+  padding: var(--spacing-lg);
+}
+
+.reportsInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.reportsIcon {
+  font-size: 1.5rem;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+

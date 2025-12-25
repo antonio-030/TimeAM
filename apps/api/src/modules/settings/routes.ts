@@ -8,7 +8,7 @@
 import { Router, type Request, type Response } from 'express';
 import { requireAuth } from '../../core/auth';
 import { requireTenantOnly, type TenantRequest } from '../../core/entitlements';
-import { getTenantForUser } from '../../core/tenancy';
+import { getTenantForUser, updateTenantName } from '../../core/tenancy';
 import { getModuleStatus, toggleModule } from './service';
 import type { ToggleModuleRequest, ModuleStatusResponse, ToggleModuleResponse } from './types';
 
@@ -112,6 +112,46 @@ router.put(
     } catch (error) {
       console.error(`Error in PUT /api/settings/modules/${moduleId}:`, error);
       res.status(500).json({ error: 'Fehler beim Ändern des Moduls' });
+    }
+  }
+);
+
+/**
+ * PATCH /api/settings/tenant-name
+ *
+ * Aktualisiert den Namen des Tenants.
+ * Nur für Admins.
+ */
+router.patch(
+  '/tenant-name',
+  requireAuth,
+  requireTenantOnly(),
+  requireAdmin,
+  async (req: Request, res: Response): Promise<void> => {
+    const tenantReq = req as TenantRequest;
+    const { name } = req.body as { name?: string };
+    
+    // Validierung
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      res.status(400).json({ 
+        error: 'Name ist erforderlich (min. 2 Zeichen)',
+        code: 'INVALID_NAME',
+      });
+      return;
+    }
+    
+    try {
+      await updateTenantName(tenantReq.tenant.id, name.trim());
+      
+      res.json({
+        success: true,
+        message: 'Tenant-Name erfolgreich aktualisiert',
+        name: name.trim(),
+      });
+    } catch (error) {
+      console.error('Error in PATCH /api/settings/tenant-name:', error);
+      const message = error instanceof Error ? error.message : 'Fehler beim Aktualisieren des Tenant-Namens';
+      res.status(500).json({ error: message });
     }
   }
 );

@@ -8,6 +8,7 @@
  */
 
 import { useId, useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
 import { useDashboard, formatDuration, formatTime, formatRelativeDate, formatShiftTime } from './hooks';
@@ -18,7 +19,7 @@ import styles from './DashboardPage.module.css';
 // ============= Types =============
 
 export interface DashboardPageProps {
-  onNavigate?: (page: string) => void;
+  // onNavigate prop wird nicht mehr benötigt, da useNavigate verwendet wird
 }
 
 // ============= Sub-Components =============
@@ -305,7 +306,8 @@ function TeamWidget({ members, onViewMore }: TeamWidgetProps) {
 
 // ============= Main Component =============
 
-export function DashboardPage({ onNavigate }: DashboardPageProps) {
+export function DashboardPage({}: DashboardPageProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { tenant, role, hasEntitlement } = useTenant();
   const [clockLoading, setClockLoading] = useState(false);
@@ -328,12 +330,20 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     refreshTimeStatus,
   } = useDashboard(isAdminOrManager);
 
-  // Navigation Handler
-  const navigate = useCallback((page: string) => {
-    if (onNavigate) {
-      onNavigate(page);
-    }
-  }, [onNavigate]);
+  // Navigation Handler - Mapping von Page-IDs zu URL-Pfaden
+  const handleNavigate = useCallback((page: string) => {
+    const pathMap: Record<string, string> = {
+      'time-tracking': '/time-tracking',
+      'calendar': '/calendar',
+      'shifts': '/shifts',
+      'my-shifts': '/my-shifts',
+      'admin-shifts': '/admin-shifts',
+      'members': '/members',
+      'reports': '/reports',
+    };
+    const path = pathMap[page] || '/dashboard';
+    navigate(path);
+  }, [navigate]);
 
   // Clock In/Out Handler
   const handleClockIn = useCallback(async () => {
@@ -414,7 +424,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
             value={formatDuration(liveTodayMinutes)}
             color="blue"
             subtitle={timeStatus?.isRunning ? '● Läuft' : undefined}
-            onClick={hasTimeTracking ? () => navigate('time-tracking') : undefined}
+            onClick={hasTimeTracking ? () => handleNavigate('time-tracking') : undefined}
             live={timeStatus?.isRunning}
           />
           
@@ -439,7 +449,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={String(stats?.teamSize || teamMembers.length || 0)}
               color="orange"
               subtitle={`${teamMembers.filter(m => m.isOnline).length} online`}
-              onClick={() => navigate('members')}
+              onClick={() => handleNavigate('members')}
             />
           )}
           
@@ -450,7 +460,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               value={String(myShifts.length)}
               color="orange"
               subtitle={openShifts.length > 0 ? `${openShifts.length} offen` : undefined}
-              onClick={() => navigate('my-shifts')}
+              onClick={() => handleNavigate('my-shifts')}
             />
           )}
         </div>
@@ -471,34 +481,34 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               onClockIn={handleClockIn}
               onClockOut={handleClockOut}
               isLoading={clockLoading}
-              onViewMore={() => navigate('time-tracking')}
+              onViewMore={() => handleNavigate('time-tracking')}
             />
           )}
 
           {/* Kalender Widget - immer aktiv */}
-          <CalendarWidget onViewMore={() => navigate('calendar')} />
+          <CalendarWidget onViewMore={() => handleNavigate('calendar')} />
 
           {/* Schichten Widget - mit echten Daten */}
           {hasShiftPool && (
             <ShiftWidget 
               myShifts={myShifts}
               openShifts={openShifts}
-              onViewMyShifts={() => navigate(isAdminOrManager ? 'admin-shifts' : 'my-shifts')}
-              onViewPool={() => navigate('shifts')}
+              onViewMyShifts={() => handleNavigate(isAdminOrManager ? 'admin-shifts' : 'my-shifts')}
+              onViewPool={() => handleNavigate('shifts')}
               isAdmin={isAdminOrManager}
             />
           )}
 
           {/* Berichte Widget - nur Admin/Manager */}
           {hasReports && isAdminOrManager && (
-            <ReportsWidget onViewMore={() => navigate('reports')} />
+            <ReportsWidget onViewMore={() => handleNavigate('reports')} />
           )}
 
           {/* Team Widget - nur Admin/Manager */}
           {isAdminOrManager && (
             <TeamWidget 
               members={teamMembers}
-              onViewMore={() => navigate('members')}
+              onViewMore={() => handleNavigate('members')}
             />
           )}
         </div>
@@ -532,23 +542,23 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
         <section className={styles.adminSection}>
           <h2 className={styles.sectionTitle}>⚡ Schnellzugriff</h2>
           <div className={styles.quickActions}>
-            <button className={styles.quickAction} onClick={() => navigate('members')}>
+            <button className={styles.quickAction} onClick={() => handleNavigate('members')}>
               <span>👥</span>
               <span>Team verwalten</span>
             </button>
             {hasShiftPool && (
-              <button className={styles.quickAction} onClick={() => navigate('admin-shifts')}>
+              <button className={styles.quickAction} onClick={() => handleNavigate('admin-shifts')}>
                 <span>📋</span>
                 <span>Schichten planen</span>
               </button>
             )}
             {hasReports && (
-              <button className={styles.quickAction} onClick={() => navigate('reports')}>
+              <button className={styles.quickAction} onClick={() => handleNavigate('reports')}>
                 <span>📈</span>
                 <span>Berichte ansehen</span>
               </button>
             )}
-            <button className={styles.quickAction} onClick={() => navigate('calendar')}>
+            <button className={styles.quickAction} onClick={() => handleNavigate('calendar')}>
               <span>📅</span>
               <span>Kalender öffnen</span>
             </button>

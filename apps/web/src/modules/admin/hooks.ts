@@ -11,8 +11,13 @@ import {
   fetchAllTenants,
   fetchTenantDetail,
   toggleTenantModule,
+  fetchAllFreelancers,
+  fetchFreelancerDetail,
+  toggleFreelancerModule,
   type TenantOverview,
   type TenantDetail,
+  type FreelancerOverview,
+  type FreelancerDetail,
 } from './api';
 
 /**
@@ -177,6 +182,106 @@ export function useTenantDetail(tenantId: string | null) {
 
   return {
     tenant,
+    loading,
+    error,
+    toggling,
+    handleToggleModule,
+    refresh: load,
+  };
+}
+
+/**
+ * Hook: Alle Freelancer laden
+ */
+export function useAllFreelancers() {
+  const [freelancers, setFreelancers] = useState<FreelancerOverview[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetchAllFreelancers();
+      setFreelancers(response.freelancers);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return { freelancers, loading, error, refresh: load };
+}
+
+/**
+ * Hook: Freelancer-Detail laden und Module verwalten
+ */
+export function useFreelancerDetail(freelancerUid: string | null) {
+  const [freelancer, setFreelancer] = useState<FreelancerDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  // Freelancer laden
+  const load = useCallback(async () => {
+    if (!freelancerUid) {
+      setFreelancer(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const detail = await fetchFreelancerDetail(freelancerUid);
+      setFreelancer(detail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+    } finally {
+      setLoading(false);
+    }
+  }, [freelancerUid]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // Modul aktivieren/deaktivieren
+  const handleToggleModule = useCallback(async (moduleId: string, enabled: boolean) => {
+    if (!freelancerUid || !freelancer) return null;
+
+    setToggling(moduleId);
+    try {
+      const result = await toggleFreelancerModule(freelancerUid, moduleId, enabled);
+
+      if (result.success) {
+        // Lokalen State aktualisieren
+        setFreelancer(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            modules: prev.modules.map(m =>
+              m.id === moduleId ? { ...m, isActive: enabled } : m
+            ),
+          };
+        });
+      }
+
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Fehler');
+      throw err;
+    } finally {
+      setToggling(null);
+    }
+  }, [freelancerUid, freelancer]);
+
+  return {
+    freelancer,
     loading,
     error,
     toggling,

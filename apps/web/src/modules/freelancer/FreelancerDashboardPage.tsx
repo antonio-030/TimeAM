@@ -5,9 +5,11 @@
  */
 
 import { useId, useCallback, useState, useMemo, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
 import { getFreelancerApplications, getFreelancer, getVerificationStatus, type FreelancerApplication, type VerificationStatus } from './api';
+import { useTimeTrackingStatus } from '../time-tracking/hooks';
 import { APPLICATION_STATUS } from '@timeam/shared';
 import { VerificationOnboarding } from '../../components/VerificationOnboarding';
 import styles from './FreelancerDashboardPage.module.css';
@@ -15,7 +17,7 @@ import styles from './FreelancerDashboardPage.module.css';
 // ============= Types =============
 
 export interface FreelancerDashboardPageProps {
-  onNavigate?: (page: string) => void;
+  // onNavigate prop wird nicht mehr benötigt, da useNavigate verwendet wird
 }
 
 // ============= Sub-Components =============
@@ -193,7 +195,8 @@ function PoolWidget({ onViewMore }: PoolWidgetProps) {
 
 // ============= Main Component =============
 
-export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageProps) {
+export function FreelancerDashboardPage({}: FreelancerDashboardPageProps) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { hasEntitlement } = useTenant();
   const [applications, setApplications] = useState<FreelancerApplication[]>([]);
@@ -201,6 +204,11 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
   const [error, setError] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus | undefined>(undefined);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  
+  // Entitlements prüfen
+  const hasTimeTracking = hasEntitlement('module.time_tracking');
+  const hasShiftPool = hasEntitlement('module.shift_pool');
+  const hasReports = hasEntitlement('module.reports');
 
   const loadApplications = useCallback(async () => {
     setLoading(true);
@@ -241,12 +249,91 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
     }
   }, [loading, verificationStatus]);
 
-  // Navigation Handler
-  const navigate = useCallback((page: string) => {
-    if (onNavigate) {
-      onNavigate(page);
+  // Zeiterfassung für Freelancer
+  const {
+    status: timeStatus,
+    loading: timeLoading,
+    clockIn: handleClockIn,
+    clockOut: handleClockOut,
+  } = useTimeTrackingStatus();
+  
+  const [clockLoading, setClockLoading] = useState(false);
+  
+  // Live-Minuten berechnen
+  const [tick, setTick] = useState(0);
+  const liveRunningMinutes = useMemo(() => {
+    if (!timeStatus?.isRunning || !timeStatus.runningEntry?.clockIn) {
+      return 0;
     }
-  }, [onNavigate]);
+    const clockInTime = new Date(timeStatus.runningEntry.clockIn).getTime();
+    const now = Date.now();
+    return Math.floor((now - clockInTime) / 60000);
+  }, [timeStatus?.isRunning, timeStatus?.runningEntry?.clockIn, tick]);
+  
+  // Live-Timer für laufende Zeiterfassung
+  useEffect(() => {
+    if (!timeStatus?.isRunning) return;
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timeStatus?.isRunning]);
+  
+  // Clock In/Out Handler
+  const onClockIn = useCallback(async () => {
+    setClockLoading(true);
+    try {
+      await handleClockIn();
+    } catch (err) {
+      console.error('Clock-in failed:', err);
+    } finally {
+      setClockLoading(false);
+    }
+  }, [handleClockIn]);
+  
+  const onClockOut = useCallback(async () => {
+    setClockLoading(true);
+    try {
+      await handleClockOut();
+    } catch (err) {
+      console.error('Clock-out failed:', err);
+    } finally {
+      setClockLoading(false);
+    }
+  }, [handleClockOut]);
+  
+  // Format-Funktionen
+  const formatDuration = (minutes: number): string => {
+    if (!minutes || minutes <= 0) return '0h 0m';
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  };
+  
+  const formatTime = (dateStr: string): string => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '--:--';
+    }
+  };
+
+  // Navigation Handler - Mapping von Page-IDs zu URL-Pfaden
+  const handleNavigate = useCallback((page: string) => {
+    const pathMap: Record<string, string> = {
+      'calendar': '/calendar',
+      'time-tracking': '/time-tracking',
+      'reports': '/reports',
+      'freelancer-my-shifts': '/freelancer-my-shifts',
+      'freelancer-pool': '/freelancer-pool',
+      'freelancer-admin-shifts': '/freelancer-admin-shifts',
+    };
+    const path = pathMap[page] || '/freelancer-dashboard';
+    navigate(path);
+  }, [navigate]);
 
   if (!user) return null;
 
@@ -274,6 +361,9 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
     true, // Kalender ist immer aktiv
     true, // Meine Schichten ist Core-Modul
     true, // Schicht-Pool ist Core-Modul
+    hasTimeTracking,
+    hasShiftPool,
+    hasReports,
   ].filter(Boolean).length;
 
   return (
@@ -390,7 +480,7 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
             label="Ausstehend"
             value={String(pendingApps.length)}
             color="orange"
-            onClick={() => navigate('freelancer-dashboard')}
+            onClick={() => handleNavigate('freelancer-dashboard')}
           />
           
           <StatCard
@@ -399,7 +489,7 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
             value={String(acceptedApps.length)}
             color="green"
             subtitle={upcomingShifts.length > 0 ? `${upcomingShifts.length} kommend` : undefined}
-            onClick={() => navigate('freelancer-my-shifts')}
+            onClick={() => handleNavigate('freelancer-my-shifts')}
           />
           
           <StatCard
@@ -427,11 +517,60 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
           {/* Bewerbungen Widget */}
           <ApplicationsWidget
             applications={applications}
-            onViewMore={() => navigate('freelancer-dashboard')}
+            onViewMore={() => handleNavigate('freelancer-dashboard')}
           />
 
+          {/* Zeiterfassung Widget - nur wenn aktiviert */}
+          {hasTimeTracking && (
+            <section className={styles.moduleWidget}>
+              <div className={styles.widgetHeader}>
+                <h3 className={styles.widgetTitle}>
+                  <span>⏱️</span> Zeiterfassung
+                </h3>
+                <button className={styles.widgetLink} onClick={() => handleNavigate('time-tracking')}>
+                  Mehr →
+                </button>
+              </div>
+              <div className={styles.timeClockWidget}>
+                <div className={styles.timeClockInfo}>
+                  {timeStatus?.isRunning && timeStatus.runningEntry?.clockIn ? (
+                    <>
+                      <div className={styles.timeClockStatusActive}>
+                        <span className={styles.pulsingDot} />
+                        <span>Seit {formatTime(timeStatus.runningEntry.clockIn)}</span>
+                      </div>
+                      <div className={styles.timeClockDuration}>
+                        {formatDuration(liveRunningMinutes)}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.timeClockStatusIdle}>Nicht aktiv</div>
+                      <div className={styles.timeClockToday}>
+                        Heute: <strong>{formatDuration(timeStatus?.today?.totalMinutes || 0)}</strong>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <button
+                  className={`${styles.timeClockButton} ${timeStatus?.isRunning ? styles.stop : styles.start}`}
+                  onClick={timeStatus?.isRunning ? onClockOut : onClockIn}
+                  disabled={clockLoading || timeLoading}
+                >
+                  {clockLoading || timeLoading ? (
+                    <span className={styles.spinner} />
+                  ) : timeStatus?.isRunning ? (
+                    '⏹️ Stoppen'
+                  ) : (
+                    '▶️ Starten'
+                  )}
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* Kalender Widget - immer aktiv */}
-          <CalendarWidget onViewMore={() => navigate('calendar')} />
+          <CalendarWidget onViewMore={() => handleNavigate('calendar')} />
 
           {/* Meine Schichten Widget - Core-Modul, immer verfügbar */}
           <section className={styles.moduleWidget}>
@@ -454,7 +593,47 @@ export function FreelancerDashboardPage({ onNavigate }: FreelancerDashboardPageP
           </section>
 
           {/* Pool Widget - Core-Modul, immer verfügbar */}
-          <PoolWidget onViewMore={() => navigate('freelancer-pool')} />
+          <PoolWidget onViewMore={() => handleNavigate('freelancer-pool')} />
+
+          {/* Schicht-Verwaltung Widget - nur wenn shift_pool aktiviert */}
+          {hasShiftPool && (
+            <section className={styles.moduleWidget}>
+              <div className={styles.widgetHeader}>
+                <h3 className={styles.widgetTitle}>
+                  <span>⚙️</span> Schicht-Verwaltung
+                </h3>
+                <button className={styles.widgetLink} onClick={() => handleNavigate('freelancer-admin-shifts')}>
+                  Öffnen →
+                </button>
+              </div>
+              <div className={styles.reportsWidget}>
+                <div className={styles.reportsInfo}>
+                  <span className={styles.reportsIcon}>📋</span>
+                  <span>Schichten verwalten & erstellen</span>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Berichte Widget - nur wenn aktiviert */}
+          {hasReports && (
+            <section className={styles.moduleWidget}>
+              <div className={styles.widgetHeader}>
+                <h3 className={styles.widgetTitle}>
+                  <span>📈</span> Berichte
+                </h3>
+                <button className={styles.widgetLink} onClick={() => handleNavigate('reports')}>
+                  Öffnen →
+                </button>
+              </div>
+              <div className={styles.reportsWidget}>
+                <div className={styles.reportsInfo}>
+                  <span className={styles.reportsIcon}>📊</span>
+                  <span>Statistiken & Auswertungen</span>
+                </div>
+              </div>
+            </section>
+          )}
         </div>
       </section>
 

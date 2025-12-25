@@ -18,7 +18,10 @@ export function FreelancerRegisterForm({ onSuccess, onCancel }: FreelancerRegist
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [companyName, setCompanyName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [businessLicenseNumber, setBusinessLicenseNumber] = useState('');
@@ -35,7 +38,10 @@ export function FreelancerRegisterForm({ onSuccess, onCancel }: FreelancerRegist
       await registerFreelancer({
         email,
         password,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
         displayName,
+        companyName: companyName || undefined,
         phone: phone || undefined,
         address: address || undefined,
         businessLicenseNumber: businessLicenseNumber || undefined,
@@ -99,16 +105,60 @@ export function FreelancerRegisterForm({ onSuccess, onCancel }: FreelancerRegist
             />
           </div>
 
+          <div className={styles.fieldRow}>
+            <div className={styles.field}>
+              <label className={styles.label}>Vorname *</label>
+              <input
+                type="text"
+                placeholder="Max"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+                disabled={isSubmitting}
+                minLength={1}
+                className={styles.input}
+              />
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label}>Nachname *</label>
+              <input
+                type="text"
+                placeholder="Mustermann"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+                disabled={isSubmitting}
+                minLength={1}
+                className={styles.input}
+              />
+            </div>
+          </div>
+
           <div className={styles.field}>
-            <label className={styles.label}>Name *</label>
+            <label className={styles.label}>Anzeigename *</label>
             <input
               type="text"
-              placeholder="Vor- und Nachname"
+              placeholder="Max Mustermann"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               required
               disabled={isSubmitting}
               minLength={2}
+              className={styles.input}
+            />
+            <p className={styles.hint}>
+              Wird in der App und bei Bewerbungen angezeigt
+            </p>
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label}>Firmenname (optional)</label>
+            <input
+              type="text"
+              placeholder="z.B. Mustermann GmbH"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              disabled={isSubmitting}
               className={styles.input}
             />
           </div>

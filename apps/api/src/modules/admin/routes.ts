@@ -8,11 +8,14 @@
 import { Router, type Request, type Response } from 'express';
 import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
 import { requireSuperAdmin, isSuperAdmin } from '../../core/super-admin';
-import { getAllTenants, getTenantDetail, toggleTenantModule } from './service';
+import { getAllTenants, getTenantDetail, toggleTenantModule, getAllFreelancers, getFreelancerDetail, toggleFreelancerModule } from './service';
 import type {
   TenantsListResponse,
   TenantDetail,
   ToggleTenantModuleResponse,
+  FreelancersListResponse,
+  FreelancerDetail,
+  ToggleFreelancerModuleResponse,
 } from './types';
 
 const router = Router();
@@ -136,6 +139,111 @@ router.put(
       res.json(response);
     } catch (error) {
       console.error(`Error in PUT /api/admin/tenants/${tenantId}/modules/${moduleId}:`, error);
+      res.status(500).json({ error: 'Fehler beim Ändern des Moduls' });
+    }
+  }
+);
+
+/**
+ * GET /api/admin/freelancers
+ *
+ * Gibt alle registrierten Freelancer zurück.
+ * Nur für Super-Admins.
+ */
+router.get(
+  '/freelancers',
+  requireAuth,
+  requireSuperAdmin,
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const freelancers = await getAllFreelancers();
+      
+      const response: FreelancersListResponse = {
+        freelancers,
+        total: freelancers.length,
+      };
+      
+      res.json(response);
+    } catch (error) {
+      console.error('Error in GET /api/admin/freelancers:', error);
+      res.status(500).json({ error: 'Fehler beim Laden der Freelancer' });
+    }
+  }
+);
+
+/**
+ * GET /api/admin/freelancers/:freelancerUid
+ *
+ * Gibt Detail-Informationen zu einem Freelancer zurück.
+ * Nur für Super-Admins.
+ */
+router.get(
+  '/freelancers/:freelancerUid',
+  requireAuth,
+  requireSuperAdmin,
+  async (req: Request, res: Response): Promise<void> => {
+    const { freelancerUid } = req.params;
+    
+    try {
+      const freelancer = await getFreelancerDetail(freelancerUid);
+      
+      if (!freelancer) {
+        res.status(404).json({ error: 'Freelancer nicht gefunden' });
+        return;
+      }
+      
+      res.json(freelancer);
+    } catch (error) {
+      console.error(`Error in GET /api/admin/freelancers/${freelancerUid}:`, error);
+      res.status(500).json({ error: 'Fehler beim Laden des Freelancers' });
+    }
+  }
+);
+
+/**
+ * PUT /api/admin/freelancers/:freelancerUid/modules/:moduleId
+ *
+ * Aktiviert oder deaktiviert ein Modul für einen Freelancer.
+ * Nur für Super-Admins.
+ */
+router.put(
+  '/freelancers/:freelancerUid/modules/:moduleId',
+  requireAuth,
+  requireSuperAdmin,
+  async (req: Request, res: Response): Promise<void> => {
+    const { freelancerUid, moduleId } = req.params;
+    const { enabled } = req.body as { enabled?: boolean };
+    
+    if (typeof enabled !== 'boolean') {
+      res.status(400).json({
+        error: 'enabled (boolean) ist erforderlich',
+        code: 'INVALID_REQUEST',
+      });
+      return;
+    }
+    
+    try {
+      const result = await toggleFreelancerModule(freelancerUid, moduleId, enabled);
+      
+      if (!result.success) {
+        res.status(400).json({
+          error: result.message,
+          code: 'TOGGLE_FAILED',
+        });
+        return;
+      }
+      
+      const response: ToggleFreelancerModuleResponse = {
+        success: true,
+        freelancerUid,
+        moduleId,
+        enabled,
+        message: result.message,
+      };
+      
+      res.json(response);
+    } catch (error) {
+      console.error(`Error in PUT /api/admin/freelancers/${freelancerUid}/modules/${moduleId}:`, error);
       res.status(500).json({ error: 'Fehler beim Ändern des Moduls' });
     }
   }

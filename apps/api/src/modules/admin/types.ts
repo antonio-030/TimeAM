@@ -13,6 +13,10 @@ export interface TenantOverview {
   createdAt: string;
   memberCount: number;
   activeModules: string[];
+  createdBy: string; // UID
+  createdByName?: string; // Display-Name des Erstellers
+  createdByEmail?: string; // Email des Erstellers
+  address?: string; // Adresse (optional)
 }
 
 /**
@@ -30,7 +34,12 @@ export interface TenantDetail {
   id: string;
   name: string;
   createdAt: string;
-  createdBy: string;
+  createdBy: string; // UID
+  createdByName?: string; // Display-Name des Erstellers
+  createdByFirstName?: string; // Vorname des Erstellers
+  createdByLastName?: string; // Nachname des Erstellers
+  createdByEmail?: string; // Email des Erstellers
+  address?: string; // Adresse (optional)
   members: TenantMemberInfo[];
   modules: TenantModuleStatus[];
 }
@@ -41,6 +50,10 @@ export interface TenantDetail {
 export interface TenantMemberInfo {
   uid: string;
   email: string;
+  displayName?: string;
+  firstName?: string;
+  lastName?: string;
+  address?: string;
   role: 'admin' | 'manager' | 'employee';
   joinedAt: string;
 }
@@ -71,6 +84,62 @@ export interface ToggleTenantModuleRequest {
 export interface ToggleTenantModuleResponse {
   success: boolean;
   tenantId: string;
+  moduleId: string;
+  enabled: boolean;
+  message: string;
+}
+
+/**
+ * Freelancer-Übersicht für Developer Dashboard
+ */
+export interface FreelancerOverview {
+  uid: string;
+  email: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  address?: string;
+  tenantId?: string;
+  createdAt: string;
+  activeModules: string[];
+  verificationStatus?: 'pending' | 'approved' | 'rejected';
+}
+
+/**
+ * Response: Alle Freelancer
+ */
+export interface FreelancersListResponse {
+  freelancers: FreelancerOverview[];
+  total: number;
+}
+
+/**
+ * Freelancer-Detail mit Modulen
+ */
+export interface FreelancerDetail {
+  uid: string;
+  email: string;
+  displayName: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
+  tenantId?: string;
+  phone?: string;
+  address?: string;
+  businessLicenseNumber?: string;
+  createdAt: string;
+  updatedAt: string;
+  verificationStatus?: 'pending' | 'approved' | 'rejected';
+  modules: TenantModuleStatus[];
+}
+
+/**
+ * Response: Freelancer-Modul-Toggle
+ */
+export interface ToggleFreelancerModuleResponse {
+  success: boolean;
+  freelancerUid: string;
   moduleId: string;
   enabled: boolean;
   message: string;

@@ -360,3 +360,26 @@ export async function createTenant(
     throw error;
   }
 }
+
+/**
+ * Aktualisiert den Namen eines Tenants.
+ * Nur für Admins.
+ */
+export async function updateTenantName(
+  tenantId: string,
+  newName: string
+): Promise<void> {
+  const db = getAdminFirestore();
+  const tenantRef = db.collection('tenants').doc(tenantId);
+  
+  // Validierung
+  if (!newName || typeof newName !== 'string' || newName.trim().length < 2) {
+    throw new Error('Tenant name must be at least 2 characters');
+  }
+  
+  await tenantRef.update({
+    name: newName.trim(),
+  });
+  
+  console.log(`✅ Tenant name updated: ${tenantId} -> ${newName.trim()}`);
+}

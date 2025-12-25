@@ -19,6 +19,7 @@ import {
   cancelShift as apiCancelShift,
   acceptApplication as apiAcceptApplication,
   rejectApplication as apiRejectApplication,
+  unrejectApplication as apiUnrejectApplication,
   revokeApplication as apiRevokeApplication,
   getMyShifts,
   getShiftTimeEntries,
@@ -364,6 +365,22 @@ export function useShiftApplications(shiftId: string | null) {
     [refresh]
   );
 
+  const unrejectApplication = useCallback(
+    async (applicationId: string) => {
+      setError(null);
+
+      try {
+        await apiUnrejectApplication(applicationId);
+        await refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Fehler beim Zurückziehen der Ablehnung';
+        setError(message);
+        throw err;
+      }
+    },
+    [refresh]
+  );
+
   const revokeApplication = useCallback(
     async (applicationId: string) => {
       setError(null);
@@ -387,6 +404,7 @@ export function useShiftApplications(shiftId: string | null) {
     refresh,
     acceptApplication,
     rejectApplication,
+    unrejectApplication,
     revokeApplication,
   };
 }

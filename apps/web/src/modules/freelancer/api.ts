@@ -12,7 +12,9 @@ export interface RegisterFreelancerRequest {
   email: string;
   password: string;
   displayName: string;
-  companyName: string;
+  firstName?: string;
+  lastName?: string;
+  companyName?: string;
   phone?: string;
   address?: string;
   businessLicenseNumber?: string;

@@ -7,7 +7,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth, type AuthenticatedRequest } from '../../core/auth';
-import { requireEntitlements, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements';
+import { requireEntitlements, requireEntitlementsOrFreelancer, type TenantRequest, ENTITLEMENT_KEYS } from '../../core/entitlements';
 import { getAdminFirestore } from '../../core/firebase';
 import { MEMBER_ROLES } from '@timeam/shared';
 import {
@@ -29,6 +29,7 @@ import {
   getFreelancerShifts,
   acceptApplication,
   rejectApplication,
+  unrejectApplication,
   withdrawApplication,
   revokeAcceptedApplication,
   withdrawMyApplication,
@@ -65,10 +66,16 @@ const upload = multer({
   },
 });
 
-// Alle Routes erfordern Auth + shift_pool Entitlement
+// Alle Routes erfordern Auth + shift_pool Entitlement (für Tenants)
 const shiftPoolGuard = [
   requireAuth,
   requireEntitlements([ENTITLEMENT_KEYS.MODULE_SHIFT_POOL]),
+];
+
+// Guard für Freelancer mit aktiviertem shift_pool Modul
+const shiftPoolGuardOrFreelancer = [
+  requireAuth,
+  requireEntitlementsOrFreelancer([ENTITLEMENT_KEYS.MODULE_SHIFT_POOL]),
 ];
 
 /**
@@ -92,8 +99,9 @@ function requireAdmin(req: TenantRequest, res: import('express').Response, next:
 /**
  * POST /api/shift-pool/shifts
  * Erstellt eine neue Schicht (Draft).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/shifts', ...shiftPoolGuard, async (req, res) => {
+router.post('/shifts', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const body = req.body as CreateShiftRequest;
@@ -122,8 +130,9 @@ router.post('/shifts', ...shiftPoolGuard, async (req, res) => {
 /**
  * GET /api/shift-pool/admin/shifts
  * Liste aller Schichten für Admin.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.get('/admin/shifts', ...shiftPoolGuard, async (req, res) => {
+router.get('/admin/shifts', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { tenant } = req as TenantRequest;
 
   try {
@@ -143,8 +152,9 @@ router.get('/admin/shifts', ...shiftPoolGuard, async (req, res) => {
 /**
  * PUT /api/shift-pool/shifts/:shiftId
  * Aktualisiert eine Schicht.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.put('/shifts/:shiftId', ...shiftPoolGuard, async (req, res) => {
+router.put('/shifts/:shiftId', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -181,8 +191,9 @@ router.put('/shifts/:shiftId', ...shiftPoolGuard, async (req, res) => {
 /**
  * DELETE /api/shift-pool/shifts/:shiftId
  * Löscht eine Schicht (nur Draft).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.delete('/shifts/:shiftId', ...shiftPoolGuard, async (req, res) => {
+router.delete('/shifts/:shiftId', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -214,8 +225,9 @@ router.delete('/shifts/:shiftId', ...shiftPoolGuard, async (req, res) => {
 /**
  * POST /api/shift-pool/shifts/:shiftId/publish
  * Veröffentlicht eine Schicht.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/shifts/:shiftId/publish', ...shiftPoolGuard, async (req, res) => {
+router.post('/shifts/:shiftId/publish', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -247,8 +259,9 @@ router.post('/shifts/:shiftId/publish', ...shiftPoolGuard, async (req, res) => {
 /**
  * POST /api/shift-pool/shifts/:shiftId/close
  * Schließt eine Schicht für Bewerbungen.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/shifts/:shiftId/close', ...shiftPoolGuard, async (req, res) => {
+router.post('/shifts/:shiftId/close', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -280,8 +293,9 @@ router.post('/shifts/:shiftId/close', ...shiftPoolGuard, async (req, res) => {
 /**
  * POST /api/shift-pool/shifts/:shiftId/cancel
  * Sagt eine Schicht ab.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/shifts/:shiftId/cancel', ...shiftPoolGuard, async (req, res) => {
+router.post('/shifts/:shiftId/cancel', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -313,8 +327,9 @@ router.post('/shifts/:shiftId/cancel', ...shiftPoolGuard, async (req, res) => {
 /**
  * GET /api/shift-pool/shifts/:shiftId/applications
  * Liste der Bewerbungen für eine Schicht (Admin).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.get('/shifts/:shiftId/applications', ...shiftPoolGuard, async (req, res) => {
+router.get('/shifts/:shiftId/applications', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
 
@@ -335,8 +350,9 @@ router.get('/shifts/:shiftId/applications', ...shiftPoolGuard, async (req, res) 
 /**
  * POST /api/shift-pool/applications/:applicationId/accept
  * Akzeptiert eine Bewerbung.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/applications/:applicationId/accept', ...shiftPoolGuard, async (req, res) => {
+router.post('/applications/:applicationId/accept', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { applicationId } = req.params;
@@ -372,8 +388,9 @@ router.post('/applications/:applicationId/accept', ...shiftPoolGuard, async (req
 /**
  * POST /api/shift-pool/applications/:applicationId/reject
  * Lehnt eine Bewerbung ab.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/applications/:applicationId/reject', ...shiftPoolGuard, async (req, res) => {
+router.post('/applications/:applicationId/reject', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { applicationId } = req.params;
@@ -403,10 +420,45 @@ router.post('/applications/:applicationId/reject', ...shiftPoolGuard, async (req
 });
 
 /**
+ * POST /api/shift-pool/applications/:applicationId/unreject
+ * Zieht eine Ablehnung zurück (setzt Status zurück auf PENDING).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
+ */
+router.post('/applications/:applicationId/unreject', ...shiftPoolGuardOrFreelancer, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const { applicationId } = req.params;
+
+  try {
+    const application = await unrejectApplication(tenant.id, applicationId, user.uid);
+
+    res.json({
+      application,
+      message: 'Rejection undone - application is pending again',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to unreject application';
+
+    if (message === 'Application not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message.includes('Cannot unreject')) {
+      res.status(409).json({ error: message, code: 'INVALID_STATUS' });
+      return;
+    }
+
+    console.error('Error in POST /shift-pool/applications/:applicationId/unreject:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
  * POST /api/shift-pool/applications/:applicationId/revoke
  * Macht eine akzeptierte Bewerbung rückgängig (storniert Zuweisung).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/applications/:applicationId/revoke', ...shiftPoolGuard, async (req, res) => {
+router.post('/applications/:applicationId/revoke', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { applicationId } = req.params;
@@ -438,8 +490,9 @@ router.post('/applications/:applicationId/revoke', ...shiftPoolGuard, async (req
 /**
  * GET /api/shift-pool/shifts/:shiftId/assignments
  * Lädt alle Zuweisungen für eine Schicht (Admin).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.get('/shifts/:shiftId/assignments', ...shiftPoolGuard, async (req, res) => {
+router.get('/shifts/:shiftId/assignments', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
 
@@ -456,8 +509,9 @@ router.get('/shifts/:shiftId/assignments', ...shiftPoolGuard, async (req, res) =
 /**
  * POST /api/shift-pool/shifts/:shiftId/assign
  * Weist einen Mitarbeiter direkt einer Schicht zu (Admin).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/shifts/:shiftId/assign', ...shiftPoolGuard, async (req, res) => {
+router.post('/shifts/:shiftId/assign', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -498,8 +552,9 @@ router.post('/shifts/:shiftId/assign', ...shiftPoolGuard, async (req, res) => {
 /**
  * DELETE /api/shift-pool/assignments/:assignmentId
  * Entfernt eine Zuweisung (Admin).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.delete('/assignments/:assignmentId', ...shiftPoolGuard, async (req, res) => {
+router.delete('/assignments/:assignmentId', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { assignmentId } = req.params;
@@ -645,7 +700,7 @@ router.post('/public/shifts/:shiftId/apply', requireAuth, async (req, res) => {
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
       return;
     }
-    if (message.includes('deadline') || message.includes('Already applied')) {
+    if (message.includes('deadline') || message.includes('bereits auf diese Schicht beworben')) {
       res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
       return;
     }
@@ -719,8 +774,9 @@ router.get('/my-shifts', ...shiftPoolGuard, async (req, res) => {
 /**
  * GET /api/shift-pool/shifts/:shiftId
  * Details einer Schicht.
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.get('/shifts/:shiftId', ...shiftPoolGuard, async (req, res) => {
+router.get('/shifts/:shiftId', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -773,7 +829,7 @@ router.post('/shifts/:shiftId/apply', ...shiftPoolGuard, async (req, res) => {
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
       return;
     }
-    if (message === 'Already applied to this shift') {
+    if (message === 'Sie haben sich bereits auf diese Schicht beworben') {
       res.status(409).json({ error: message, code: 'ALREADY_APPLIED' });
       return;
     }
@@ -872,8 +928,9 @@ router.post('/applications/:applicationId/withdraw', ...shiftPoolGuard, async (r
 /**
  * POST /api/shift-pool/shifts/:shiftId/complete
  * Beendet eine Schicht (nur Crew-Leiter).
+ * Erlaubt auch Freelancern mit aktiviertem shift_pool Modul.
  */
-router.post('/shifts/:shiftId/complete', ...shiftPoolGuard, async (req, res) => {
+router.post('/shifts/:shiftId/complete', ...shiftPoolGuardOrFreelancer, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   const { tenant } = req as TenantRequest;
   const { shiftId } = req.params;
@@ -892,7 +949,7 @@ router.post('/shifts/:shiftId/complete', ...shiftPoolGuard, async (req, res) => 
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
       return;
     }
-    if (message === 'Only the crew leader can complete a shift') {
+    if (message.includes('Only the crew leader') || message.includes('manager or admin')) {
       res.status(403).json({ error: message, code: 'FORBIDDEN' });
       return;
     }

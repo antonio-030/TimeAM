@@ -18,6 +18,7 @@ import {
   getMemberStatusLabel,
 } from '@timeam/shared';
 import type { MemberShift } from './api';
+import { generateInviteLink } from './api';
 import styles from './Members.module.css';
 
 // =============================================================================
@@ -881,6 +882,23 @@ function MemberDetailPanel({
   actionInProgress 
 }: MemberDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'shifts'>('info');
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyInviteLink = async () => {
+    setIsGeneratingLink(true);
+    setCopied(false);
+    try {
+      const result = await generateInviteLink(member.id);
+      await navigator.clipboard.writeText(result.passwordResetLink);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Fehler beim Generieren des Links');
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
 
   return (
     <div className={styles.detailPanel}>
@@ -1017,6 +1035,14 @@ function MemberDetailPanel({
       </div>
 
       <div className={styles.detailPanelActions}>
+        <button
+          className={`${styles.button} ${styles.buttonSecondary}`}
+          onClick={handleCopyInviteLink}
+          disabled={isGeneratingLink || actionInProgress}
+          title="Einladungslink kopieren"
+        >
+          {isGeneratingLink ? '⏳ Wird generiert...' : copied ? '✅ Kopiert!' : '🔗 Link kopieren'}
+        </button>
         <button
           className={`${styles.button} ${styles.buttonPrimary}`}
           onClick={onEdit}

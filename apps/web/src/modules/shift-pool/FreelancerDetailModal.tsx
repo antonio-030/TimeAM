@@ -9,6 +9,8 @@ import styles from './FreelancerDetailModal.module.css';
 
 interface FreelancerProfile {
   displayName: string;
+  firstName?: string;
+  lastName?: string;
   companyName?: string;
   phone?: string;
   address?: string;
@@ -52,7 +54,11 @@ export function FreelancerDetailModal({
         <div className={styles.profileSection}>
           <div className={styles.profileHeader}>
             <div className={styles.profileInfo}>
-              <h3 className={styles.profileName}>{freelancerProfile.displayName}</h3>
+              <h3 className={styles.profileName}>
+                {freelancerProfile.firstName && freelancerProfile.lastName
+                  ? `${freelancerProfile.firstName} ${freelancerProfile.lastName}`
+                  : freelancerProfile.displayName}
+              </h3>
               <p className={styles.profileEmail}>{email}</p>
             </div>
             {freelancerProfile.verificationStatus && (

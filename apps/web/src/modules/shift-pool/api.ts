@@ -133,6 +133,13 @@ export function rejectApplication(applicationId: string): Promise<ApplicationRes
 }
 
 /**
+ * Zieht eine Ablehnung zurück (setzt Status zurück auf PENDING).
+ */
+export function unrejectApplication(applicationId: string): Promise<ApplicationResponse> {
+  return apiPost<ApplicationResponse>(`/api/shift-pool/applications/${applicationId}/unreject`);
+}
+
+/**
  * Macht eine akzeptierte Bewerbung rückgängig (storniert Zuweisung).
  */
 export function revokeApplication(applicationId: string): Promise<ApplicationResponse> {
@@ -153,6 +160,8 @@ export interface ShiftAssignment {
   email?: string;
   status: string;
   createdAt: string;
+  isFreelancer?: boolean;
+  companyName?: string;
 }
 
 interface ShiftAssignmentsResponse {

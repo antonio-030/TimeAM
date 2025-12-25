@@ -471,6 +471,33 @@ export async function deactivateMember(
   return updateMember(tenantId, memberId, { status: MEMBER_STATUS.INACTIVE });
 }
 
+/**
+ * Generiert einen neuen Password Reset Link für einen bestehenden Mitarbeiter.
+ */
+export async function generatePasswordResetLink(
+  tenantId: string,
+  memberId: string
+): Promise<string> {
+  const db = getAdminFirestore();
+  const auth = getAdminAuth();
+
+  // Mitarbeiter laden
+  const member = await getMemberById(tenantId, memberId);
+  if (!member) {
+    throw new Error('Member not found');
+  }
+
+  // Password Reset Link generieren
+  try {
+    const passwordResetLink = await auth.generatePasswordResetLink(member.email);
+    console.log(`🔗 Password reset link generated for: ${member.email}`);
+    return passwordResetLink;
+  } catch (linkError) {
+    console.error('❌ Could not generate password reset link:', linkError);
+    throw new Error(`Failed to generate password reset link: ${linkError instanceof Error ? linkError.message : 'Unknown error'}`);
+  }
+}
+
 // =============================================================================
 // Member Shifts
 // =============================================================================

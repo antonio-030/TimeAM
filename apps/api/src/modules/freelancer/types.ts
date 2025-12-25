@@ -60,7 +60,9 @@ export interface RegisterFreelancerRequest {
   email: string;
   password: string;
   displayName: string;
-  companyName: string; // Firmenname (wird als Tenant-Name verwendet)
+  firstName?: string; // Vorname
+  lastName?: string; // Nachname
+  companyName?: string; // Firmenname (wird als Tenant-Name verwendet)
   phone?: string;
   address?: string;
   businessLicenseNumber?: string;

@@ -2,7 +2,8 @@
  * TimeAM Web – Root App Component
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './core/auth';
 import { TenantProvider, useTenant } from './core/tenant';
 import { ConsentProvider } from './core/consent';
@@ -24,52 +25,82 @@ import { SupportDashboard, DevStaffAdminPage, useDevStaffCheck } from './modules
 import { FreelancerPoolPage } from './modules/freelancer/FreelancerPoolPage';
 import { FreelancerLoginForm } from './modules/freelancer/FreelancerLoginForm';
 import { FreelancerRegisterForm } from './modules/freelancer/FreelancerRegisterForm';
-import { FreelancerDashboard } from './modules/freelancer/FreelancerDashboard';
 import { FreelancerDashboardPage } from './modules/freelancer/FreelancerDashboardPage';
 import { FreelancerMyShiftsPage } from './modules/freelancer/FreelancerMyShiftsPage';
 import styles from './App.module.css';
 
-type Page = 'dashboard' | 'time-tracking' | 'calendar' | 'shifts' | 'my-shifts' | 'admin-shifts' | 'members' | 'reports' | 'dev-dashboard' | 'support' | 'dev-staff-admin' | 'freelancer-dashboard' | 'freelancer-my-shifts' | 'freelancer-pool';
 type LegalPage = 'privacy' | 'imprint' | null;
+
+// Protected Route Component für Entitlement-Checks
+function ProtectedRoute({ 
+  children, 
+  requiredEntitlement, 
+  requiredRole,
+  requireSuperAdmin,
+  requireDevStaff 
+}: { 
+  children: React.ReactNode;
+  requiredEntitlement?: string;
+  requiredRole?: 'admin' | 'manager';
+  requireSuperAdmin?: boolean;
+  requireDevStaff?: boolean;
+}) {
+  const { hasEntitlement, role, isFreelancer } = useTenant();
+  const { isSuperAdmin } = useSuperAdminCheck();
+  const { isDevStaff } = useDevStaffCheck();
+
+  if (requireSuperAdmin && !isSuperAdmin) {
+    return (
+      <div className={styles.noAccess}>
+        <span>🔒</span>
+        <p>Kein Zugriff</p>
+      </div>
+    );
+  }
+
+  if (requireDevStaff && !isDevStaff) {
+    return (
+      <div className={styles.noAccess}>
+        <span>🔒</span>
+        <p>Kein Zugriff</p>
+      </div>
+    );
+  }
+
+  if (requiredEntitlement && !hasEntitlement(requiredEntitlement)) {
+    return (
+      <div className={styles.noAccess}>
+        <span>🔒</span>
+        <p>Kein Zugriff</p>
+      </div>
+    );
+  }
+
+  if (requiredRole) {
+    const isAdminOrManager = role === 'admin' || role === 'manager';
+    if (!isAdminOrManager) {
+      return (
+        <div className={styles.noAccess}>
+          <span>🔒</span>
+          <p>Kein Zugriff</p>
+        </div>
+      );
+    }
+  }
+
+  return <>{children}</>;
+}
 
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const { needsOnboarding, isFreelancer, loading: tenantLoading, hasEntitlement, role } = useTenant();
   const { isSuperAdmin } = useSuperAdminCheck();
   const { isDevStaff } = useDevStaffCheck();
+  const location = useLocation();
+  const navigate = useNavigate();
   
-  // Initial page basierend auf User-Typ
-  const getInitialPage = (): Page => {
-    if (isDevStaff) {
-      return 'support';
-    }
-    if (isFreelancer) {
-      return 'freelancer-dashboard';
-    }
-    return 'dashboard';
-  };
-  
-  const [currentPage, setCurrentPage] = useState<Page>(getInitialPage());
-  
-  // Update page wenn isFreelancer oder isDevStaff sich ändert
-  useEffect(() => {
-    if (!tenantLoading) {
-      setCurrentPage(getInitialPage());
-    }
-  }, [isFreelancer, isDevStaff, tenantLoading]);
   const [showLanding, setShowLanding] = useState(true);
   const [legalPage, setLegalPage] = useState<LegalPage>(null);
-  const [showFreelancerPool, setShowFreelancerPool] = useState(false);
-  const [showFreelancerLogin, setShowFreelancerLogin] = useState(false);
-  const [showFreelancerRegister, setShowFreelancerRegister] = useState(false);
-
-  // Prüfe URL-Parameter für Freelancer Pool
-  useEffect(() => {
-    if (window.location.pathname === '/freelancer-pool' || window.location.pathname.includes('freelancer-pool')) {
-      setShowFreelancerPool(true);
-      setShowLanding(false);
-    }
-  }, []);
 
   // Prüfung auf Admin oder Manager Rolle
   const isAdminOrManager = role === 'admin' || role === 'manager';
@@ -97,76 +128,63 @@ function AppContent() {
     );
   }
 
-  // Nicht eingeloggt → Landing Page, Freelancer Pool, Freelancer Login/Register oder Login-Screen
+  // Nicht eingeloggt → Public Routes
   if (!user) {
-    if (showFreelancerRegister) {
-      return (
-        <>
-          <FreelancerRegisterForm
-            onSuccess={() => {
-              setShowFreelancerRegister(false);
-              setShowFreelancerPool(true);
-            }}
-            onCancel={() => {
-              setShowFreelancerRegister(false);
-              setShowFreelancerLogin(true);
-            }}
-          />
-          <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
-        </>
-      );
-    }
-    if (showFreelancerLogin) {
-      return (
-        <>
-          <FreelancerLoginForm
-            onSuccess={() => {
-              setShowFreelancerLogin(false);
-              setShowFreelancerPool(true);
-            }}
-            onRegisterClick={() => {
-              setShowFreelancerLogin(false);
-              setShowFreelancerRegister(true);
-            }}
-          />
-          <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
-        </>
-      );
-    }
-    if (showFreelancerPool) {
-      return (
-        <>
-          <FreelancerPoolPage 
-            onLoginClick={() => {
-              setShowFreelancerPool(false);
-              setShowFreelancerLogin(true);
-            }}
-            onPrivacyClick={() => setLegalPage('privacy')}
-            onImprintClick={() => setLegalPage('imprint')}
-          />
-          <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
-        </>
-      );
-    }
-    if (showLanding) {
-      return (
-        <>
-          <LandingPage
-            onGetStarted={() => setShowLanding(false)}
-            onPrivacyClick={() => setLegalPage('privacy')}
-            onImprintClick={() => setLegalPage('imprint')}
-            onFreelancerPoolClick={() => {
-              setShowFreelancerPool(true);
-              setShowLanding(false);
-            }}
-          />
-          <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
-        </>
-      );
-    }
     return (
       <>
-        <LoginForm />
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              showLanding ? (
+                <LandingPage
+                  onGetStarted={() => {
+                    setShowLanding(false);
+                    navigate('/login');
+                  }}
+                  onPrivacyClick={() => setLegalPage('privacy')}
+                  onImprintClick={() => setLegalPage('imprint')}
+                  onFreelancerPoolClick={() => navigate('/freelancer-pool')}
+                />
+              ) : (
+                <LoginForm />
+              )
+            } 
+          />
+          <Route 
+            path="/login" 
+            element={<LoginForm />} 
+          />
+          <Route 
+            path="/freelancer-pool" 
+            element={
+              <FreelancerPoolPage 
+                onLoginClick={() => navigate('/freelancer-login')}
+                onPrivacyClick={() => setLegalPage('privacy')}
+                onImprintClick={() => setLegalPage('imprint')}
+              />
+            } 
+          />
+          <Route 
+            path="/freelancer-login" 
+            element={
+              <FreelancerLoginForm
+                onSuccess={() => navigate('/freelancer-dashboard')}
+                onRegisterClick={() => navigate('/freelancer-register')}
+              />
+            } 
+          />
+          <Route 
+            path="/freelancer-register" 
+            element={
+              <FreelancerRegisterForm
+                onSuccess={() => navigate('/freelancer-pool')}
+                onCancel={() => navigate('/freelancer-login')}
+              />
+            } 
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
         <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
       </>
     );
@@ -184,228 +202,204 @@ function AppContent() {
     );
   }
 
-  // User braucht Onboarding → Tenant erstellen (auch für Freelancer)
+  // User braucht Onboarding → Tenant erstellen
   if (needsOnboarding) {
     return <CreateTenantForm />;
   }
 
-  // Entitlement- und Rollen-geprüfte Navigation
-  const handleNavigate = (page: string) => {
-    // Freelancer-Navigation
+  // Bestimme Standard-Route basierend auf User-Typ
+  const getDefaultRoute = () => {
+    if (isDevStaff) {
+      return '/support';
+    }
     if (isFreelancer) {
-      // Freelancer-Dashboard ist immer verfügbar
-      if (page === 'freelancer-dashboard') {
-        setCurrentPage('freelancer-dashboard');
-        return;
-      }
-      // Kalender ist Core-Modul, immer verfügbar
-      if (page === 'calendar') {
-        setCurrentPage('calendar');
-        return;
-      }
-      // Freelancer "Meine Schichten" - Core-Modul, immer verfügbar
-      if (page === 'freelancer-my-shifts') {
-        setCurrentPage('freelancer-my-shifts');
-        return;
-      }
-      // Freelancer-Pool - Core-Modul, immer verfügbar
-      if (page === 'freelancer-pool') {
-        setCurrentPage('freelancer-pool');
-        return;
-      }
-      // Andere Seiten nicht für Freelancer
-      return;
+      return '/freelancer-dashboard';
     }
-
-    // Normale Mitarbeiter-Navigation
-    // Prüfe Entitlements für geschützte Seiten
-    if (page === 'time-tracking' && !hasEntitlement('module.time_tracking')) {
-      return;
-    }
-    if (page === 'shifts' && !hasEntitlement('module.shift_pool')) {
-      return;
-    }
-    if (page === 'my-shifts' && !hasEntitlement('module.shift_pool')) {
-      return;
-    }
-    // Kalender ist Core-Modul, immer verfügbar (kein Entitlement-Check)
-    // Admin-Shifts nur für Admin/Manager
-    if (page === 'admin-shifts' && (!hasEntitlement('module.shift_pool') || !isAdminOrManager)) {
-      return;
-    }
-    // Mitarbeiter-Modul nur für Admin/Manager
-    if (page === 'members' && !isAdminOrManager) {
-      return;
-    }
-    // Reports nur für Admin/Manager mit Entitlement
-    if (page === 'reports' && (!hasEntitlement('module.reports') || !isAdminOrManager)) {
-      return;
-    }
-    // Developer Dashboard nur für Super-Admins
-    if (page === 'dev-dashboard' && !isSuperAdmin) {
-      return;
-    }
-    // Support nur für Dev-Mitarbeiter
-    if (page === 'support' && !isDevStaff) {
-      return;
-    }
-    // Dev-Mitarbeiter Verwaltung nur für Super-Admins
-    if (page === 'dev-staff-admin' && !isSuperAdmin) {
-      return;
-    }
-    setCurrentPage(page as Page);
+    return '/dashboard';
   };
 
-  // Render aktuelle Seite
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'time-tracking':
-        return hasEntitlement('module.time_tracking') ? (
-          <ModuleBoundary moduleId="time-tracking" moduleName="Zeiterfassung">
-            <TimeTrackingPage />
-          </ModuleBoundary>
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Zeiterfassung</p>
-          </div>
-        );
-
-      case 'calendar':
-        // Kalender ist Core-Modul, immer verfügbar
-        return <CalendarPage />;
-
-      case 'shifts':
-        return hasEntitlement('module.shift_pool') ? (
-          <ModuleBoundary moduleId="shift-pool" moduleName="Schicht-Pool">
-            <PoolPage />
-          </ModuleBoundary>
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Schichtplanung</p>
-          </div>
-        );
-
-      case 'my-shifts':
-        return hasEntitlement('module.shift_pool') ? (
-          <ModuleBoundary moduleId="shift-pool" moduleName="Meine Schichten">
-            <MyShiftsPage />
-          </ModuleBoundary>
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Meine Schichten</p>
-          </div>
-        );
-
-      case 'admin-shifts':
-        return hasEntitlement('module.shift_pool') && isAdminOrManager ? (
-          <ModuleBoundary moduleId="shift-pool" moduleName="Schicht-Verwaltung">
-            <AdminShiftsPage />
-          </ModuleBoundary>
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Schicht-Verwaltung</p>
-          </div>
-        );
-
-      case 'members':
-        return isAdminOrManager ? (
-          <MembersPage />
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Mitarbeiterverwaltung</p>
-          </div>
-        );
-
-      case 'reports':
-        return hasEntitlement('module.reports') && isAdminOrManager ? (
-          <ModuleBoundary moduleId="reports" moduleName="Berichte & Analytics">
-            <ReportsPage />
-          </ModuleBoundary>
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Berichte & Analytics</p>
-          </div>
-        );
-
-      case 'dev-dashboard':
-        return isSuperAdmin ? (
-          <AdminDashboard />
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Developer Dashboard</p>
-          </div>
-        );
-
-      case 'support':
-        return isDevStaff ? (
-          <SupportDashboard />
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Support</p>
-          </div>
-        );
-
-      case 'dev-staff-admin':
-        return isSuperAdmin ? (
-          <DevStaffAdminPage />
-        ) : (
-          <div className={styles.noAccess}>
-            <span>🔒</span>
-            <p>Kein Zugriff auf Dev-Mitarbeiter Verwaltung</p>
-          </div>
-        );
-
-      case 'freelancer-dashboard':
-        return (
-          <ModuleBoundary moduleId="freelancer-dashboard" moduleName="Freelancer Dashboard">
-            <FreelancerDashboardPage onNavigate={handleNavigate} />
-          </ModuleBoundary>
-        );
-
-      case 'freelancer-my-shifts':
-        return (
-          <ModuleBoundary moduleId="freelancer-my-shifts" moduleName="Meine Schichten">
-            <FreelancerMyShiftsPage />
-          </ModuleBoundary>
-        );
-
-      case 'freelancer-pool':
-        return (
-          <ModuleBoundary moduleId="freelancer-pool" moduleName="Schicht-Pool">
-            <FreelancerPoolPage />
-          </ModuleBoundary>
-        );
-
-      case 'dashboard':
-      default:
-        // Für Freelancer: Standard-Dashboard ist Freelancer-Dashboard
-        if (isFreelancer) {
-          return (
-            <ModuleBoundary moduleId="freelancer-dashboard" moduleName="Freelancer Dashboard">
-              <FreelancerDashboardPage onNavigate={handleNavigate} />
-            </ModuleBoundary>
-          );
-        }
-        return <DashboardPage onNavigate={handleNavigate} />;
-    }
-  };
-
-  // Eingeloggt mit Tenant → Layout mit Navigation
+  // Eingeloggt mit Tenant → Protected Routes mit Layout
   return (
-    <AppLayout 
-      currentPage={currentPage} 
-      onNavigate={handleNavigate}
-      isSuperAdmin={isSuperAdmin}
-    >
-      {renderPage()}
+    <AppLayout>
+      <Routes>
+        {/* Freelancer Routes */}
+        {isFreelancer && (
+          <>
+            <Route 
+              path="/freelancer-dashboard" 
+              element={
+                <ModuleBoundary moduleId="freelancer-dashboard" moduleName="Freelancer Dashboard">
+                  <FreelancerDashboardPage />
+                </ModuleBoundary>
+              } 
+            />
+            <Route 
+              path="/freelancer-my-shifts" 
+              element={
+                <ModuleBoundary moduleId="freelancer-my-shifts" moduleName="Meine Schichten">
+                  <FreelancerMyShiftsPage />
+                </ModuleBoundary>
+              } 
+            />
+            <Route 
+              path="/freelancer-pool" 
+              element={
+                <ModuleBoundary moduleId="freelancer-pool" moduleName="Schicht-Pool">
+                  <FreelancerPoolPage />
+                </ModuleBoundary>
+              } 
+            />
+            <Route 
+              path="/freelancer-admin-shifts" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.shift_pool">
+                  <ModuleBoundary moduleId="shift-pool" moduleName="Schicht-Verwaltung">
+                    <AdminShiftsPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/time-tracking" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.time_tracking">
+                  <ModuleBoundary moduleId="time-tracking" moduleName="Zeiterfassung">
+                    <TimeTrackingPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reports" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.reports">
+                  <ModuleBoundary moduleId="reports" moduleName="Berichte & Analytics">
+                    <ReportsPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/calendar" 
+              element={<CalendarPage />} 
+            />
+          </>
+        )}
+
+        {/* Dev Staff Routes */}
+        {isDevStaff && (
+          <>
+            <Route 
+              path="/support" 
+              element={
+                <ProtectedRoute requireDevStaff>
+                  <SupportDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dev-staff-admin" 
+              element={
+                <ProtectedRoute requireSuperAdmin>
+                  <DevStaffAdminPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dev-dashboard" 
+              element={
+                <ProtectedRoute requireSuperAdmin>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+          </>
+        )}
+
+        {/* Normale Mitarbeiter Routes */}
+        {!isFreelancer && (
+          <>
+            <Route 
+              path="/dashboard" 
+              element={<DashboardPage />} 
+            />
+            <Route 
+              path="/time-tracking" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.time_tracking">
+                  <ModuleBoundary moduleId="time-tracking" moduleName="Zeiterfassung">
+                    <TimeTrackingPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/calendar" 
+              element={<CalendarPage />} 
+            />
+            <Route 
+              path="/shifts" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.shift_pool">
+                  <ModuleBoundary moduleId="shift-pool" moduleName="Schicht-Pool">
+                    <PoolPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/my-shifts" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.shift_pool">
+                  <ModuleBoundary moduleId="shift-pool" moduleName="Meine Schichten">
+                    <MyShiftsPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin-shifts" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.shift_pool" requiredRole="admin">
+                  <ModuleBoundary moduleId="shift-pool" moduleName="Schicht-Verwaltung">
+                    <AdminShiftsPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/members" 
+              element={
+                <ProtectedRoute requiredRole="admin">
+                  <MembersPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reports" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.reports" requiredRole="admin">
+                  <ModuleBoundary moduleId="reports" moduleName="Berichte & Analytics">
+                    <ReportsPage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dev-dashboard" 
+              element={
+                <ProtectedRoute requireSuperAdmin>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+          </>
+        )}
+
+        {/* Default Route - Redirect zu passender Startseite */}
+        <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
+        <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
+      </Routes>
     </AppLayout>
   );
 }

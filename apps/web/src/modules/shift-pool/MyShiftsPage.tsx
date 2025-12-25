@@ -202,7 +202,9 @@ function ShiftDetailModal({ shift, onClose, onComplete, isCrewLeader, isComplete
     }
   };
 
-  const canComplete = isCrewLeader && !isCompleted && new Date(shift.startsAt) <= new Date();
+  // Button immer anzeigen für Crew-Leiter/Admin/Manager, aber nur aktivieren wenn Schicht in Vergangenheit liegt
+  const canSeeCompleteButton = isCrewLeader || role === 'admin' || role === 'manager';
+  const canComplete = canSeeCompleteButton && !isCompleted && new Date(shift.startsAt) <= new Date();
   const canEditTime = isCrewLeader || role === 'admin' || role === 'manager';
   const canViewDocuments = isCrewLeader || role === 'admin' || role === 'manager';
   const canUploadDocuments = true; // Alle zugewiesenen Mitarbeiter können hochladen
@@ -216,7 +218,7 @@ function ShiftDetailModal({ shift, onClose, onComplete, isCrewLeader, isComplete
 
   return (
     <div className={styles.modal} onClick={onClose}>
-      <div className={styles.modalContent} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px' }}>
+      <div className={`${styles.modalContent} ${styles.modalContentWide}`} onClick={(e) => e.stopPropagation()}>
         <h2 className={styles.modalTitle}>{shift.title}</h2>
 
         {/* Tabs */}
@@ -339,11 +341,12 @@ function ShiftDetailModal({ shift, onClose, onComplete, isCrewLeader, isComplete
             )}
 
             <div className={styles.formActions}>
-              {canComplete && (
+              {canSeeCompleteButton && (
                 <button
                   className={`${styles.button} ${styles.buttonPrimary}`}
                   onClick={handleComplete}
-                  disabled={completing}
+                  disabled={completing || !canComplete}
+                  title={!canComplete && new Date(shift.startsAt) > new Date() ? 'Schicht muss erst gestartet sein' : isCompleted ? 'Schicht bereits beendet' : 'Schicht beenden'}
                 >
                   {completing ? 'Wird beendet...' : 'Schicht beenden'}
                 </button>

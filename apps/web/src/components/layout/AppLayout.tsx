@@ -8,9 +8,11 @@
  */
 
 import { type ReactNode, useCallback, useState, useMemo, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
 import { useDevStaffCheck } from '../../modules/support/hooks';
+import { useSuperAdminCheck } from '../../modules/admin';
 import { NotificationBell } from '../../modules/notifications';
 import { MiniCalendar } from './MiniCalendar';
 import { useSidebarCalendar } from './useSidebarCalendar';
@@ -18,19 +20,20 @@ import { FreelancerProfileModal } from '../../modules/freelancer/FreelancerProfi
 import { getFreelancer, type FreelancerResponse } from '../../modules/freelancer/api';
 import { MemberProfileModal } from '../../modules/members/MemberProfileModal';
 import { getMemberProfile } from '../../modules/members/api';
-import { MEMBER_ROLES, type Member } from '@timeam/shared';
+import { MEMBER_ROLES, getMemberRoleLabel, type Member } from '@timeam/shared';
+import { EditTenantNameModal } from './EditTenantNameModal';
 import styles from './AppLayout.module.css';
 
 interface AppLayoutProps {
   children: ReactNode;
-  currentPage?: string;
-  onNavigate?: (page: string) => void;
-  isSuperAdmin?: boolean;
 }
 
-export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isSuperAdmin = false }: AppLayoutProps) {
+export function AppLayout({ children }: AppLayoutProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isSuperAdmin } = useSuperAdminCheck();
   const { user, signOut } = useAuth();
-  const { tenant, role, hasEntitlement, isFreelancer } = useTenant();
+  const { tenant, role, hasEntitlement, isFreelancer, refresh: refreshTenant } = useTenant();
   const { isDevStaff } = useDevStaffCheck();
   
   // State-Deklarationen
@@ -44,6 +47,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
   const [memberProfile, setMemberProfile] = useState<Member | null>(null);
   const [loadingFreelancerProfile, setLoadingFreelancerProfile] = useState(false);
   const [loadingMemberProfile, setLoadingMemberProfile] = useState(false);
+  const [showEditTenantNameModal, setShowEditTenantNameModal] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Prüfen ob User Admin oder Manager ist
@@ -70,9 +74,9 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
     }
   }, [isFreelancer, user]);
 
-  // Member-Profil laden (für Admins/Manager im User-Menü)
+  // Member-Profil laden (für alle Mitglieder im User-Menü)
   useEffect(() => {
-    if (!isFreelancer && isAdminOrManager && user) {
+    if (!isFreelancer && user) {
       setLoadingMemberProfile(true);
       getMemberProfile()
         .then((response) => {
@@ -87,7 +91,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
     } else {
       setMemberProfile(null);
     }
-  }, [isFreelancer, isAdminOrManager, user]);
+  }, [isFreelancer, user]);
 
   // Profil nach Modal-Update neu laden
   const handleProfileUpdated = useCallback(() => {
@@ -99,7 +103,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
         .catch((err) => {
           console.error('Fehler beim Neuladen des Freelancer-Profils:', err);
         });
-    } else if (!isFreelancer && isAdminOrManager && user) {
+    } else if (!isFreelancer && user) {
       getMemberProfile()
         .then((response) => {
           setMemberProfile(response.member);
@@ -108,7 +112,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
           console.error('Fehler beim Neuladen des Member-Profils:', err);
         });
     }
-  }, [isFreelancer, isAdminOrManager, user]);
+  }, [isFreelancer, user]);
 
   // Benutzername extrahieren (für Freelancer/Member aus Profil, sonst aus Auth)
   const userName = useMemo(() => {
@@ -120,7 +124,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
       return freelancerProfile.displayName || freelancerProfile.email?.split('@')[0] || 'Freelancer';
     }
     if (!isFreelancer && memberProfile) {
-      // Für Admins/Manager: Vollständiger Name aus Profil
+      // Für alle Mitglieder: Vollständiger Name aus Profil
       if (memberProfile.firstName && memberProfile.lastName) {
         return `${memberProfile.firstName} ${memberProfile.lastName}`;
       }
@@ -154,7 +158,7 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
       return name.slice(0, 2).toUpperCase() || freelancerProfile.email?.[0].toUpperCase() || '?';
     }
     if (!isFreelancer && memberProfile) {
-      // Für Admins/Manager: Initialen aus Vor- und Nachname
+      // Für alle Mitglieder: Initialen aus Vor- und Nachname
       if (memberProfile.firstName && memberProfile.lastName) {
         return `${memberProfile.firstName[0]}${memberProfile.lastName[0]}`.toUpperCase();
       }
@@ -195,13 +199,55 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
     }
   };
 
+  // Mapping von Page-IDs zu URL-Pfaden
+  const getPagePath = (pageId: string): string => {
+    const pathMap: Record<string, string> = {
+      'dashboard': '/dashboard',
+      'time-tracking': '/time-tracking',
+      'calendar': '/calendar',
+      'shifts': '/shifts',
+      'my-shifts': '/my-shifts',
+      'admin-shifts': '/admin-shifts',
+      'members': '/members',
+      'reports': '/reports',
+      'dev-dashboard': '/dev-dashboard',
+      'support': '/support',
+      'dev-staff-admin': '/dev-staff-admin',
+      'freelancer-dashboard': '/freelancer-dashboard',
+      'freelancer-my-shifts': '/freelancer-my-shifts',
+      'freelancer-pool': '/freelancer-pool',
+    };
+    return pathMap[pageId] || '/dashboard';
+  };
+
   const handleNavClick = (page: string) => {
-    onNavigate?.(page);
+    const path = getPagePath(page);
+    navigate(path);
     // Sidebar auf mobilen Geräten schließen nach Navigation
     if (window.innerWidth <= 768) {
       setIsMenuOpen(false);
     }
   };
+
+  // Aktuelle Seite aus URL ableiten
+  const currentPage = useMemo(() => {
+    const path = location.pathname;
+    if (path === '/dashboard') return 'dashboard';
+    if (path === '/time-tracking') return 'time-tracking';
+    if (path === '/calendar') return 'calendar';
+    if (path === '/shifts') return 'shifts';
+    if (path === '/my-shifts') return 'my-shifts';
+    if (path === '/admin-shifts') return 'admin-shifts';
+    if (path === '/members') return 'members';
+    if (path === '/reports') return 'reports';
+    if (path === '/dev-dashboard') return 'dev-dashboard';
+    if (path === '/support') return 'support';
+    if (path === '/dev-staff-admin') return 'dev-staff-admin';
+    if (path === '/freelancer-dashboard') return 'freelancer-dashboard';
+    if (path === '/freelancer-my-shifts') return 'freelancer-my-shifts';
+    if (path === '/freelancer-pool') return 'freelancer-pool';
+    return 'dashboard';
+  }, [location.pathname]);
 
   // Sidebar schließen bei Klick außerhalb (Overlay)
   const handleOverlayClick = () => {
@@ -239,16 +285,8 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
 
   // Handler für Notification-Links
   const handleNotificationNavigate = useCallback((path: string) => {
-    if (path === '/my-shifts') {
-      onNavigate?.('my-shifts');
-    } else if (path.startsWith('/shifts')) {
-      onNavigate?.('shifts');
-    } else if (path.startsWith('/calendar')) {
-      onNavigate?.('calendar');
-    } else if (path.startsWith('/time-tracking')) {
-      onNavigate?.('time-tracking');
-    }
-  }, [onNavigate]);
+    navigate(path);
+  }, [navigate]);
 
   // Handler für Kalender-Event-Klick
   const handleEventClick = useCallback((eventId: string, eventType: string) => {
@@ -256,18 +294,43 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
     switch (eventType) {
       case 'shift':
         // Admin/Manager → Schicht-Verwaltung, Mitarbeiter → Meine Schichten
-        onNavigate?.(isAdminOrManager ? 'admin-shifts' : 'my-shifts');
+        navigate(isAdminOrManager ? '/admin-shifts' : '/my-shifts');
         break;
       case 'time-entry':
-        onNavigate?.('time-tracking');
+        navigate('/time-tracking');
         break;
       case 'appointment':
-        onNavigate?.('calendar');
+        navigate('/calendar');
         break;
       default:
-        onNavigate?.('calendar');
+        navigate('/calendar');
     }
-  }, [onNavigate, isAdminOrManager]);
+  }, [navigate, isAdminOrManager]);
+
+  // Rolle in lesbare Form umwandeln
+  const displayRole = useMemo(() => {
+    if (!role) return null;
+    return getMemberRoleLabel(role);
+  }, [role]);
+
+  // Firmenname für Anzeige: Für Freelancer companyName aus Profil, sonst tenant.name
+  const displayCompanyName = useMemo(() => {
+    if (isFreelancer && freelancerProfile?.companyName) {
+      return freelancerProfile.companyName;
+    }
+    return tenant?.name || '';
+  }, [isFreelancer, freelancerProfile, tenant]);
+
+  // Handler für Tenant-Name-Update
+  const handleTenantNameUpdated = useCallback(async (newName: string) => {
+    // Tenant-Context neu laden
+    await refreshTenant();
+  }, [refreshTenant]);
+
+  // Prüfen ob User Admin ist (für klickbaren Firmennamen)
+  const isAdmin = useMemo(() => {
+    return role === MEMBER_ROLES.ADMIN;
+  }, [role]);
 
   // Navigation Items - Dev-Mitarbeiter, Freelancer oder normale Mitarbeiter
   const navItems = isDevStaff ? [
@@ -276,9 +339,12 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
     { id: 'dev-dashboard', label: 'Developer', icon: '🔐', enabled: isSuperAdmin },
   ] : isFreelancer ? [
     { id: 'freelancer-dashboard', label: 'Dashboard', icon: '📊', enabled: true },
+    { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },
     { id: 'calendar', label: 'Kalender', icon: '📅', enabled: true },
     { id: 'freelancer-my-shifts', label: 'Meine Schichten', icon: '✅', enabled: true },
     { id: 'freelancer-pool', label: 'Schicht-Pool', icon: '🔍', enabled: true },
+    { id: 'freelancer-admin-shifts', label: 'Schicht-Verwaltung', icon: '⚙️', enabled: hasShiftPoolAccess },
+    { id: 'reports', label: 'Berichte', icon: '📈', enabled: hasReportsAccess },
   ] : [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', enabled: true },
     { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },
@@ -439,12 +505,22 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
 
         {/* Sidebar Footer */}
         <div className={styles.sidebarFooter}>
-          {tenant ? (
+          {tenant || displayCompanyName ? (
             <div className={styles.tenantInfo}>
               <span className={styles.tenantIcon}>{isFreelancer ? '🎯' : '🏢'}</span>
               <div className={styles.tenantDetails}>
-                <span className={styles.tenantName}>{tenant.name}</span>
-                {role && <span className={styles.tenantRole}>{role}</span>}
+                {isAdmin && !isFreelancer ? (
+                  <button
+                    className={styles.tenantNameButton}
+                    onClick={() => setShowEditTenantNameModal(true)}
+                    title="Firmenname bearbeiten"
+                  >
+                    {displayCompanyName}
+                  </button>
+                ) : (
+                  <span className={styles.tenantName}>{displayCompanyName}</span>
+                )}
+                {displayRole && <span className={styles.tenantRole}>{displayRole}</span>}
               </div>
             </div>
           ) : null}
@@ -516,8 +592,8 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
                           <div className={styles.userMenuDivider} />
                         </>
                       )}
-                      {/* Profil bearbeiten - für Admins/Manager */}
-                      {!isFreelancer && isAdminOrManager && (
+                      {/* Profil bearbeiten - für alle Mitglieder (Admin/Manager/Employee) */}
+                      {!isFreelancer && (
                         <>
                           <button 
                             onClick={() => {
@@ -569,12 +645,22 @@ export function AppLayout({ children, currentPage = 'dashboard', onNavigate, isS
         />
       )}
 
-      {/* Profil-Modal für Admins/Manager */}
-      {!isFreelancer && isAdminOrManager && (
+      {/* Profil-Modal für alle Mitglieder (Admin/Manager/Employee) */}
+      {!isFreelancer && (
         <MemberProfileModal
           open={showMemberProfileModal}
           onClose={() => setShowMemberProfileModal(false)}
           onProfileUpdated={handleProfileUpdated}
+        />
+      )}
+
+      {/* Edit Tenant Name Modal (nur für Admins) */}
+      {tenant && (
+        <EditTenantNameModal
+          open={showEditTenantNameModal}
+          currentName={tenant.name}
+          onClose={() => setShowEditTenantNameModal(false)}
+          onSuccess={handleTenantNameUpdated}
         />
       )}
     </div>

@@ -263,6 +263,27 @@
   text-overflow: ellipsis;
 }
 
+.tenantNameButton {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: opacity 0.2s, text-decoration 0.2s;
+}
+
+.tenantNameButton:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
 .tenantRole {
   font-size: var(--font-size-xs);
   color: var(--color-text-light);

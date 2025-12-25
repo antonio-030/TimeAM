@@ -16,6 +16,7 @@ import {
   deleteMember,
   activateMember,
   deactivateMember,
+  generatePasswordResetLink,
 } from './service';
 import type { InviteMemberRequest, UpdateMemberRequest } from './types';
 
@@ -342,6 +343,34 @@ router.post('/:memberId/deactivate', ...membersGuard, async (req, res) => {
     }
 
     console.error('Error in POST /members/:memberId/deactivate:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/members/:memberId/generate-invite-link
+ * Generiert einen neuen Password Reset Link für einen Mitarbeiter.
+ */
+router.post('/:memberId/generate-invite-link', ...membersGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const { memberId } = req.params;
+
+  try {
+    const passwordResetLink = await generatePasswordResetLink(tenant.id, memberId);
+
+    res.json({
+      passwordResetLink,
+      message: 'Password reset link generated successfully',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to generate password reset link';
+
+    if (message === 'Member not found') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+
+    console.error('Error in POST /members/:memberId/generate-invite-link:', error);
     res.status(500).json({ error: message });
   }
 });

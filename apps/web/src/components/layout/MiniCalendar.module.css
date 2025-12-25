@@ -210,11 +210,8 @@
 
 /* Tooltip */
 .tooltip {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
+  position: fixed;
+  z-index: 10000;
   min-width: 200px;
   max-width: 260px;
   background: var(--color-bg-primary);
@@ -224,6 +221,12 @@
     0 0 0 1px rgba(0, 0, 0, 0.05);
   overflow: hidden;
   animation: tooltipFadeIn 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+}
+
+/* Tooltip Position: Center (Standard) */
+.tooltipCenter {
+  /* Position wird über inline-style gesetzt */
 }
 
 @keyframes tooltipFadeIn {
@@ -237,14 +240,9 @@
   }
 }
 
-/* Tooltip Position für Randtage */
-.week > .dayWrapper:nth-child(n+5) .tooltip {
-  left: auto;
-  right: 0;
-  transform: none;
-}
-
-.week > .dayWrapper:nth-child(n+5) .tooltip {
+/* Tooltip Position: Right (wenn links nicht genug Platz) */
+.tooltipRight {
+  /* Position wird über inline-style gesetzt */
   animation-name: tooltipFadeInRight;
 }
 
@@ -259,10 +257,21 @@
   }
 }
 
-.week > .dayWrapper:nth-child(-n+3) .tooltip {
-  left: 0;
-  right: auto;
-  transform: none;
+/* Tooltip Position: Left (wenn rechts nicht genug Platz) */
+.tooltipLeft {
+  /* Position wird über inline-style gesetzt */
+  animation-name: tooltipFadeInLeft;
+}
+
+@keyframes tooltipFadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .tooltipDate {

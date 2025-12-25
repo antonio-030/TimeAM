@@ -9,7 +9,7 @@ import { useAdminShifts, useShiftApplications, useShiftAssignments, useShiftDocu
 import { SHIFT_STATUS, APPLICATION_STATUS, type Shift, type AdminShift, type Application, type ShiftStatus, type ApplicationStatus, type CreateShiftRequest, type Member } from '@timeam/shared';
 import { FreelancerDetailModal } from './FreelancerDetailModal';
 import { getMembers } from '../members/api';
-import { assignMemberToShift } from './api';
+import { assignMemberToShift, completeShift } from './api';
 import { ShiftDocumentList } from './ShiftDocumentList';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { openAddressInMaps } from './mapsUtils';
@@ -536,12 +536,27 @@ function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount, allowRem
                   {assignment.displayName.charAt(0).toUpperCase()}
                 </span>
                 <div className={styles.assignmentDetails}>
-                  <span className={styles.assignmentName}>{assignment.displayName}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span className={styles.assignmentName}>{assignment.displayName}</span>
+                    {assignment.isFreelancer && (
+                      <span style={{
+                        background: 'var(--color-primary-light)',
+                        color: 'var(--color-primary)',
+                        padding: '2px 8px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: 'var(--font-size-xs)',
+                        fontWeight: 500
+                      }}>
+                        💼 Freelancer
+                      </span>
+                    )}
+                  </div>
                   {assignment.email && (
                     <span className={styles.assignmentEmail}>{assignment.email}</span>
                   )}
-                  {/* Security-Qualifikationen anzeigen */}
+                  {/* Security-Qualifikationen anzeigen (nur für normale Mitarbeiter) */}
                   {(() => {
+                    if (assignment.isFreelancer) return null; // Keine Qualifikationen für Freelancer
                     const member = members.find(m => m.uid === assignment.uid);
                     if (!member) return null;
                     const qualifications: string[] = [];
@@ -907,23 +922,36 @@ interface ShiftCardProps {
   onDelete: () => void;
   onClose: () => void;
   onCancel: () => void;
+  onComplete: () => void;
   onViewApplications: () => void;
+  onViewDetail: () => void;
   isLoading: boolean;
 }
 
-function ShiftCard({ shift, onPublish, onEdit, onDelete, onClose, onCancel, onViewApplications, isLoading }: ShiftCardProps) {
+function ShiftCard({ shift, onPublish, onEdit, onDelete, onClose, onCancel, onComplete, onViewApplications, onViewDetail, isLoading }: ShiftCardProps) {
   const canPublish = shift.status === SHIFT_STATUS.DRAFT;
   const canEdit = shift.status === SHIFT_STATUS.DRAFT || shift.status === SHIFT_STATUS.PUBLISHED;
   const canDelete = shift.status === SHIFT_STATUS.DRAFT;
   const canViewApplications = shift.status === SHIFT_STATUS.PUBLISHED || shift.status === SHIFT_STATUS.CLOSED;
   const canClose = shift.status === SHIFT_STATUS.PUBLISHED;
   const canCancelShift = shift.status !== SHIFT_STATUS.CANCELLED;
+  const canComplete = shift.status !== SHIFT_STATUS.COMPLETED && shift.status !== SHIFT_STATUS.CANCELLED && new Date(shift.startsAt) <= new Date();
 
   // Bewerbungs-Statistiken
   const hasPendingApplications = shift.pendingApplications > 0;
 
   return (
-    <div className={styles.card} style={{ cursor: 'default' }}>
+    <div 
+      className={styles.card} 
+      style={{ cursor: 'pointer' }}
+      onClick={(e) => {
+        // Nur öffnen wenn nicht auf Button geklickt wurde
+        if ((e.target as HTMLElement).closest('button')) {
+          return;
+        }
+        onViewDetail();
+      }}
+    >
       <div className={styles.cardHeader}>
         <h3 className={styles.cardTitle}>{shift.title}</h3>
         <div style={{ display: 'flex', gap: 'var(--spacing-xs)', alignItems: 'center' }}>
@@ -1058,6 +1086,222 @@ function ShiftCard({ shift, onPublish, onEdit, onDelete, onClose, onCancel, onVi
               ❌ Absagen
             </button>
           )}
+          {canComplete && (
+            <button
+              className={`${styles.button} ${styles.buttonPrimary} ${styles.buttonSmall}`}
+              onClick={onComplete}
+              disabled={isLoading}
+              title="Schicht beenden"
+            >
+              ✅ Beenden
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Shift Detail Modal
+// =============================================================================
+
+interface ShiftDetailModalProps {
+  shift: AdminShift;
+  onClose: () => void;
+  onEdit: () => void;
+  onPublish: () => void;
+  onCloseShift: () => void;
+  onCancel: () => void;
+  onComplete: () => void;
+  onViewApplications: () => void;
+  isLoading: boolean;
+}
+
+function ShiftDetailModal({ 
+  shift, 
+  onClose, 
+  onEdit, 
+  onPublish, 
+  onCloseShift, 
+  onCancel, 
+  onComplete, 
+  onViewApplications,
+  isLoading 
+}: ShiftDetailModalProps) {
+  const canPublish = shift.status === SHIFT_STATUS.DRAFT;
+  const canEdit = shift.status === SHIFT_STATUS.DRAFT || shift.status === SHIFT_STATUS.PUBLISHED;
+  const canClose = shift.status === SHIFT_STATUS.PUBLISHED;
+  const canCancel = shift.status !== SHIFT_STATUS.CANCELLED && shift.status !== SHIFT_STATUS.DRAFT;
+  const canComplete = shift.status !== SHIFT_STATUS.COMPLETED && shift.status !== SHIFT_STATUS.CANCELLED && new Date(shift.startsAt) <= new Date();
+  const canViewApplications = shift.status === SHIFT_STATUS.PUBLISHED || shift.status === SHIFT_STATUS.CLOSED;
+
+  return (
+    <div className={styles.modal} onClick={onClose}>
+      <div className={`${styles.modalContent} ${styles.modalContentWide}`} onClick={(e) => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+          <h2 className={styles.modalTitle}>{shift.title}</h2>
+          <button className={styles.modalClose} onClick={onClose}>✕</button>
+        </div>
+
+        <div className={styles.detailInfo}>
+          <div className={styles.detailInfoItem}>
+            <span className={styles.detailInfoLabel}>Status</span>
+            <span className={styles.detailInfoValue}>
+              <span className={`${styles.cardBadge} ${getShiftStatusBadgeClass(shift.status)}`}>
+                {getShiftStatusLabel(shift.status)}
+              </span>
+            </span>
+          </div>
+
+          <div className={styles.detailInfoItem}>
+            <span className={styles.detailInfoLabel}>Standort</span>
+            <span className={styles.detailInfoValue}>
+              {shift.location.name}
+              {shift.location.address && (
+                <>
+                  <br />
+                  <span
+                    style={{
+                      color: 'var(--color-primary)',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                    onClick={() => openAddressInMaps(shift.location)}
+                    title="In Google Maps öffnen"
+                  >
+                    🗺️ {shift.location.address}
+                  </span>
+                </>
+              )}
+            </span>
+          </div>
+
+          <div className={styles.detailInfoItem}>
+            <span className={styles.detailInfoLabel}>Datum</span>
+            <span className={styles.detailInfoValue}>{formatDate(shift.startsAt)}</span>
+          </div>
+
+          <div className={styles.detailInfoItem}>
+            <span className={styles.detailInfoLabel}>Uhrzeit</span>
+            <span className={styles.detailInfoValue}>
+              {formatTime(shift.startsAt)} - {formatTime(shift.endsAt)}
+            </span>
+          </div>
+
+          <div className={styles.detailInfoItem}>
+            <span className={styles.detailInfoLabel}>Besetzung</span>
+            <span className={styles.detailInfoValue}>
+              {shift.filledCount} / {shift.requiredCount}
+              {shift.filledCount >= shift.requiredCount ? ' ✅' : ` (${shift.requiredCount - shift.filledCount} frei)`}
+            </span>
+          </div>
+
+          {shift.payRate && (
+            <div className={styles.detailInfoItem}>
+              <span className={styles.detailInfoLabel}>Vergütung</span>
+              <span className={styles.detailInfoValue}>{shift.payRate.toFixed(2)} €/h</span>
+            </div>
+          )}
+
+          {shift.requirements && shift.requirements.length > 0 && (
+            <div className={styles.detailInfoItem}>
+              <span className={styles.detailInfoLabel}>Anforderungen</span>
+              <span className={styles.detailInfoValue}>{shift.requirements.join(', ')}</span>
+            </div>
+          )}
+
+          {shift.applyDeadline && (
+            <div className={styles.detailInfoItem}>
+              <span className={styles.detailInfoLabel}>Bewerbungsfrist</span>
+              <span className={styles.detailInfoValue}>{formatDateTime(shift.applyDeadline)}</span>
+            </div>
+          )}
+
+          <div className={styles.detailInfoItem}>
+            <span className={styles.detailInfoLabel}>Bewerbungen</span>
+            <span className={styles.detailInfoValue}>
+              {shift.pendingApplications > 0 ? (
+                <button
+                  className={`${styles.button} ${styles.buttonWarning} ${styles.buttonSmall}`}
+                  onClick={onViewApplications}
+                >
+                  📩 {shift.pendingApplications} ausstehend ({shift.totalApplications} gesamt)
+                </button>
+              ) : shift.totalApplications > 0 ? (
+                <button
+                  className={`${styles.button} ${styles.buttonGhost} ${styles.buttonSmall}`}
+                  onClick={onViewApplications}
+                >
+                  {shift.totalApplications} gesamt
+                </button>
+              ) : (
+                'Keine'
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className={styles.formActions} style={{ marginTop: 'var(--spacing-xl)', display: 'flex', gap: 'var(--spacing-sm)', flexWrap: 'wrap' }}>
+          {canPublish && (
+            <button
+              className={`${styles.button} ${styles.buttonSuccess} ${styles.buttonSmall}`}
+              onClick={onPublish}
+              disabled={isLoading}
+            >
+              📢 Veröffentlichen
+            </button>
+          )}
+          {canEdit && (
+            <button
+              className={`${styles.button} ${styles.buttonGhost} ${styles.buttonSmall}`}
+              onClick={onEdit}
+              disabled={isLoading}
+            >
+              ✏️ Bearbeiten
+            </button>
+          )}
+          {canViewApplications && (
+            <button
+              className={`${styles.button} ${shift.pendingApplications > 0 ? styles.buttonWarning : styles.buttonPrimary} ${styles.buttonSmall}`}
+              onClick={onViewApplications}
+            >
+              📝 Bewerbungen ({shift.pendingApplications}/{shift.totalApplications})
+            </button>
+          )}
+          {canClose && (
+            <button
+              className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonSmall}`}
+              onClick={onCloseShift}
+              disabled={isLoading}
+            >
+              🔒 Schließen
+            </button>
+          )}
+          {canCancel && (
+            <button
+              className={`${styles.button} ${styles.buttonDanger} ${styles.buttonSmall}`}
+              onClick={onCancel}
+              disabled={isLoading}
+            >
+              ❌ Absagen
+            </button>
+          )}
+          {canComplete && (
+            <button
+              className={`${styles.button} ${styles.buttonPrimary} ${styles.buttonSmall}`}
+              onClick={onComplete}
+              disabled={isLoading}
+            >
+              ✅ Beenden
+            </button>
+          )}
+          <button
+            className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonSmall}`}
+            onClick={onClose}
+          >
+            Schließen
+          </button>
         </div>
       </div>
     </div>
@@ -1075,11 +1319,17 @@ interface ApplicationsModalProps {
 }
 
 function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalProps) {
-  const { applications, loading, error, acceptApplication, rejectApplication, revokeApplication } = useShiftApplications(shiftId);
+  const { applications, loading, error, acceptApplication, rejectApplication, unrejectApplication, revokeApplication } = useShiftApplications(shiftId);
   const [selectedFreelancer, setSelectedFreelancer] = useState<{
     profile: any;
     email: string;
     note?: string;
+  } | null>(null);
+  const [selectedMember, setSelectedMember] = useState<{
+    name: string;
+    email: string;
+    note?: string;
+    uid: string;
   } | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
 
@@ -1098,6 +1348,20 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
     setActionInProgress(applicationId);
     try {
       await rejectApplication(applicationId);
+    } catch {
+      // Error handled in hook
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleUnreject = async (applicationId: string) => {
+    if (!confirm('Ablehnung wirklich zurückziehen? Die Bewerbung wird wieder als ausstehend markiert.')) {
+      return;
+    }
+    setActionInProgress(applicationId);
+    try {
+      await unrejectApplication(applicationId);
     } catch {
       // Error handled in hook
     } finally {
@@ -1152,38 +1416,57 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
               <span className={styles.sectionCount}>{pendingApplications.length}</span>
             </div>
             <div className={styles.applicationsList}>
-              {pendingApplications.map((app) => (
-                <div key={app.id} className={styles.applicationRow}>
-                  <div className={styles.applicationInfo}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className={styles.applicationEmail}>{app.email || app.uid}</span>
-                      {app.isFreelancer && (app as any).verificationStatus && (
-                        <VerificationBadge
-                          status={(app as any).verificationStatus}
-                          size="small"
-                          showLabel={false}
-                        />
-                      )}
-                    </div>
+              {pendingApplications.map((app) => {
+                // Namen bestimmen: Freelancer (Firma oder Name) oder Member-Name
+                let displayName = app.email || app.uid;
+                if (app.isFreelancer && (app as any).freelancerProfile) {
+                  const profile = (app as any).freelancerProfile;
+                  displayName = profile.companyName || profile.displayName || displayName;
+                } else if ((app as any).memberName) {
+                  displayName = (app as any).memberName;
+                }
+
+                return (
+                  <div key={app.id} className={styles.applicationRow}>
+                    <div className={styles.applicationInfo}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className={styles.applicationEmail}>{displayName}</span>
+                        {app.isFreelancer && (app as any).verificationStatus && (
+                          <VerificationBadge
+                            status={(app as any).verificationStatus}
+                            size="small"
+                            showLabel={false}
+                          />
+                        )}
+                      </div>
                     {app.note && <span className={styles.applicationNote}>„{app.note}"</span>}
                     <span className={styles.applicationDate}>
                       📅 Beworben am {formatDateTime(app.createdAt)}
                     </span>
                   </div>
                   <div className={styles.applicationActions}>
-                    {app.isFreelancer && (app as any).freelancerProfile && (
-                      <button
-                        className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonSmall}`}
-                        onClick={() => setSelectedFreelancer({
-                          profile: (app as any).freelancerProfile,
-                          email: app.email || app.uid,
-                          note: app.note,
-                        })}
-                        title="Freelancer-Details anzeigen"
-                      >
-                        👤 Details
-                      </button>
-                    )}
+                    <button
+                      className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonSmall}`}
+                      onClick={() => {
+                        if (app.isFreelancer && (app as any).freelancerProfile) {
+                          setSelectedFreelancer({
+                            profile: (app as any).freelancerProfile,
+                            email: app.email || app.uid,
+                            note: app.note,
+                          });
+                        } else {
+                          setSelectedMember({
+                            name: displayName,
+                            email: app.email || app.uid,
+                            note: app.note,
+                            uid: app.uid,
+                          });
+                        }
+                      }}
+                      title="Bewerber-Details anzeigen"
+                    >
+                      👤 Details
+                    </button>
                     <button
                       className={`${styles.button} ${styles.buttonSuccess} ${styles.buttonSmall}`}
                       onClick={() => handleAccept(app.id)}
@@ -1200,7 +1483,8 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -1212,25 +1496,57 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
               <span className={styles.sectionCount}>{acceptedApplications.length}</span>
             </div>
             <div className={styles.applicationsList}>
-              {acceptedApplications.map((app) => (
-                <div key={app.id} className={styles.applicationRow}>
-                  <div className={styles.applicationInfo}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className={styles.applicationEmail}>{app.email || app.uid}</span>
-                      {app.isFreelancer && (app as any).verificationStatus && (
-                        <VerificationBadge
-                          status={(app as any).verificationStatus}
-                          size="small"
-                          showLabel={false}
-                        />
-                      )}
-                    </div>
+              {acceptedApplications.map((app) => {
+                // Namen bestimmen: Freelancer (Firma oder Name) oder Member-Name
+                let displayName = app.email || app.uid;
+                if (app.isFreelancer && (app as any).freelancerProfile) {
+                  const profile = (app as any).freelancerProfile;
+                  displayName = profile.companyName || profile.displayName || displayName;
+                } else if ((app as any).memberName) {
+                  displayName = (app as any).memberName;
+                }
+
+                return (
+                  <div key={app.id} className={styles.applicationRow}>
+                    <div className={styles.applicationInfo}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className={styles.applicationEmail}>{displayName}</span>
+                        {app.isFreelancer && (app as any).verificationStatus && (
+                          <VerificationBadge
+                            status={(app as any).verificationStatus}
+                            size="small"
+                            showLabel={false}
+                          />
+                        )}
+                      </div>
                     {app.note && <span className={styles.applicationNote}>„{app.note}"</span>}
                     <span className={styles.applicationDate}>
                       📅 Beworben am {formatDateTime(app.createdAt)}
                     </span>
                   </div>
                   <div className={styles.applicationActions}>
+                    <button
+                      className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonSmall}`}
+                      onClick={() => {
+                        if (app.isFreelancer && (app as any).freelancerProfile) {
+                          setSelectedFreelancer({
+                            profile: (app as any).freelancerProfile,
+                            email: app.email || app.uid,
+                            note: app.note,
+                          });
+                        } else {
+                          setSelectedMember({
+                            name: displayName,
+                            email: app.email || app.uid,
+                            note: app.note,
+                            uid: app.uid,
+                          });
+                        }
+                      }}
+                      title="Bewerber-Details anzeigen"
+                    >
+                      👤 Details
+                    </button>
                     <span className={`${styles.statusBadge} ${getAppStatusBadgeClass(app.status)}`}>
                       {getAppStatusLabel(app.status)}
                     </span>
@@ -1244,7 +1560,8 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
                     </button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -1256,20 +1573,65 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
               <span className={styles.sectionCount}>{otherApplications.length}</span>
             </div>
             <div className={styles.applicationsList}>
-              {otherApplications.map((app) => (
-                <div key={app.id} className={styles.applicationRow}>
-                  <div className={styles.applicationInfo}>
-                    <span className={styles.applicationEmail}>{app.email || app.uid}</span>
-                    {app.note && <span className={styles.applicationNote}>„{app.note}"</span>}
-                    <span className={styles.applicationDate}>
-                      📅 Beworben am {formatDateTime(app.createdAt)}
-                    </span>
+              {otherApplications.map((app) => {
+                // Namen bestimmen: Freelancer (Firma oder Name) oder Member-Name
+                let displayName = app.email || app.uid;
+                if (app.isFreelancer && (app as any).freelancerProfile) {
+                  const profile = (app as any).freelancerProfile;
+                  displayName = profile.companyName || profile.displayName || displayName;
+                } else if ((app as any).memberName) {
+                  displayName = (app as any).memberName;
+                }
+
+                return (
+                  <div key={app.id} className={styles.applicationRow}>
+                    <div className={styles.applicationInfo}>
+                      <span className={styles.applicationEmail}>{displayName}</span>
+                      {app.note && <span className={styles.applicationNote}>„{app.note}"</span>}
+                      <span className={styles.applicationDate}>
+                        📅 Beworben am {formatDateTime(app.createdAt)}
+                      </span>
+                    </div>
+                    <div className={styles.applicationActions}>
+                      <button
+                        className={`${styles.button} ${styles.buttonSecondary} ${styles.buttonSmall}`}
+                        onClick={() => {
+                          if (app.isFreelancer && (app as any).freelancerProfile) {
+                            setSelectedFreelancer({
+                              profile: (app as any).freelancerProfile,
+                              email: app.email || app.uid,
+                              note: app.note,
+                            });
+                          } else {
+                            setSelectedMember({
+                              name: displayName,
+                              email: app.email || app.uid,
+                              note: app.note,
+                              uid: app.uid,
+                            });
+                          }
+                        }}
+                        title="Bewerber-Details anzeigen"
+                      >
+                        👤 Details
+                      </button>
+                      <span className={`${styles.statusBadge} ${getAppStatusBadgeClass(app.status)}`}>
+                        {getAppStatusLabel(app.status)}
+                      </span>
+                      {app.status === APPLICATION_STATUS.REJECTED && (
+                        <button
+                          className={`${styles.button} ${styles.buttonSuccess} ${styles.buttonSmall}`}
+                          onClick={() => handleUnreject(app.id)}
+                          disabled={actionInProgress === app.id}
+                          title="Ablehnung zurückziehen"
+                        >
+                          ↩️ Zurückziehen
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <span className={`${styles.statusBadge} ${getAppStatusBadgeClass(app.status)}`}>
-                    {getAppStatusLabel(app.status)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         )}
@@ -1288,6 +1650,52 @@ function ApplicationsModal({ shiftId, shiftTitle, onClose }: ApplicationsModalPr
           note={selectedFreelancer.note}
           onClose={() => setSelectedFreelancer(null)}
         />
+      )}
+
+      {selectedMember && (
+        <div className={styles.modal} onClick={() => setSelectedMember(null)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-lg)' }}>
+              <h2 className={styles.modalTitle}>👤 Bewerber-Details</h2>
+              <button className={styles.modalClose} onClick={() => setSelectedMember(null)}>✕</button>
+            </div>
+
+            <div className={styles.detailInfo}>
+              <div className={styles.detailInfoItem}>
+                <span className={styles.detailInfoLabel}>Name</span>
+                <span className={styles.detailInfoValue}>{selectedMember.name}</span>
+              </div>
+
+              <div className={styles.detailInfoItem}>
+                <span className={styles.detailInfoLabel}>E-Mail</span>
+                <span className={styles.detailInfoValue}>{selectedMember.email}</span>
+              </div>
+
+              {selectedMember.note && (
+                <div className={styles.detailInfoItem}>
+                  <span className={styles.detailInfoLabel}>Nachricht</span>
+                  <span className={styles.detailInfoValue} style={{ fontStyle: 'italic' }}>
+                    „{selectedMember.note}"
+                  </span>
+                </div>
+              )}
+
+              <div className={styles.detailInfoItem}>
+                <span className={styles.detailInfoLabel}>Typ</span>
+                <span className={styles.detailInfoValue}>Mitarbeiter</span>
+              </div>
+            </div>
+
+            <div className={styles.formActions}>
+              <button
+                className={`${styles.button} ${styles.buttonSecondary}`}
+                onClick={() => setSelectedMember(null)}
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1314,7 +1722,9 @@ export function AdminShiftsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [loadingShiftId, setLoadingShiftId] = useState<string | null>(null);
   const [selectedShiftForApps, setSelectedShiftForApps] = useState<AdminShift | null>(null);
+  const [selectedShiftForDetail, setSelectedShiftForDetail] = useState<AdminShift | null>(null);
   const [editingShift, setEditingShift] = useState<AdminShift | null>(null);
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   
   // Filter & Sortierung
   const [filters, setFilters] = useState<Filters>({
@@ -1405,6 +1815,21 @@ export function AdminShiftsPage() {
       await cancelShift(shiftId);
     } catch {
       // Error handled in hook
+    } finally {
+      setLoadingShiftId(null);
+    }
+  };
+
+  const handleComplete = async (shiftId: string) => {
+    if (!confirm('Möchtest du diese Schicht wirklich beenden? Die Schicht wird als abgeschlossen markiert.')) {
+      return;
+    }
+    setLoadingShiftId(shiftId);
+    try {
+      await completeShift(shiftId);
+      await refresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Fehler beim Beenden der Schicht');
     } finally {
       setLoadingShiftId(null);
     }
@@ -1606,29 +2031,107 @@ export function AdminShiftsPage() {
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
             />
 
-            {/* Status-Filter */}
-            <select
-              className={styles.filterSelect}
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value as Filters['status'] })}
-            >
-              <option value="all">Alle Status</option>
-              <option value={SHIFT_STATUS.DRAFT}>📝 Entwürfe</option>
-              <option value={SHIFT_STATUS.PUBLISHED}>✅ Veröffentlicht</option>
-              <option value={SHIFT_STATUS.CLOSED}>🔒 Geschlossen</option>
-              <option value={SHIFT_STATUS.CANCELLED}>❌ Abgesagt</option>
-            </select>
-
-            {/* Besetzungs-Filter */}
-            <select
-              className={styles.filterSelect}
-              value={filters.occupancy}
-              onChange={(e) => setFilters({ ...filters, occupancy: e.target.value as Filters['occupancy'] })}
-            >
-              <option value="all">Alle Plätze</option>
-              <option value="available">🟢 Noch frei</option>
-              <option value="full">🔴 Ausgebucht</option>
-            </select>
+            {/* Filter Dropdown */}
+            <div style={{ position: 'relative' }}>
+              <button
+                className={styles.filterSelect}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowFilterDropdown(!showFilterDropdown);
+                }}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none'
+                }}
+              >
+                <span>🔽 Filter</span>
+                {(filters.status !== 'all' || filters.occupancy !== 'all') && (
+                  <span style={{
+                    background: 'var(--color-primary)',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '18px',
+                    height: '18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '10px',
+                    marginLeft: '8px'
+                  }}>
+                    {(filters.status !== 'all' ? 1 : 0) + (filters.occupancy !== 'all' ? 1 : 0)}
+                  </span>
+                )}
+              </button>
+              {showFilterDropdown && (
+                <>
+                  <div 
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 999
+                    }}
+                    onClick={() => setShowFilterDropdown(false)}
+                  />
+                  <div 
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      marginTop: '4px',
+                      background: 'var(--color-bg-primary)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      padding: 'var(--spacing-md)',
+                      boxShadow: 'var(--shadow-lg)',
+                      zIndex: 1000,
+                      minWidth: '200px'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                      <label style={{ display: 'block', marginBottom: 'var(--spacing-xs)', fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                        Status
+                      </label>
+                      <select
+                        className={styles.filterSelect}
+                        value={filters.status}
+                        onChange={(e) => setFilters({ ...filters, status: e.target.value as Filters['status'] })}
+                        style={{ width: '100%' }}
+                      >
+                        <option value="all">Alle Status</option>
+                        <option value={SHIFT_STATUS.DRAFT}>📝 Entwürfe</option>
+                        <option value={SHIFT_STATUS.PUBLISHED}>✅ Veröffentlicht</option>
+                        <option value={SHIFT_STATUS.CLOSED}>🔒 Geschlossen</option>
+                        <option value={SHIFT_STATUS.CANCELLED}>❌ Abgesagt</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 'var(--spacing-xs)', fontSize: 'var(--font-size-sm)', fontWeight: 500 }}>
+                        Besetzung
+                      </label>
+                      <select
+                        className={styles.filterSelect}
+                        value={filters.occupancy}
+                        onChange={(e) => setFilters({ ...filters, occupancy: e.target.value as Filters['occupancy'] })}
+                        style={{ width: '100%' }}
+                      >
+                        <option value="all">Alle Plätze</option>
+                        <option value="available">🟢 Noch frei</option>
+                        <option value="full">🔴 Ausgebucht</option>
+                      </select>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           <div className={styles.filterGroup}>
@@ -1738,7 +2241,18 @@ export function AdminShiftsPage() {
             </thead>
             <tbody>
               {sortedShifts.map((shift) => (
-                <tr key={shift.id} className={shift.pendingApplications > 0 ? styles.hasApplications : ''}>
+                <tr 
+                  key={shift.id} 
+                  className={shift.pendingApplications > 0 ? styles.hasApplications : ''}
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    // Nur öffnen wenn nicht auf Button geklickt wurde
+                    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('td:last-child')) {
+                      return;
+                    }
+                    setSelectedShiftForDetail(shift);
+                  }}
+                >
                   <td>
                     <span className={`${styles.statusPill} ${getShiftStatusBadgeClass(shift.status)}`}>
                       {getShiftStatusLabel(shift.status)}
@@ -1848,6 +2362,17 @@ export function AdminShiftsPage() {
                           ❌
                         </button>
                       )}
+                      {/* Beenden: Für PUBLISHED, CLOSED - nur wenn Schicht in Vergangenheit liegt */}
+                      {shift.status !== SHIFT_STATUS.COMPLETED && shift.status !== SHIFT_STATUS.CANCELLED && new Date(shift.startsAt) <= new Date() && (
+                        <button
+                          className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}
+                          onClick={() => handleComplete(shift.id)}
+                          disabled={loadingShiftId === shift.id}
+                          title="Schicht beenden"
+                        >
+                          ✅
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1869,7 +2394,9 @@ export function AdminShiftsPage() {
               onDelete={() => handleDeleteShift(shift.id)}
               onClose={() => handleClose(shift.id)}
               onCancel={() => handleCancel(shift.id)}
+              onComplete={() => handleComplete(shift.id)}
               onViewApplications={() => setSelectedShiftForApps(shift)}
+              onViewDetail={() => setSelectedShiftForDetail(shift)}
               isLoading={loadingShiftId === shift.id}
             />
           ))}
@@ -1891,6 +2418,30 @@ export function AdminShiftsPage() {
             setSelectedShiftForApps(null);
             refresh();
           }}
+        />
+      )}
+
+      {selectedShiftForDetail && (
+        <ShiftDetailModal
+          shift={selectedShiftForDetail}
+          onClose={() => {
+            setSelectedShiftForDetail(null);
+            refresh();
+          }}
+          onEdit={() => {
+            setEditingShift(selectedShiftForDetail);
+            setSelectedShiftForDetail(null);
+            setView('edit');
+          }}
+          onPublish={() => handlePublish(selectedShiftForDetail.id)}
+          onCloseShift={() => handleClose(selectedShiftForDetail.id)}
+          onCancel={() => handleCancel(selectedShiftForDetail.id)}
+          onComplete={() => handleComplete(selectedShiftForDetail.id)}
+          onViewApplications={() => {
+            setSelectedShiftForApps(selectedShiftForDetail);
+            setSelectedShiftForDetail(null);
+          }}
+          isLoading={loadingShiftId === selectedShiftForDetail.id}
         />
       )}
     </div>

@@ -5,10 +5,11 @@
  */
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { getPublicPool, applyToPublicShift } from '../shift-pool/api';
+import { getPublicPool, applyToPublicShift, applyToShift } from '../shift-pool/api';
 import { APPLICATION_STATUS, type PoolShift, type ApplicationStatus } from '@timeam/shared';
 import { openAddressInMaps } from '../shift-pool/mapsUtils';
 import { useAuth } from '../../core/auth';
+import { useTenant } from '../../core/tenant';
 import { getVerificationStatus, type VerificationStatus } from './api';
 import styles from './FreelancerPoolPage.module.css';
 
@@ -161,6 +162,7 @@ interface ApplyModalProps {
 
 function ApplyModal({ shift, onClose, onApplied, onLoginClick }: ApplyModalProps) {
   const { user } = useAuth();
+  const { tenant, isFreelancer } = useTenant();
   const [note, setNote] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -191,8 +193,8 @@ function ApplyModal({ shift, onClose, onApplied, onLoginClick }: ApplyModalProps
       return;
     }
 
-    // Prüfen ob verifiziert
-    if (verificationStatus !== 'approved') {
+    // Prüfen ob verifiziert (nur für Freelancer)
+    if (isFreelancer && verificationStatus !== 'approved') {
       setError('Bitte verifizieren Sie zuerst Ihr Konto, bevor Sie sich auf Schichten bewerben können');
       return;
     }
@@ -201,7 +203,18 @@ function ApplyModal({ shift, onClose, onApplied, onLoginClick }: ApplyModalProps
     setError(null);
 
     try {
-      await applyToPublicShift(shift.id, { note: note || undefined });
+      // Wenn der Benutzer ein Freelancer ist, immer den öffentlichen Endpunkt verwenden
+      // (auch wenn er zufällig auch ein Tenant-Mitglied ist)
+      if (isFreelancer) {
+        await applyToPublicShift(shift.id, { note: note || undefined });
+      } else if (tenant && shift.tenantId === tenant.id) {
+        // Wenn der Benutzer ein Tenant-Mitglied ist (kein Freelancer) 
+        // UND die Schicht zu seinem Tenant gehört, verwende den regulären Endpunkt
+        await applyToShift(shift.id, { note: note || undefined });
+      } else {
+        // Für Tenant-Mitglieder auf anderen Tenants, verwende den öffentlichen Endpunkt
+        await applyToPublicShift(shift.id, { note: note || undefined });
+      }
       setNote('');
       onApplied();
       onClose();
@@ -218,7 +231,8 @@ function ApplyModal({ shift, onClose, onApplied, onLoginClick }: ApplyModalProps
     }
   };
 
-  const isVerified = verificationStatus === 'approved';
+  // Für Tenant-Mitglieder ist keine Verifizierung erforderlich
+  const isVerified = isFreelancer ? verificationStatus === 'approved' : true;
   const canApply = user && isVerified && !loadingVerification;
 
   if (!shift) return null;
@@ -254,7 +268,7 @@ function ApplyModal({ shift, onClose, onApplied, onLoginClick }: ApplyModalProps
               <div className={styles.quickInfoLabel}>Ort</div>
               <div className={styles.quickInfoValue}>
                 {shift.location.name}
-                {shift.location.address && (
+                {(shift.location.address || shift.location.latitude) && (
                   <span
                     style={{
                       display: 'block',
@@ -267,7 +281,9 @@ function ApplyModal({ shift, onClose, onApplied, onLoginClick }: ApplyModalProps
                     onClick={() => openAddressInMaps(shift.location)}
                     title="In Google Maps öffnen"
                   >
-                    🗺️ {shift.location.address}
+                    🗺️ {shift.location.address && shift.location.address !== shift.location.name 
+                      ? shift.location.address 
+                      : 'In Google Maps öffnen'}
                   </span>
                 )}
               </div>
@@ -308,7 +324,7 @@ function ApplyModal({ shift, onClose, onApplied, onLoginClick }: ApplyModalProps
 
         {user && (
           <div className={styles.applySection}>
-            {!loadingVerification && !isVerified && (
+            {!loadingVerification && !isVerified && isFreelancer && (
               <div className={styles.verificationWarning}>
                 <strong>⚠️ Verifizierung erforderlich</strong>
                 <p>Bitte verifizieren Sie zuerst Ihr Konto, bevor Sie sich auf Schichten bewerben können.</p>
@@ -471,6 +487,33 @@ export function FreelancerPoolPage({ onLoginClick, onPrivacyClick, onImprintClic
               <p className={styles.heroSubtitle}>
                 Flexible Arbeitsmöglichkeiten - einfach bewerben und direkt loslegen
               </p>
+              
+              {/* Hero Stats */}
+              {!loading && futureShifts.length > 0 && (
+                <div className={styles.heroStats}>
+                  <div className={styles.heroStatItem}>
+                    <span className={styles.heroStatNumber}>{stats.available}</span>
+                    <span className={styles.heroStatLabel}>Verfügbare Schichten</span>
+                  </div>
+                  <div className={styles.heroStatDivider} />
+                  <div className={styles.heroStatItem}>
+                    <span className={styles.heroStatNumber}>{futureShifts.length}</span>
+                    <span className={styles.heroStatLabel}>Gesamt Schichten</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Hero CTA */}
+              {onLoginClick && (
+                <div className={styles.heroActions}>
+                  <button onClick={onLoginClick} className={styles.heroCtaPrimary}>
+                    Jetzt kostenlos registrieren
+                  </button>
+                  <a href="#shifts-heading" className={styles.heroCtaSecondary}>
+                    Schichten ansehen ↓
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Animated Background Elements */}
@@ -623,6 +666,97 @@ export function FreelancerPoolPage({ onLoginClick, onPrivacyClick, onImprintClic
             </div>
           </div>
         </section>
+      )}
+
+      {/* Info Section nach Schichten */}
+      {!isLoggedIn && !loading && filteredShifts.length > 0 && (
+        <section className={styles.infoSection} aria-labelledby="info-heading">
+          <div className={styles.infoContainer}>
+            <div className={styles.infoCard}>
+              <div className={styles.infoIcon}>💡</div>
+              <h3 id="info-heading" className={styles.infoTitle}>So funktioniert die Bewerbung</h3>
+              <div className={styles.infoContent}>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoItemIcon}>1️⃣</span>
+                  <div>
+                    <strong>Kostenlos registrieren</strong>
+                    <p>Erstellen Sie Ihr Konto und verifizieren Sie sich mit Ihrem Gewerbeschein</p>
+                  </div>
+                </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoItemIcon}>2️⃣</span>
+                  <div>
+                    <strong>Schicht auswählen</strong>
+                    <p>Klicken Sie auf eine Schicht, um Details zu sehen und sich zu bewerben</p>
+                  </div>
+                </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoItemIcon}>3️⃣</span>
+                  <div>
+                    <strong>Bewerbung absenden</strong>
+                    <p>Fügen Sie optional eine Nachricht hinzu und senden Sie Ihre Bewerbung ab</p>
+                  </div>
+                </div>
+                <div className={styles.infoItem}>
+                  <span className={styles.infoItemIcon}>4️⃣</span>
+                  <div>
+                    <strong>Bestätigung erhalten</strong>
+                    <p>Der Planer prüft Ihre Bewerbung und Sie erhalten eine Benachrichtigung</p>
+                  </div>
+                </div>
+              </div>
+              {onLoginClick && (
+                <button onClick={onLoginClick} className={styles.infoCta}>
+                  Jetzt kostenlos starten →
+                </button>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Kompakte Features & How it Works nach den Schichten */}
+      {!isLoggedIn && (
+        <>
+          {/* Kompakte Features Section */}
+          <section className={styles.featuresCompactSection} aria-labelledby="features-heading">
+            <div className={styles.featuresCompactContainer}>
+              <h2 id="features-heading" className={styles.featuresCompactTitle}>
+                Ihre Vorteile
+              </h2>
+              <div className={styles.featuresCompactGrid}>
+                <div className={styles.featureCompactCard}>
+                  <span className={styles.featureCompactIcon}>🎯</span>
+                  <div>
+                    <strong>Einfache Bewerbung</strong>
+                    <p>Mit wenigen Klicks bewerben</p>
+                  </div>
+                </div>
+                <div className={styles.featureCompactCard}>
+                  <span className={styles.featureCompactIcon}>💰</span>
+                  <div>
+                    <strong>Faire Vergütung</strong>
+                    <p>Transparente Stundenlöhne</p>
+                  </div>
+                </div>
+                <div className={styles.featureCompactCard}>
+                  <span className={styles.featureCompactIcon}>📅</span>
+                  <div>
+                    <strong>Flexible Zeiten</strong>
+                    <p>Arbeiten wann es passt</p>
+                  </div>
+                </div>
+                <div className={styles.featureCompactCard}>
+                  <span className={styles.featureCompactIcon}>🏢</span>
+                  <div>
+                    <strong>Vielfältige Firmen</strong>
+                    <p>Netzwerk erweitern</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </>
       )}
 
       {selectedShift && (

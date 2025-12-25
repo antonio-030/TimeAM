@@ -17,6 +17,7 @@ export {
   getUserDocument,
   getTenantForUser,
   createTenant,
+  updateTenantName,
   setEntitlement,
   deleteEntitlement,
   getEntitlements,

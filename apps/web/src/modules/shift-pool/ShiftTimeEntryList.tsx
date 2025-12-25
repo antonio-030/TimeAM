@@ -9,6 +9,7 @@ import { useShiftTimeEntries } from './hooks';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
 import { getMembers } from '../members/api';
+import { getShiftAssignments } from './api';
 import type { ShiftTimeEntry, CreateShiftTimeEntryRequest } from '@timeam/shared';
 import styles from './ShiftPool.module.css';
 
@@ -60,24 +61,64 @@ export function ShiftTimeEntryList({
   const [editingEntry, setEditingEntry] = useState<ShiftTimeEntry | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [members, setMembers] = useState<Array<{ id: string; displayName: string; email: string }>>([]);
+  const [members, setMembers] = useState<Array<{ 
+    id: string; 
+    displayName: string; 
+    email: string;
+    isFreelancer?: boolean;
+    companyName?: string;
+  }>>([]);
 
-  // Mitglieder laden
+  // Mitglieder und Freelancer-Informationen laden
   useEffect(() => {
-    getMembers()
-      .then((data) => {
-        setMembers(
-          data.members
-            .filter((m) => assignedMemberUids.includes(m.id))
-            .map((m) => ({
-              id: m.id,
-              displayName: m.displayName || m.email.split('@')[0],
-              email: m.email,
-            }))
-        );
-      })
-      .catch(() => {});
-  }, [assignedMemberUids]);
+    async function loadMemberData() {
+      try {
+        // Mitglieder laden
+        const membersData = await getMembers();
+        const membersList = membersData.members
+          .filter((m) => assignedMemberUids.includes(m.id))
+          .map((m) => ({
+            id: m.id,
+            displayName: m.displayName || m.email.split('@')[0],
+            email: m.email,
+            role: m.role,
+          }));
+
+        // Assignments laden, um Freelancer-Informationen zu bekommen
+        try {
+          const assignmentsData = await getShiftAssignments(shiftId);
+          const assignmentsMap = new Map(
+            assignmentsData.assignments.map((a) => [a.uid, a])
+          );
+
+          // Mitglieder mit Freelancer-Informationen anreichern
+          const enrichedMembers = membersList.map((member) => {
+            const assignment = assignmentsMap.get(member.id);
+            // Prüfe ob Freelancer (entweder über Assignment oder über role)
+            const isFreelancer = assignment?.isFreelancer || (member.role as string) === 'freelancer';
+            if (isFreelancer) {
+              return {
+                ...member,
+                isFreelancer: true,
+                companyName: assignment?.companyName,
+                // Für Freelancer: Firmenname als Display-Name verwenden, falls vorhanden
+                displayName: assignment?.companyName || assignment?.displayName || member.displayName,
+              };
+            }
+            return member;
+          });
+
+          setMembers(enrichedMembers);
+        } catch {
+          // Falls Assignments nicht geladen werden können, nur Members verwenden
+          setMembers(membersList);
+        }
+      } catch {
+        // Fehler beim Laden ignorieren
+      }
+    }
+    loadMemberData();
+  }, [assignedMemberUids, shiftId]);
 
   const handleSubmit = async (data: CreateShiftTimeEntryRequest) => {
     try {
@@ -154,31 +195,62 @@ export function ShiftTimeEntryList({
               return (
                 <div key={entry.id} className={styles.timeEntryCard}>
                   <div className={styles.timeEntryHeader}>
-                    <div>
-                      <strong>{getMemberName(entry.uid)}</strong>
-                      {entry.note && <p className={styles.timeEntryNote}>{entry.note}</p>}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: entry.note ? '0.25rem' : 0 }}>
+                        <strong style={{ fontSize: '1.1rem' }}>
+                          {member.isFreelancer && member.companyName 
+                            ? member.companyName 
+                            : getMemberName(entry.uid)}
+                        </strong>
+                        {member.isFreelancer && (
+                          <span style={{
+                            background: 'var(--color-primary-light)',
+                            color: 'var(--color-primary)',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: 'var(--font-size-xs)',
+                            fontWeight: 500
+                          }}>
+                            💼 Freelancer
+                          </span>
+                        )}
+                      </div>
+                      {entry.note && (
+                        <p className={styles.timeEntryNote} style={{ marginTop: '0.25rem' }}>
+                          📝 {entry.note}
+                        </p>
+                      )}
                     </div>
                     {canEdit && (
                       <button
                         className={`${styles.button} ${styles.buttonSmall} ${styles.buttonGhost}`}
                         onClick={() => handleEdit(entry)}
+                        title="Zeiteintrag bearbeiten"
                       >
                         ✏️ Bearbeiten
                       </button>
                     )}
                   </div>
-                  <div className={styles.timeEntryDetails}>
+                  <div className={styles.timeEntryDetails} style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                    gap: '0.75rem',
+                    marginTop: '0.75rem',
+                    padding: '0.75rem',
+                    background: 'var(--color-bg-secondary)',
+                    borderRadius: 'var(--radius-md)'
+                  }}>
                     <div className={styles.timeEntryDetail}>
-                      <span className={styles.timeEntryLabel}>Start:</span>
-                      <span>{formatDateTime(entry.actualClockIn)}</span>
+                      <span className={styles.timeEntryLabel} style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>Startzeit</span>
+                      <span style={{ fontWeight: 500 }}>{formatDateTime(entry.actualClockIn)}</span>
                     </div>
                     <div className={styles.timeEntryDetail}>
-                      <span className={styles.timeEntryLabel}>Ende:</span>
-                      <span>{formatDateTime(entry.actualClockOut)}</span>
+                      <span className={styles.timeEntryLabel} style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>Endzeit</span>
+                      <span style={{ fontWeight: 500 }}>{formatDateTime(entry.actualClockOut)}</span>
                     </div>
                     <div className={styles.timeEntryDetail}>
-                      <span className={styles.timeEntryLabel}>Dauer:</span>
-                      <strong>{formatDuration(entry.durationMinutes)}</strong>
+                      <span className={styles.timeEntryLabel} style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>Dauer</span>
+                      <strong style={{ fontSize: '1.1rem', color: 'var(--color-primary)' }}>{formatDuration(entry.durationMinutes)}</strong>
                     </div>
                   </div>
                 </div>
@@ -186,37 +258,69 @@ export function ShiftTimeEntryList({
             } else {
               // Noch kein Eintrag - zeige Platzhalter mit Schichtzeiten
               return (
-                <div key={member.id} className={styles.timeEntryCard} style={{ opacity: 0.7 }}>
+                <div key={member.id} className={styles.timeEntryCard} style={{ 
+                  opacity: 0.85,
+                  border: '1px dashed var(--color-border)',
+                  background: 'var(--color-bg-secondary)'
+                }}>
                   <div className={styles.timeEntryHeader}>
-                    <div>
-                      <strong>{member.displayName}</strong>
-                      <p className={styles.timeEntryNote} style={{ fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>
-                        Noch kein Zeiteintrag
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                        <strong style={{ fontSize: '1.1rem' }}>
+                          {member.isFreelancer && member.companyName 
+                            ? member.companyName 
+                            : member.displayName}
+                        </strong>
+                        {member.isFreelancer && (
+                          <span style={{
+                            background: 'var(--color-primary-light)',
+                            color: 'var(--color-primary)',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            fontSize: 'var(--font-size-xs)',
+                            fontWeight: 500
+                          }}>
+                            💼 Freelancer
+                          </span>
+                        )}
+                      </div>
+                      <p style={{ 
+                        fontStyle: 'italic', 
+                        color: 'var(--color-text-secondary)',
+                        fontSize: 'var(--font-size-sm)',
+                        margin: 0
+                      }}>
+                        ⏳ Noch kein Zeiteintrag
                       </p>
                     </div>
                     {canEdit && (
                       <button
                         className={`${styles.button} ${styles.buttonSmall} ${styles.buttonPrimary}`}
                         onClick={() => {
-                          // Setze editingEntry auf null und selectedMemberId, damit ein neuer Eintrag erstellt wird
-                          // Die Form wird die Schichtzeiten automatisch vorausfüllen
                           setEditingEntry(null);
                           setSelectedMemberId(member.id);
                           setShowForm(true);
                         }}
+                        title="Zeiteintrag für diesen Mitarbeiter erstellen"
                       >
                         ➕ Zeit eintragen
                       </button>
                     )}
                   </div>
                   {shiftStartsAt && shiftEndsAt && (
-                    <div className={styles.timeEntryDetails}>
-                      <div className={styles.timeEntryDetail}>
-                        <span className={styles.timeEntryLabel}>Geplante Startzeit:</span>
+                    <div className={styles.timeEntryDetails} style={{ 
+                      marginTop: '0.75rem',
+                      padding: '0.75rem',
+                      background: 'var(--color-bg)',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--color-border)'
+                    }}>
+                      <div className={styles.timeEntryDetail} style={{ marginBottom: '0.5rem' }}>
+                        <span className={styles.timeEntryLabel} style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>Geplante Startzeit</span>
                         <span>{formatDateTime(shiftStartsAt)}</span>
                       </div>
                       <div className={styles.timeEntryDetail}>
-                        <span className={styles.timeEntryLabel}>Geplante Endzeit:</span>
+                        <span className={styles.timeEntryLabel} style={{ display: 'block', marginBottom: '0.25rem', fontSize: 'var(--font-size-xs)', color: 'var(--color-text-secondary)' }}>Geplante Endzeit</span>
                         <span>{formatDateTime(shiftEndsAt)}</span>
                       </div>
                     </div>

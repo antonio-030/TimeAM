@@ -1193,7 +1193,7 @@ export async function applyToPublicShift(
 
   const shiftData = shiftDoc.data() as ShiftDoc;
 
-  // Prüfen ob User ein Freelancer ist (nicht Tenant-Member)
+  // Prüfen ob User ein Freelancer ist
   const freelancerDoc = await db.collection('freelancers').doc(applicantUid).get();
   if (!freelancerDoc.exists) {
     throw new Error('Only freelancers can apply to public shifts');
@@ -1205,17 +1205,11 @@ export async function applyToPublicShift(
     throw new Error('Bitte verifizieren Sie zuerst Ihr Konto, bevor Sie sich auf Schichten bewerben können');
   }
 
-  // Prüfen ob User bereits Tenant-Member ist (dann sollte er normale Bewerbung nutzen)
-  const memberDoc = await db
-    .collection('tenants')
-    .doc(tenantId)
-    .collection('members')
-    .doc(applicantUid)
-    .get();
-  
-  if (memberDoc.exists) {
-    throw new Error('Tenant members should use the regular application process');
-  }
+  // Hinweis: Ein User kann sowohl Freelancer als auch Tenant-Member sein.
+  // In diesem Fall erlauben wir die Bewerbung als Freelancer auf öffentliche Schichten,
+  // auch wenn er zufällig auch ein Member des Tenants ist, der die Schicht erstellt hat.
+  // Die Member-Prüfung wird hier nicht durchgeführt, da Freelancer sich immer
+  // als Freelancer auf öffentliche Schichten bewerben können sollen.
 
   // Deadline prüfen
   if (shiftData.applyDeadline) {
@@ -1239,7 +1233,7 @@ export async function applyToPublicShift(
   );
 
   if (activeApp) {
-    throw new Error('Already applied to this shift');
+    throw new Error('Sie haben sich bereits auf diese Schicht beworben');
   }
 
   // Freelancer-Name aus bereits geladenen Daten verwenden
@@ -1349,7 +1343,7 @@ export async function applyToShift(
   );
 
   if (activeApp) {
-    throw new Error('Already applied to this shift');
+    throw new Error('Sie haben sich bereits auf diese Schicht beworben');
   }
 
   // Bewerbung erstellen
@@ -1435,6 +1429,7 @@ export async function getShiftApplications(
     verificationSubmittedAt?: string;
     verificationReviewedAt?: string;
   };
+  memberName?: string;
 }>> {
   const db = getAdminFirestore();
 
@@ -1453,6 +1448,28 @@ export async function getShiftApplications(
   const freelancerUids = applications
     .filter((app) => app.isFreelancer)
     .map((app) => app.uid);
+
+  // Member-Namen für alle Nicht-Freelancer-Bewerbungen laden
+  const memberUids = applications
+    .filter((app) => !app.isFreelancer)
+    .map((app) => app.uid);
+
+  const memberNameMap = new Map<string, string>();
+  if (memberUids.length > 0) {
+    const membersSnapshot = await db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('members')
+      .get();
+    
+    membersSnapshot.docs.forEach((doc) => {
+      const data = doc.data();
+      const uid = doc.id; // Member-Dokument-ID ist die UID
+      if (memberUids.includes(uid)) {
+        memberNameMap.set(uid, data.displayName || data.email?.split('@')[0] || 'Unbekannt');
+      }
+    });
+  }
 
   if (freelancerUids.length > 0) {
     const freelancerDocs = await Promise.all(
@@ -1490,10 +1507,14 @@ export async function getShiftApplications(
       ...app,
       verificationStatus: app.isFreelancer ? freelancerProfileMap.get(app.uid)?.verificationStatus : undefined,
       freelancerProfile: app.isFreelancer ? freelancerProfileMap.get(app.uid) : undefined,
+      memberName: !app.isFreelancer ? memberNameMap.get(app.uid) : undefined,
     }));
   }
 
-  return applications;
+  return applications.map((app) => ({
+    ...app,
+    memberName: !app.isFreelancer ? memberNameMap.get(app.uid) : undefined,
+  }));
 }
 
 /**
@@ -1778,6 +1799,81 @@ export async function rejectApplication(
     }
   } catch (notificationError) {
     console.error('Failed to create rejection notification:', notificationError);
+  }
+
+  const updatedDoc = await appRef.get();
+  return applicationToResponse(applicationId, updatedDoc.data() as ApplicationDoc);
+}
+
+/**
+ * Zieht eine Ablehnung zurück (setzt Status zurück auf PENDING).
+ */
+export async function unrejectApplication(
+  tenantId: string,
+  applicationId: string,
+  actorUid: string
+): Promise<Application> {
+  const db = getAdminFirestore();
+
+  const appRef = db.collection('tenants').doc(tenantId).collection('applications').doc(applicationId);
+  const appSnap = await appRef.get();
+
+  if (!appSnap.exists) {
+    throw new Error('Application not found');
+  }
+
+  const appData = appSnap.data() as ApplicationDoc;
+
+  if (appData.status !== APPLICATION_STATUS.REJECTED) {
+    throw new Error(`Cannot unreject application with status ${appData.status}`);
+  }
+
+  await appRef.update({
+    status: APPLICATION_STATUS.PENDING,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  await createAuditLog(tenantId, actorUid, AUDIT_ACTIONS.APP_UNREJECT, 'application', applicationId, {
+    shiftId: appData.shiftId,
+  });
+
+  // Benachrichtigung für den Bewerber erstellen
+  try {
+    const shiftSnap = await db.collection('tenants').doc(tenantId).collection('shifts').doc(appData.shiftId).get();
+    const shiftData = shiftSnap.data() as ShiftDoc;
+    const startsAt = shiftData.startsAt.toDate();
+    const dateStr = startsAt.toLocaleDateString('de-DE', {
+      weekday: 'short',
+      day: '2-digit',
+      month: '2-digit',
+    });
+
+    // Wenn Freelancer: Benachrichtigung in seinem eigenen Tenant erstellen
+    if (appData.isFreelancer) {
+      const freelancer = await getFreelancer(appData.uid);
+      if (freelancer?.tenantId) {
+        await createNotification(freelancer.tenantId, {
+          type: NOTIFICATION_TYPES.APPLICATION_ACCEPTED, // Verwende ACCEPTED als positive Nachricht
+          title: 'Bewerbung erneut in Prüfung 🔄',
+          message: `Deine Bewerbung für "${shiftData.title}" am ${dateStr} wurde erneut zur Prüfung freigegeben.`,
+          recipientUid: appData.uid,
+          ref: { type: 'shift', id: appData.shiftId },
+          link: '/freelancer-security-pool',
+        });
+      }
+    } else {
+      // Normale Mitarbeiter: Benachrichtigung im Firmen-Tenant
+      await createNotification(tenantId, {
+        type: NOTIFICATION_TYPES.APPLICATION_ACCEPTED,
+        title: 'Bewerbung erneut in Prüfung 🔄',
+        message: `Deine Bewerbung für "${shiftData.title}" am ${dateStr} wurde erneut zur Prüfung freigegeben.`,
+        recipientUid: appData.uid,
+        ref: { type: 'shift', id: appData.shiftId },
+        link: '/shifts',
+      });
+    }
+  } catch (notificationError) {
+    console.error('Failed to create unreject notification:', notificationError);
   }
 
   const updatedDoc = await appRef.get();
@@ -2088,7 +2184,7 @@ export async function getMyShifts(
       .map((d) => d.data().uid as string)
       .filter((u) => u !== uid);
 
-    // Member-Namen laden
+    // Member- und Freelancer-Namen laden
     let colleagues: Array<{ uid: string; displayName: string }> = [];
     if (colleagueUids.length > 0) {
       const membersSnapshot = await db
@@ -2097,16 +2193,49 @@ export async function getMyShifts(
         .collection('members')
         .get();
 
-      const membersMap = new Map<string, string>();
+      const membersMap = new Map<string, { displayName: string; role?: string }>();
       membersSnapshot.docs.forEach((m) => {
         const data = m.data();
-        membersMap.set(m.id, data.displayName || data.email?.split('@')[0] || 'Unbekannt');
+        membersMap.set(m.id, {
+          displayName: data.displayName || data.email?.split('@')[0] || 'Unbekannt',
+          role: data.role,
+        });
       });
 
-      colleagues = colleagueUids.map((u) => ({
-        uid: u,
-        displayName: membersMap.get(u) || 'Unbekannt',
-      }));
+      // Freelancer-Daten für alle UIDs laden (auch wenn sie als Member existieren, um Firmenname zu bekommen)
+      const freelancerDocs = await Promise.all(
+        colleagueUids.map((uid) => db.collection('freelancers').doc(uid).get())
+      );
+      
+      const freelancersMap = new Map<string, { displayName: string; companyName?: string }>();
+      freelancerDocs.forEach((doc) => {
+        if (doc.exists) {
+          const data = doc.data() as FreelancerDoc;
+          freelancersMap.set(doc.id, {
+            displayName: data.displayName,
+            companyName: data.companyName,
+          });
+        }
+      });
+
+      colleagues = colleagueUids.map((u) => {
+        const member = membersMap.get(u);
+        const freelancer = freelancersMap.get(u);
+        const isFreelancer = member?.role === 'freelancer' || !!freelancer;
+        
+        // Priorität: Freelancer-Firmenname > Member-Name > Freelancer-Name > Fallback
+        let displayName: string;
+        if (isFreelancer && freelancer?.companyName) {
+          displayName = freelancer.companyName;
+        } else {
+          displayName = member?.displayName || freelancer?.displayName || 'Unbekannt';
+        }
+        
+        return {
+          uid: u,
+          displayName,
+        };
+      });
     }
 
     myShifts.push({
@@ -2270,6 +2399,8 @@ export interface ShiftAssignmentWithMember {
   email?: string;
   status: string;
   createdAt: string;
+  isFreelancer?: boolean;
+  companyName?: string;
 }
 
 /**
@@ -2305,43 +2436,48 @@ export async function getShiftAssignments(
     .collection('members')
     .get();
 
-  const membersMap = new Map<string, { displayName?: string; email?: string }>();
+  const membersMap = new Map<string, { displayName?: string; email?: string; role?: string }>();
   membersSnapshot.docs.forEach((doc) => {
     const data = doc.data();
     membersMap.set(doc.id, {
       displayName: data.displayName,
       email: data.email,
+      role: data.role,
     });
   });
 
-  // Freelancer-Daten für UIDs laden, die nicht in members sind
-  const missingUids = uids.filter((uid) => !membersMap.has(uid));
-  const freelancersMap = new Map<string, { displayName?: string; email?: string }>();
+  // Freelancer-Daten für ALLE UIDs laden (auch wenn sie als Member existieren, um Firmenname zu bekommen)
+  const freelancersMap = new Map<string, { displayName?: string; email?: string; companyName?: string }>();
+  const freelancerDocs = await Promise.all(
+    uids.map((uid) => db.collection('freelancers').doc(uid).get())
+  );
   
-  if (missingUids.length > 0) {
-    const freelancerDocs = await Promise.all(
-      missingUids.map((uid) => db.collection('freelancers').doc(uid).get())
-    );
-    
-    freelancerDocs.forEach((doc) => {
-      if (doc.exists) {
-        const data = doc.data() as FreelancerDoc;
-        freelancersMap.set(doc.id, {
-          displayName: data.displayName,
-          email: data.email,
-        });
-      }
-    });
-  }
+  freelancerDocs.forEach((doc) => {
+    if (doc.exists) {
+      const data = doc.data() as FreelancerDoc;
+      freelancersMap.set(doc.id, {
+        displayName: data.displayName,
+        email: data.email,
+        companyName: data.companyName,
+      });
+    }
+  });
 
   // Zuweisungen mit Member- oder Freelancer-Details anreichern
   return assignmentsSnapshot.docs.map((doc) => {
     const data = doc.data();
     const member = membersMap.get(data.uid);
     const freelancer = freelancersMap.get(data.uid);
+    const isFreelancer = member?.role === 'freelancer' || !!freelancer;
     
-    // Priorität: Member > Freelancer > Fallback
-    const displayName = member?.displayName || freelancer?.displayName || member?.email?.split('@')[0] || freelancer?.email?.split('@')[0] || 'Unbekannt';
+    // Priorität: Freelancer-Firmenname > Member-Name > Freelancer-Name > Email
+    let displayName: string;
+    if (isFreelancer && freelancer?.companyName) {
+      displayName = freelancer.companyName;
+    } else {
+      displayName = member?.displayName || freelancer?.displayName || member?.email?.split('@')[0] || freelancer?.email?.split('@')[0] || 'Unbekannt';
+    }
+    
     const email = member?.email || freelancer?.email;
     
     return {
@@ -2351,6 +2487,8 @@ export async function getShiftAssignments(
       email,
       status: data.status,
       createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      isFreelancer,
+      companyName: freelancer?.companyName,
     };
   });
 }
@@ -2700,10 +2838,12 @@ export async function completeShift(
     throw new Error('Cannot complete shift before it has started');
   }
 
-  // Prüfen ob User Crew-Leiter ist
+  // Prüfen ob User Crew-Leiter, Manager oder Admin ist
   const isLeader = await isCrewLeader(tenantId, shiftId, actorUid);
-  if (!isLeader) {
-    throw new Error('Only the crew leader can complete a shift');
+  const isAdminOrManager = await isAdminOrManager(tenantId, actorUid);
+  
+  if (!isLeader && !isAdminOrManager) {
+    throw new Error('Only the crew leader, manager or admin can complete a shift');
   }
 
   await shiftRef.update({

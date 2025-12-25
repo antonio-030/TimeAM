@@ -112,6 +112,13 @@ export function deactivateMember(memberId: string): Promise<MemberResponse> {
 }
 
 /**
+ * Generiert einen neuen Password Reset Link für einen Mitarbeiter.
+ */
+export function generateInviteLink(memberId: string): Promise<{ passwordResetLink: string; message?: string }> {
+  return apiPost<{ passwordResetLink: string; message?: string }>(`/api/members/${memberId}/generate-invite-link`);
+}
+
+/**
  * Lädt die Schichten eines Mitarbeiters.
  */
 export function getMemberShifts(

@@ -5,7 +5,8 @@
  * Mit Hover-Tooltip für Termine/Schichten und Klick-Navigation.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import styles from './MiniCalendar.module.css';
 
 /**
@@ -34,6 +35,14 @@ export function MiniCalendar({
 }: MiniCalendarProps) {
   const [currentDate, setCurrentDate] = useState(selectedDate || new Date());
   const [hoveredDay, setHoveredDay] = useState<string | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    horizontal: 'left' | 'center' | 'right';
+    vertical: 'top' | 'bottom';
+    x: number;
+    y: number;
+  }>({ horizontal: 'center', vertical: 'bottom', x: 0, y: 0 });
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const dayWrapperRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const { year, month, days, weekDays } = useMemo(() => {
     const y = currentDate.getFullYear();
@@ -196,11 +205,56 @@ export function MiniCalendar({
               const dayEvents = events[day.dateKey] || [];
               const showTooltip = hoveredDay === day.dateKey && dayEvents.length > 0;
               
+              const dayWrapperRef = (el: HTMLDivElement | null) => {
+                if (el) {
+                  dayWrapperRefs.current.set(day.dateKey, el);
+                } else {
+                  dayWrapperRefs.current.delete(day.dateKey);
+                }
+              };
+
               return (
                 <div 
                   key={dayIndex} 
+                  ref={dayWrapperRef}
                   className={styles.dayWrapper}
-                  onMouseEnter={() => setHoveredDay(day.dateKey)}
+                  onMouseEnter={() => {
+                    setHoveredDay(day.dateKey);
+                    // Position berechnen
+                    const wrapper = dayWrapperRefs.current.get(day.dateKey);
+                    if (wrapper) {
+                      const rect = wrapper.getBoundingClientRect();
+                      const tooltipWidth = 260; // max-width aus CSS
+                      const tooltipHeight = 200; // geschätzte Höhe
+                      const spaceLeft = rect.left;
+                      const spaceRight = window.innerWidth - rect.right;
+                      const spaceBottom = window.innerHeight - rect.bottom;
+                      const spaceTop = rect.top;
+                      
+                      // Horizontale Position
+                      let horizontal: 'left' | 'center' | 'right' = 'center';
+                      let x = rect.left + rect.width / 2; // Standard: zentriert
+                      
+                      if (spaceRight < tooltipWidth && spaceLeft > spaceRight) {
+                        horizontal = 'left';
+                        x = rect.left; // Links ausrichten
+                      } else if (spaceLeft < tooltipWidth && spaceRight > spaceLeft) {
+                        horizontal = 'right';
+                        x = rect.right; // Rechts ausrichten
+                      }
+                      
+                      // Vertikale Position
+                      let vertical: 'top' | 'bottom' = 'bottom';
+                      let y = rect.bottom + 4; // Standard: unterhalb
+                      
+                      if (spaceBottom < tooltipHeight && spaceTop > spaceBottom) {
+                        vertical = 'top';
+                        y = rect.top; // Oberhalb (ohne -4, da wir bottom verwenden)
+                      }
+                      
+                      setTooltipPosition({ horizontal, vertical, x, y });
+                    }
+                  }}
                   onMouseLeave={() => setHoveredDay(null)}
                 >
                   <button
@@ -217,9 +271,39 @@ export function MiniCalendar({
                     )}
                   </button>
                   
-                  {/* Tooltip mit Events */}
-                  {showTooltip && (
-                    <div className={styles.tooltip}>
+                  {/* Tooltip mit Events - wird mit Portal außerhalb des Containers gerendert */}
+                  {showTooltip && createPortal(
+                    <div 
+                      ref={tooltipRef}
+                      className={`${styles.tooltip} ${
+                        tooltipPosition.horizontal === 'left' ? styles.tooltipLeft : 
+                        tooltipPosition.horizontal === 'right' ? styles.tooltipRight : 
+                        styles.tooltipCenter
+                      } ${
+                        tooltipPosition.vertical === 'top' ? styles.tooltipTop : styles.tooltipBottom
+                      }`}
+                      style={{
+                        left: tooltipPosition.horizontal === 'left' 
+                          ? `${tooltipPosition.x}px` 
+                          : tooltipPosition.horizontal === 'right'
+                          ? 'auto'
+                          : `${tooltipPosition.x}px`,
+                        right: tooltipPosition.horizontal === 'right' 
+                          ? `${window.innerWidth - tooltipPosition.x}px` 
+                          : 'auto',
+                        top: tooltipPosition.vertical === 'bottom' 
+                          ? `${tooltipPosition.y}px` 
+                          : 'auto',
+                        bottom: tooltipPosition.vertical === 'top' 
+                          ? `${window.innerHeight - tooltipPosition.y}px` 
+                          : 'auto',
+                        transform: tooltipPosition.horizontal === 'center' 
+                          ? 'translateX(-50%)' 
+                          : 'none',
+                      }}
+                      onMouseEnter={() => setHoveredDay(day.dateKey)}
+                      onMouseLeave={() => setHoveredDay(null)}
+                    >
                       <div className={styles.tooltipDate}>
                         {day.fullDate.toLocaleDateString('de-DE', { 
                           weekday: 'short', 
@@ -234,6 +318,7 @@ export function MiniCalendar({
                             className={styles.tooltipEvent}
                             onClick={(e) => {
                               e.stopPropagation();
+                              setHoveredDay(null); // Tooltip schließen
                               onEventClick?.(event.id, event.type);
                             }}
                           >
@@ -251,7 +336,8 @@ export function MiniCalendar({
                           </button>
                         ))}
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               );

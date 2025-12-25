@@ -16,6 +16,7 @@ export {
 // Middleware
 export {
   requireEntitlements,
+  requireEntitlementsOrFreelancer,
   requireTenantOnly,
   hasEntitlement,
   type TenantRequest,

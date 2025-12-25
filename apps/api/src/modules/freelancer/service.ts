@@ -66,9 +66,6 @@ export async function registerFreelancer(
   if (!data.displayName || data.displayName.trim().length < 2) {
     throw new Error('Display name is required (min. 2 characters)');
   }
-  if (!data.companyName || data.companyName.trim().length < 2) {
-    throw new Error('Company name is required (min. 2 characters)');
-  }
 
   const email = data.email.toLowerCase().trim();
 
@@ -118,8 +115,8 @@ export async function registerFreelancer(
     throw new Error(`Failed to create user account: ${authError instanceof Error ? authError.message : 'Unknown error'}`);
   }
 
-  // Tenant für Freelancer erstellen
-  const companyName = data.companyName.trim();
+  // Tenant für Freelancer erstellen (companyName optional, Fallback auf displayName)
+  const companyName = data.companyName?.trim() || data.displayName.trim();
   const { tenantId, entitlements } = await createTenant(uid, email, companyName);
   
   console.log(`✅ Created tenant ${tenantId} for freelancer ${uid} (${companyName})`);
@@ -129,12 +126,20 @@ export async function registerFreelancer(
     uid,
     email,
     displayName: data.displayName.trim(),
-    companyName: companyName,
     tenantId: tenantId, // Haupt-Tenant-ID speichern
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };
   
+  if (data.firstName?.trim()) {
+    freelancerData.firstName = data.firstName.trim();
+  }
+  if (data.lastName?.trim()) {
+    freelancerData.lastName = data.lastName.trim();
+  }
+  if (data.companyName?.trim()) {
+    freelancerData.companyName = data.companyName.trim();
+  }
   if (data.phone?.trim()) {
     freelancerData.phone = data.phone.trim();
   }
