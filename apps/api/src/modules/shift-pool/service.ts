@@ -13,6 +13,7 @@ import {
   AUDIT_ACTIONS,
   type ShiftStatus,
   type ApplicationStatus,
+  type AssignmentStatus,
   type Shift,
   type PoolShift,
   type Application,

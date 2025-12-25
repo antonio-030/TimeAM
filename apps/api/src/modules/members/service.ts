@@ -36,8 +36,8 @@ function timestampToISO(ts: Timestamp | Date | undefined | null): string {
     return ts.toISOString();
   }
   // Falls es ein Firestore Timestamp-like Objekt ist
-  if (typeof ts === 'object' && 'toDate' in ts && typeof ts.toDate === 'function') {
-    return (ts as Timestamp).toDate().toISOString();
+  if (typeof ts === 'object' && ts !== null && 'toDate' in ts && typeof (ts as { toDate?: () => Date }).toDate === 'function') {
+    return ((ts as { toDate: () => Date }).toDate()).toISOString();
   }
   return new Date().toISOString();
 }

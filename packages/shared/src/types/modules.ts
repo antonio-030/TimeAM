@@ -158,7 +158,6 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     description: 'Freelancer-Pool für Sicherheitsfirmen - Öffentliche Schichten ausschreiben und Freelancer-Bewerbungen prüfen',
     icon: '🔒',
     category: MODULE_CATEGORY.CORE,
-    tags: ['security', 'freelancer'],
   },
 } as const;
 
