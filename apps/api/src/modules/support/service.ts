@@ -18,9 +18,9 @@ import type {
   AccountDeletionRequestDoc,
   AccountDeletionRequestOverview,
   DeletionRequestStatus,
-} from './types';
-import type { VerificationStatus } from '../freelancer/types';
-import type { FreelancerDoc } from '../freelancer/types';
+} from './types.js';
+import type { VerificationStatus } from '../freelancer/types.js';
+import type { FreelancerDoc } from '../freelancer/types.js';
 
 // =============================================================================
 // Helper Functions
