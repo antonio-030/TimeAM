@@ -4,5 +4,5 @@
  * Gemeinsame Typen, Schemas und Domain-Definitionen.
  */
 
-export * from './types/index';
+export * from './types/index.js';
 
