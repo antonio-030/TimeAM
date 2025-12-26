@@ -15,14 +15,23 @@ const TOTP_WINDOW = 2; // Erlaubt ±2 Zeitfenster für Clock-Skew
 
 // Verschlüsselungs-Key (in Production aus Environment Variable)
 // aes-256-gcm benötigt 32 Bytes (64 hex-Zeichen)
+// WICHTIG: Lazy initialization, da .env beim Modul-Import noch nicht geladen ist
+let ENCRYPTION_KEY: Buffer | null = null;
+
 const getEncryptionKey = (): Buffer => {
+  // Cache den Key nach der ersten Initialisierung
+  if (ENCRYPTION_KEY !== null) {
+    return ENCRYPTION_KEY;
+  }
+
   if (process.env.MFA_ENCRYPTION_KEY) {
     // Environment Variable: Erwartet 64 hex-Zeichen (32 Bytes)
     const keyHex = process.env.MFA_ENCRYPTION_KEY.trim();
     if (keyHex.length < 64) {
       throw new Error('MFA_ENCRYPTION_KEY must be at least 64 hex characters (32 bytes)');
     }
-    return Buffer.from(keyHex.slice(0, 64), 'hex');
+    ENCRYPTION_KEY = Buffer.from(keyHex.slice(0, 64), 'hex');
+    return ENCRYPTION_KEY;
   }
   // WICHTIG: In Production MUSS MFA_ENCRYPTION_KEY gesetzt sein!
   // Ohne festen Schlüssel wird bei jedem Neustart ein neuer Schlüssel generiert,
@@ -34,18 +43,19 @@ const getEncryptionKey = (): Buffer => {
   // WARNUNG: Dieser Schlüssel ändert sich bei jedem Neustart!
   console.warn('⚠️  WARNING: MFA_ENCRYPTION_KEY not set. Using random key (will change on restart).');
   console.warn('⚠️  Set MFA_ENCRYPTION_KEY in .env file for persistent encryption.');
-  return crypto.randomBytes(32);
+  ENCRYPTION_KEY = crypto.randomBytes(32);
+  return ENCRYPTION_KEY;
 };
 
-const ENCRYPTION_KEY = getEncryptionKey();
 const ALGORITHM = 'aes-256-gcm';
 
 /**
  * Verschlüsselt einen String.
  */
 export function encrypt(text: string): string {
+  const key = getEncryptionKey();
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
   
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -61,6 +71,7 @@ export function encrypt(text: string): string {
  */
 export function decrypt(encryptedText: string): string {
   try {
+    const key = getEncryptionKey();
     const parts = encryptedText.split(':');
     if (parts.length !== 3) {
       throw new Error(`Invalid encrypted format: expected 3 parts, got ${parts.length}`);
@@ -78,7 +89,7 @@ export function decrypt(encryptedText: string): string {
       throw new Error(`Invalid auth tag length: expected 16 bytes, got ${authTag.length}`);
     }
     
-    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
     
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');

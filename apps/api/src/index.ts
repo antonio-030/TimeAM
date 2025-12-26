@@ -68,10 +68,15 @@ const corsOptions: cors.CorsOptions = {
       return;
     }
 
-    if (allowedOrigins.includes(origin)) {
+    // Normalisiere die Origin (entferne Trailing-Slash, normalisiere zu lowercase für Vergleich)
+    const normalizedOrigin = origin.toLowerCase().replace(/\/$/, '');
+    const normalizedAllowed = allowedOrigins.map(o => o.toLowerCase().replace(/\/$/, ''));
+
+    if (normalizedAllowed.includes(normalizedOrigin)) {
       callback(null, true);
     } else {
-      console.warn(`CORS blocked origin: ${origin}`);
+      console.warn(`CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
+      console.warn(`Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
