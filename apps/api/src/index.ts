@@ -155,6 +155,10 @@ app.get('/api/me', requireAuth, async (req, res) => {
       const userData = userDoc.data();
       const isFreelancer = userData?.isFreelancer === true;
 
+      // WICHTIG: SUPER_ADMIN-Check früh durchführen, damit isSuper überall verfügbar ist
+      const { isSuperAdmin } = await import('./core/super-admin/index.js');
+      const isSuper = isSuperAdmin(user.uid);
+
       // Prüfen ob User ein Dev-Mitarbeiter ist (inkl. Super-Admins)
       const { isDevStaff, ensureDevStaffForSuperAdmin } = await import('./modules/support/service.js');
       
@@ -173,7 +177,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
         let mfaEnabled = false;
         let mfaRequired = false;
         
-        if (hasMfaEntitlement) {
+        // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
+        // Daher setzen wir mfaRequired immer auf false für SUPER_ADMINs
+        if (hasMfaEntitlement && !isSuper) {
           const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
           mfaEnabled = await isMfaEnabled(user.uid);
           const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
@@ -214,7 +220,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
             let mfaEnabled = false;
             let mfaRequired = false;
             
-            if (hasMfaEntitlement) {
+            // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
+            if (hasMfaEntitlement && !isSuper) {
               const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
               mfaEnabled = await isMfaEnabled(user.uid);
               const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
@@ -269,7 +276,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
         let mfaEnabled = false;
         let mfaRequired = false;
         
-        if (hasMfaEntitlement) {
+        // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
+        if (hasMfaEntitlement && !isSuper) {
           const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
           mfaEnabled = await isMfaEnabled(user.uid);
           const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
@@ -337,7 +345,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
     let mfaEnabled = false;
     let mfaRequired = false;
     
-    if (hasMfaEntitlement) {
+    // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
+    // isSuper wurde bereits oben deklariert
+    if (hasMfaEntitlement && !isSuper) {
       const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
       mfaEnabled = await isMfaEnabled(user.uid);
       const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
@@ -496,6 +506,29 @@ app.use('/api/mfa', mfaRouter);
 app.use('/api/*', (_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
+
+// =============================================================================
+// Validate MFA Encryption Key on Startup
+// =============================================================================
+
+// Validiere MFA-Key beim Server-Start
+(async () => {
+  try {
+    const { getMfaSecret } = await import('./core/mfa/service.js');
+    // Versuche, den Key zu laden (ohne tatsächlich ein Secret zu entschlüsseln)
+    // Dies validiert, dass der Key korrekt formatiert ist
+    const crypto = await import('crypto');
+    const keyHex = process.env.MFA_ENCRYPTION_KEY?.trim().replace(/\s+/g, '') || '';
+    if (keyHex.length >= 64) {
+      const keyHash = crypto.createHash('sha256').update(Buffer.from(keyHex.slice(0, 64), 'hex')).digest('hex').substring(0, 16);
+      console.log(`✅ MFA_ENCRYPTION_KEY validated on startup (hash: ${keyHash}...)`);
+    } else if (process.env.NODE_ENV !== 'production') {
+      console.warn('⚠️  MFA_ENCRYPTION_KEY not set - using random key (will change on restart)');
+    }
+  } catch (error) {
+    console.error('❌ Error validating MFA_ENCRYPTION_KEY:', error);
+  }
+})();
 
 // =============================================================================
 // Start Server

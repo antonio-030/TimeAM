@@ -21,6 +21,7 @@ import { getFreelancer, type FreelancerResponse } from '../../modules/freelancer
 import { MemberProfileModal } from '../../modules/members/MemberProfileModal';
 import { getMemberProfile, getMembers } from '../../modules/members/api';
 import { MEMBER_ROLES, getMemberRoleLabel, type Member } from '@timeam/shared';
+import { getMemberFullName, getMemberInitials } from '../../utils/memberNames';
 import { EditTenantNameModal } from './EditTenantNameModal';
 import { SettingsModal } from '../SettingsModal';
 import styles from './AppLayout.module.css';
@@ -32,11 +33,6 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  
-  // Debug: Log Navigation-Änderungen
-  useEffect(() => {
-    console.log('🔴 AppLayout - Location geändert:', location.pathname);
-  }, [location.pathname]);
   const { isSuperAdmin } = useSuperAdminCheck();
   const { user, signOut } = useAuth();
   const { tenant, role, hasEntitlement, isFreelancer, refresh: refreshTenant } = useTenant();
@@ -61,11 +57,6 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [allMembers, setAllMembers] = useState<Member[]>([]);
   const [showAutocomplete, setShowAutocomplete] = useState(false);
   const searchBoxRef = useRef<HTMLDivElement>(null);
-
-  // Debug: Log State-Änderungen
-  useEffect(() => {
-    console.log('🔴 AppLayout - showSettingsModal State geändert zu:', showSettingsModal);
-  }, [showSettingsModal]);
 
   // WICHTIG: Verhindere, dass das Modal geschlossen wird, wenn die Location sich ändert
   // Das Modal sollte nur durch explizites Schließen geschlossen werden
@@ -502,7 +493,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Handler für Auswahl eines Mitglieds aus Autocomplete
   const handleMemberSelect = useCallback((member: Member) => {
-    navigate(`/members?search=${encodeURIComponent(member.displayName || member.email)}`);
+    navigate(`/members?search=${encodeURIComponent(getMemberFullName(member))}`);
     setSearchQuery('');
     setShowAutocomplete(false);
     // Sidebar auf mobilen Geräten schließen
@@ -675,10 +666,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                         onClick={() => handleMemberSelect(member)}
                       >
                         <div className={styles.autocompleteItemName}>
-                          {member.displayName || 
-                           (member.firstName && member.lastName
-                             ? `${member.firstName} ${member.lastName}`.trim()
-                             : member.email.split('@')[0])}
+                          {getMemberFullName(member)}
                         </div>
                         <div className={styles.autocompleteItemEmail}>{member.email}</div>
                       </button>
@@ -830,7 +818,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                         onClick={handleSettingsClick}
                         type="button"
                         onMouseDown={(e) => {
-                          console.log('🟡 Einstellungen-Button onMouseDown');
                           e.preventDefault();
                           e.stopPropagation();
                           if (e.nativeEvent) {
@@ -840,7 +827,6 @@ export function AppLayout({ children }: AppLayoutProps) {
                           }
                         }}
                         onMouseUp={(e) => {
-                          console.log('🟢 Einstellungen-Button onMouseUp');
                           e.preventDefault();
                           e.stopPropagation();
                           if (e.nativeEvent) {
@@ -925,7 +911,6 @@ export function AppLayout({ children }: AppLayoutProps) {
       <SettingsModal
         open={showSettingsModal}
         onClose={() => {
-          console.log('🔴 SettingsModal onClose aufgerufen');
           setShowSettingsModal(false);
         }}
       />

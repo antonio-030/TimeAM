@@ -10,6 +10,7 @@ import type { AuthenticatedRequest } from '../auth/index.js';
 import { isMfaEnabled, isMfaSetupInProgress } from './service.js';
 import { getTenantForUser } from '../tenancy/index.js';
 import { ENTITLEMENT_KEYS } from '../entitlements/types.js';
+import { isSuperAdmin } from '../super-admin/index.js';
 
 /**
  * Pfade, die auch ohne MFA-Verifizierung zugänglich sein sollen.
@@ -55,6 +56,14 @@ export async function requireMfaVerification(
   }
 
   try {
+    // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang für Entwickler)
+    // Dies ist notwendig, falls MFA-Secrets korrupt sind oder der Encryption-Key sich geändert hat
+    if (isSuperAdmin(user.uid)) {
+      console.log(`⚠️ SUPER_ADMIN ${user.uid} umgeht MFA-Verifizierung (Notfall-Zugang)`);
+      next();
+      return;
+    }
+
     // Tenant-Daten laden, um Entitlements zu prüfen
     const tenantData = await getTenantForUser(user.uid);
     

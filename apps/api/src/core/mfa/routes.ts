@@ -321,7 +321,22 @@ mfaRouter.post('/verify', requireAuth, async (req: Request, res: Response) => {
       
       // WICHTIG: Bei korrupten Secrets wird MFA NICHT automatisch zurückgesetzt!
       // Dies wäre ein Sicherheitsrisiko. Stattdessen wird der Login blockiert.
+      // AUSNAHME: Für SUPER_ADMINs wird MFA automatisch zurückgesetzt (siehe getMfaSecret)
       if (errorMessage.includes('corrupted')) {
+        // Prüfen, ob User SUPER_ADMIN ist (getMfaSecret sollte bereits MFA zurückgesetzt haben)
+        const { isSuperAdmin } = await import('../super-admin/index.js');
+        if (isSuperAdmin(user.uid)) {
+          // MFA wurde bereits zurückgesetzt, als ob Verifizierung erfolgreich war
+          // Setze mfaSetupInProgress auf true, damit User eingeloggt bleibt
+          const db = (await import('../firebase/index.js')).getAdminFirestore();
+          const now = Math.floor(Date.now() / 1000);
+          await db.collection('users').doc(user.uid).update({
+            mfaSetupInProgress: true,
+            mfaVerifiedAt: now,
+          });
+          return res.json({ verified: true });
+        }
+        
         return res.status(403).json({ 
           error: 'MFA secret is corrupted. Please contact support to reset MFA.',
           code: 'MFA_SECRET_CORRUPTED',
@@ -337,6 +352,19 @@ mfaRouter.post('/verify', requireAuth, async (req: Request, res: Response) => {
     
     if (!secret) {
       // Secret nicht gefunden - MFA ist nicht aktiviert oder wurde nie eingerichtet
+      // Oder: MFA wurde für SUPER_ADMIN zurückgesetzt (korruptes Secret)
+      const { isSuperAdmin } = await import('../super-admin/index.js');
+      if (isSuperAdmin(user.uid)) {
+        // MFA wurde zurückgesetzt, als ob Verifizierung erfolgreich war
+        const db = (await import('../firebase/index.js')).getAdminFirestore();
+        const now = Math.floor(Date.now() / 1000);
+        await db.collection('users').doc(user.uid).update({
+          mfaSetupInProgress: true,
+          mfaVerifiedAt: now,
+        });
+        return res.json({ verified: true });
+      }
+      
       return res.status(400).json({ 
         error: 'MFA secret not found. Please set up MFA first.',
         code: 'MFA_SECRET_NOT_FOUND',
@@ -411,11 +439,22 @@ mfaRouter.post('/verify', requireAuth, async (req: Request, res: Response) => {
  * - Admins und Manager können ihr eigenes MFA NICHT selbst deaktivieren (Sicherheit)
  * - Freelancer können ihr eigenes MFA NICHT selbst deaktivieren (Sicherheit)
  * - MFA muss bereits verifiziert sein (User muss eingeloggt sein)
+ * - AUSNAHME: SUPER_ADMINs können ihr eigenes MFA immer deaktivieren (Notfall-Zugang)
  */
 mfaRouter.post('/disable', ...mfaGuard, async (req: Request, res: Response) => {
   const { user } = req as AuthenticatedRequest;
 
   try {
+    // AUSNAHME: SUPER_ADMINs können MFA immer deaktivieren (Notfall-Zugang)
+    const { isSuperAdmin } = await import('../super-admin/index.js');
+    const isSuper = isSuperAdmin(user.uid);
+    
+    if (isSuper) {
+      console.log(`⚠️ SUPER_ADMIN ${user.uid}: Bypassing MFA disable restrictions`);
+      await disableMfa(user.uid);
+      return res.json({ success: true, message: 'MFA disabled (SUPER_ADMIN bypass)' });
+    }
+
     // Prüfen ob MFA aktiviert ist
     const enabled = await isMfaEnabled(user.uid);
     if (!enabled) {
@@ -489,6 +528,36 @@ mfaRouter.post('/reset/:memberId', requireAuth, async (req: Request, res: Respon
   const { memberId } = req.params;
 
   try {
+    // AUSNAHME: SUPER_ADMINs können MFA für jeden User zurücksetzen (Notfall-Zugang)
+    const { isSuperAdmin } = await import('../super-admin/index.js');
+    const isSuper = isSuperAdmin(user.uid);
+    
+    if (isSuper) {
+      console.log(`⚠️ SUPER_ADMIN ${user.uid}: Resetting MFA for ${memberId} (bypass)`);
+      
+      // Prüfen, ob Ziel-User ein Freelancer ist
+      const db = (await import('../firebase/index.js')).getAdminFirestore();
+      const targetUserDoc = await db.collection('users').doc(memberId).get();
+      const targetUserData = targetUserDoc.data();
+      const isTargetFreelancer = targetUserData?.isFreelancer === true;
+
+      // Kann nicht für Freelancer verwendet werden
+      if (isTargetFreelancer) {
+        return res.status(403).json({ 
+          error: 'Cannot reset MFA for freelancers',
+          code: 'CANNOT_RESET_FREELANCER_MFA'
+        });
+      }
+
+      // MFA zurücksetzen
+      await disableMfa(memberId);
+
+      return res.json({ 
+        success: true,
+        message: 'MFA has been reset (SUPER_ADMIN bypass)'
+      });
+    }
+
     // Prüfen, ob User Admin oder Manager ist
     const { getTenantForUser } = await import('../tenancy/index.js');
     const tenantData = await getTenantForUser(user.uid);

@@ -26,11 +26,31 @@ const getEncryptionKey = (): Buffer => {
 
   if (process.env.MFA_ENCRYPTION_KEY) {
     // Environment Variable: Erwartet 64 hex-Zeichen (32 Bytes)
-    const keyHex = process.env.MFA_ENCRYPTION_KEY.trim();
+    // WICHTIG: trim() entfernt Whitespace, aber prüfe auch auf Zeilenumbrüche
+    let keyHex = process.env.MFA_ENCRYPTION_KEY.trim();
+    // Entferne alle Zeilenumbrüche und zusätzliche Whitespace
+    keyHex = keyHex.replace(/\s+/g, '');
+    
     if (keyHex.length < 64) {
-      throw new Error('MFA_ENCRYPTION_KEY must be at least 64 hex characters (32 bytes)');
+      console.error(`❌ MFA_ENCRYPTION_KEY is too short: ${keyHex.length} characters (expected 64)`);
+      console.error(`Key (first 20 chars): ${keyHex.substring(0, 20)}...`);
+      throw new Error(`MFA_ENCRYPTION_KEY must be at least 64 hex characters (32 bytes), got ${keyHex.length}`);
     }
-    ENCRYPTION_KEY = Buffer.from(keyHex.slice(0, 64), 'hex');
+    
+    // Validiere, dass es nur hex-Zeichen sind
+    if (!/^[0-9a-fA-F]+$/.test(keyHex)) {
+      console.error(`❌ MFA_ENCRYPTION_KEY contains invalid characters (must be hex only)`);
+      throw new Error('MFA_ENCRYPTION_KEY must contain only hexadecimal characters (0-9, a-f, A-F)');
+    }
+    
+    // Verwende genau 64 Zeichen (32 Bytes)
+    const keyHex64 = keyHex.slice(0, 64);
+    ENCRYPTION_KEY = Buffer.from(keyHex64, 'hex');
+    
+    // Logge Key-Hash (nicht den Key selbst!) für Debugging
+    const keyHash = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 16);
+    console.log(`✅ MFA_ENCRYPTION_KEY loaded successfully (hash: ${keyHash}...)`);
+    
     return ENCRYPTION_KEY;
   }
   // WICHTIG: In Production MUSS MFA_ENCRYPTION_KEY gesetzt sein!
@@ -44,6 +64,8 @@ const getEncryptionKey = (): Buffer => {
   console.warn('⚠️  WARNING: MFA_ENCRYPTION_KEY not set. Using random key (will change on restart).');
   console.warn('⚠️  Set MFA_ENCRYPTION_KEY in .env file for persistent encryption.');
   ENCRYPTION_KEY = crypto.randomBytes(32);
+  const keyHash = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 16);
+  console.warn(`⚠️  Generated random key (hash: ${keyHash}...) - THIS WILL CHANGE ON RESTART!`);
   return ENCRYPTION_KEY;
 };
 
@@ -210,6 +232,9 @@ async function repairCorruptedMfaSecret(uid: string): Promise<void> {
  * Dies wäre ein Sicherheitsrisiko, da ein Angreifer mit Passwort+Email
  * sich anmelden könnte, wenn MFA automatisch deaktiviert wird.
  * 
+ * AUSNAHME: Für SUPER_ADMINs wird MFA automatisch zurückgesetzt, wenn das Secret korrupt ist.
+ * Dies ist notwendig, damit Entwickler/Plattform-Betreiber immer Zugang haben.
+ * 
  * Stattdessen wird ein Fehler geworfen, der den Login blockiert.
  * Der User muss MFA manuell über einen Recovery-Prozess zurücksetzen.
  */
@@ -229,6 +254,15 @@ export async function getMfaSecret(uid: string): Promise<string | null> {
   if (parts.length !== 3) {
     console.error(`Invalid MFA secret format for user ${uid}: expected 3 parts, got ${parts.length}`);
     console.error('Secret (first 100 chars):', secretStr.substring(0, 100));
+    
+    // AUSNAHME: Für SUPER_ADMINs MFA automatisch zurücksetzen
+    const { isSuperAdmin } = await import('../super-admin/index.js');
+    if (isSuperAdmin(uid)) {
+      console.warn(`⚠️ SUPER_ADMIN ${uid}: MFA secret is corrupted. Automatically resetting MFA.`);
+      await repairCorruptedMfaSecret(uid);
+      return null; // MFA wurde zurückgesetzt, kein Secret mehr vorhanden
+    }
+    
     // Secret ist korrupt - NICHT automatisch zurücksetzen (Sicherheitsrisiko!)
     // Stattdessen Fehler werfen, der den Login blockiert
     throw new Error(`MFA secret is corrupted. Please contact support to reset MFA.`);
@@ -237,8 +271,23 @@ export async function getMfaSecret(uid: string): Promise<string | null> {
   try {
     return decrypt(secretStr);
   } catch (error) {
-    console.error(`Error decrypting MFA secret for user ${uid}:`, error);
+    console.error(`❌ Error decrypting MFA secret for user ${uid}:`, error);
     console.error('Secret format (first 100 chars):', secretStr.substring(0, 100));
+    
+    // Debug: Prüfe, ob der Key sich geändert hat
+    const currentKey = getEncryptionKey();
+    const currentKeyHash = crypto.createHash('sha256').update(currentKey).digest('hex').substring(0, 16);
+    console.error(`Current encryption key hash: ${currentKeyHash}...`);
+    console.error(`Error details:`, error instanceof Error ? error.message : String(error));
+    
+    // AUSNAHME: Für SUPER_ADMINs MFA automatisch zurücksetzen
+    const { isSuperAdmin } = await import('../super-admin/index.js');
+    if (isSuperAdmin(uid)) {
+      console.warn(`⚠️ SUPER_ADMIN ${uid}: MFA secret decryption failed. Automatically resetting MFA.`);
+      await repairCorruptedMfaSecret(uid);
+      return null; // MFA wurde zurückgesetzt, kein Secret mehr vorhanden
+    }
+    
     // Secret ist korrupt - NICHT automatisch zurücksetzen (Sicherheitsrisiko!)
     // Stattdessen Fehler werfen, der den Login blockiert
     throw new Error(`MFA secret is corrupted. Please contact support to reset MFA.`);

@@ -15,6 +15,7 @@ import { AppLayout } from './components/layout';
 import { DashboardPage } from './modules/dashboard';
 import { CookieBanner } from './components/CookieBanner';
 import { PrivacyPage, ImprintPage } from './components/LegalPage';
+import { NotFoundPage } from './components/NotFoundPage';
 import { TimeTrackingPage } from './modules/time-tracking';
 import { PoolPage, AdminShiftsPage, MyShiftsPage } from './modules/shift-pool';
 import { MembersPage } from './modules/members';
@@ -246,7 +247,7 @@ function AppContent() {
               />
             } 
           />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
       </>
@@ -487,7 +488,7 @@ function AppContent() {
 
         {/* Default Route - Redirect zu passender Startseite */}
         <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
-        <Route path="*" element={<Navigate to={getDefaultRoute()} replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </AppLayout>
   );

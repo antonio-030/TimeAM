@@ -118,19 +118,9 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     }
   };
 
-  // Debug: Log wenn Modal-Status sich ändert
-  useEffect(() => {
-    console.log('🟣 SettingsModal - open State:', open);
-    console.log('🟣 SettingsModal - mfaModuleEnabled:', mfaModuleEnabled);
-    console.log('🟣 SettingsModal - mfaStatus:', mfaStatus);
-  }, [open, mfaModuleEnabled, mfaStatus]);
-
   if (!open) {
-    console.log('🟣 SettingsModal - nicht gerendert (open=false)');
     return null;
   }
-
-  console.log('🟣 SettingsModal - wird gerendert');
 
   return (
     <>
