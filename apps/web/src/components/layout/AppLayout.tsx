@@ -19,7 +19,7 @@ import { useSidebarCalendar } from './useSidebarCalendar';
 import { FreelancerProfileModal } from '../../modules/freelancer/FreelancerProfileModal';
 import { getFreelancer, type FreelancerResponse } from '../../modules/freelancer/api';
 import { MemberProfileModal } from '../../modules/members/MemberProfileModal';
-import { getMemberProfile } from '../../modules/members/api';
+import { getMemberProfile, getMembers } from '../../modules/members/api';
 import { MEMBER_ROLES, getMemberRoleLabel, type Member } from '@timeam/shared';
 import { EditTenantNameModal } from './EditTenantNameModal';
 import { SettingsModal } from '../SettingsModal';
@@ -56,6 +56,11 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [showEditTenantNameModal, setShowEditTenantNameModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  
+  // Autocomplete für Mitarbeiter-Suche
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   // Debug: Log State-Änderungen
   useEffect(() => {
@@ -73,6 +78,42 @@ export function AppLayout({ children }: AppLayoutProps) {
   const isAdminOrManager = useMemo(() => {
     return role === MEMBER_ROLES.ADMIN || role === MEMBER_ROLES.MANAGER;
   }, [role]);
+
+  // Mitglieder für Autocomplete laden (nur für Admin/Manager)
+  useEffect(() => {
+    if (!isFreelancer && isAdminOrManager) {
+      getMembers()
+        .then((response) => {
+          setAllMembers(response.members);
+        })
+        .catch((err) => {
+          console.error('Fehler beim Laden der Mitglieder für Suche:', err);
+        });
+    }
+  }, [isFreelancer, isAdminOrManager]);
+
+  // Gefilterte Mitglieder für Autocomplete
+  const filteredMembers = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    
+    const query = searchQuery.toLowerCase();
+    return allMembers
+      .filter((member) => {
+        const name = member.displayName?.toLowerCase() || '';
+        const email = member.email.toLowerCase();
+        const firstName = member.firstName?.toLowerCase() || '';
+        const lastName = member.lastName?.toLowerCase() || '';
+        
+        return (
+          name.includes(query) ||
+          email.includes(query) ||
+          firstName.includes(query) ||
+          lastName.includes(query) ||
+          `${firstName} ${lastName}`.trim().includes(query)
+        );
+      })
+      .slice(0, 5); // Maximal 5 Vorschläge
+  }, [searchQuery, allMembers]);
 
   // Freelancer-Profil laden (für User-Menü)
   useEffect(() => {
@@ -431,6 +472,59 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: 'dev-dashboard', label: 'Developer', icon: '🔐', enabled: isSuperAdmin },
   ];
 
+  // Handler für Mitarbeiter-Suche
+  const handleMemberSearch = useCallback((e: React.FormEvent<HTMLFormElement> | React.KeyboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      // Navigiere zur Members-Seite mit Suchbegriff als Query-Parameter
+      navigate(`/members?search=${encodeURIComponent(searchQuery.trim())}`);
+      setSearchQuery(''); // Suche zurücksetzen
+      setShowAutocomplete(false);
+    } else {
+      // Wenn keine Suche, einfach zur Members-Seite navigieren
+      navigate('/members');
+      setShowAutocomplete(false);
+    }
+    // Sidebar auf mobilen Geräten schließen
+    if (window.innerWidth <= 768) {
+      setIsMenuOpen(false);
+    }
+  }, [searchQuery, navigate]);
+
+  // Handler für Enter-Taste in der Suche
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleMemberSearch(e);
+    } else if (e.key === 'Escape') {
+      setShowAutocomplete(false);
+    }
+  }, [handleMemberSearch]);
+
+  // Handler für Auswahl eines Mitglieds aus Autocomplete
+  const handleMemberSelect = useCallback((member: Member) => {
+    navigate(`/members?search=${encodeURIComponent(member.displayName || member.email)}`);
+    setSearchQuery('');
+    setShowAutocomplete(false);
+    // Sidebar auf mobilen Geräten schließen
+    if (window.innerWidth <= 768) {
+      setIsMenuOpen(false);
+    }
+  }, [navigate]);
+
+  // Klick außerhalb schließt Autocomplete
+  useEffect(() => {
+    if (!showAutocomplete) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setShowAutocomplete(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showAutocomplete]);
+
   // Sinnvolle Quick-Filter für alle Nutzer
   const quickFilters = useMemo(() => {
     if (isFreelancer) {
@@ -491,10 +585,17 @@ export function AppLayout({ children }: AppLayoutProps) {
         page: 'time-tracking',
         enabled: hasTimeTrackingAccess,
       },
+      { 
+        id: 'members', 
+        label: 'Mitarbeiter', 
+        icon: '👥',
+        page: 'members',
+        enabled: isAdminOrManager,
+      },
     ];
     
     return filters.filter(f => f.enabled);
-  }, [isFreelancer, hasShiftPoolAccess, hasTimeTrackingAccess]);
+  }, [isFreelancer, hasShiftPoolAccess, hasTimeTrackingAccess, isAdminOrManager]);
 
   return (
     <div className={styles.layout}>
@@ -544,15 +645,46 @@ export function AppLayout({ children }: AppLayoutProps) {
           {!isFreelancer && isAdminOrManager && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>MITARBEITER</div>
-              <div className={styles.searchBox}>
-                <span className={styles.searchIcon}>🔍</span>
-                <input
-                  type="text"
-                  placeholder="Mitarbeiter suchen..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={styles.searchInput}
-                />
+              <div className={styles.searchContainer} ref={searchBoxRef}>
+                <form onSubmit={handleMemberSearch} className={styles.searchBox}>
+                  <span className={styles.searchIcon}>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Mitarbeiter suchen..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setShowAutocomplete(e.target.value.trim().length > 0);
+                    }}
+                    onKeyDown={handleSearchKeyDown}
+                    onFocus={() => {
+                      if (searchQuery.trim().length > 0) {
+                        setShowAutocomplete(true);
+                      }
+                    }}
+                    className={styles.searchInput}
+                  />
+                </form>
+                {showAutocomplete && filteredMembers.length > 0 && (
+                  <div className={styles.autocompleteDropdown}>
+                    {filteredMembers.map((member) => (
+                      <button
+                        key={member.id}
+                        type="button"
+                        className={styles.autocompleteItem}
+                        onClick={() => handleMemberSelect(member)}
+                      >
+                        <div className={styles.autocompleteItemName}>
+                          {member.displayName || 
+                           (member.firstName && member.lastName
+                             ? `${member.firstName} ${member.lastName}`.trim()
+                             : member.email.split('@')[0])}
+                        </div>
+                        <div className={styles.autocompleteItemEmail}>{member.email}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

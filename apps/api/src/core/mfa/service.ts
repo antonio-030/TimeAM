@@ -205,7 +205,13 @@ async function repairCorruptedMfaSecret(uid: string): Promise<void> {
 
 /**
  * Holt MFA Secret für einen User.
- * Repariert automatisch korrupte Secrets.
+ * 
+ * WICHTIG: Bei korrupten Secrets wird MFA NICHT automatisch zurückgesetzt!
+ * Dies wäre ein Sicherheitsrisiko, da ein Angreifer mit Passwort+Email
+ * sich anmelden könnte, wenn MFA automatisch deaktiviert wird.
+ * 
+ * Stattdessen wird ein Fehler geworfen, der den Login blockiert.
+ * Der User muss MFA manuell über einen Recovery-Prozess zurücksetzen.
  */
 export async function getMfaSecret(uid: string): Promise<string | null> {
   const db = getAdminFirestore();
@@ -223,9 +229,9 @@ export async function getMfaSecret(uid: string): Promise<string | null> {
   if (parts.length !== 3) {
     console.error(`Invalid MFA secret format for user ${uid}: expected 3 parts, got ${parts.length}`);
     console.error('Secret (first 100 chars):', secretStr.substring(0, 100));
-    // Secret ist korrupt - MFA zurücksetzen
-    await repairCorruptedMfaSecret(uid);
-    return null;
+    // Secret ist korrupt - NICHT automatisch zurücksetzen (Sicherheitsrisiko!)
+    // Stattdessen Fehler werfen, der den Login blockiert
+    throw new Error(`MFA secret is corrupted. Please contact support to reset MFA.`);
   }
   
   try {
@@ -233,9 +239,9 @@ export async function getMfaSecret(uid: string): Promise<string | null> {
   } catch (error) {
     console.error(`Error decrypting MFA secret for user ${uid}:`, error);
     console.error('Secret format (first 100 chars):', secretStr.substring(0, 100));
-    // Secret ist korrupt - MFA zurücksetzen
-    await repairCorruptedMfaSecret(uid);
-    throw new Error(`Failed to decrypt MFA secret: Secret is corrupted. MFA has been reset. Please set up MFA again.`);
+    // Secret ist korrupt - NICHT automatisch zurücksetzen (Sicherheitsrisiko!)
+    // Stattdessen Fehler werfen, der den Login blockiert
+    throw new Error(`MFA secret is corrupted. Please contact support to reset MFA.`);
   }
 }
 

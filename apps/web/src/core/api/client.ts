@@ -80,14 +80,16 @@ export async function apiRequest<T>(
     }
     
     // Spezielle Behandlung für korrupte MFA-Secrets
-    if (response.status === 400 && (data?.code === 'MFA_SECRET_CORRUPTED' || data?.code === 'MFA_SECRET_NOT_FOUND')) {
+    // WICHTIG: Bei korrupten Secrets wird der Login blockiert (403), nicht automatisch zurückgesetzt!
+    if ((response.status === 403 || response.status === 400) && (data?.code === 'MFA_SECRET_CORRUPTED' || data?.code === 'MFA_SECRET_NOT_FOUND')) {
       const error = new ApiError(
-        data?.error || 'MFA secret was corrupted and has been reset. Please set up MFA again.',
+        data?.error || 'MFA secret is corrupted. Please contact support to reset MFA.',
         response.status,
         data?.code
       );
       // Zusätzliche Information für Frontend
-      (error as any).requiresNewSetup = data?.requiresNewSetup || true;
+      (error as any).requiresSupport = data?.requiresSupport || false;
+      (error as any).requiresNewSetup = data?.requiresNewSetup || false;
       throw error;
     }
     

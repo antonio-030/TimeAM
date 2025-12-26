@@ -62,6 +62,82 @@ mfaRouter.get('/status', ...mfaGuard, async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/mfa/status/:memberId
+ *
+ * Gibt den MFA-Status eines anderen Mitarbeiters zurück.
+ * 
+ * WICHTIG: 
+ * - Nur Admins und Manager können den MFA-Status anderer Mitarbeiter abrufen
+ * - Kann NICHT für Freelancer verwendet werden
+ */
+mfaRouter.get('/status/:memberId', requireAuth, async (req: Request, res: Response) => {
+  const { user } = req as AuthenticatedRequest;
+  const { memberId } = req.params;
+
+  try {
+    // Prüfen, ob User Admin oder Manager ist
+    const { getTenantForUser } = await import('../tenancy/index.js');
+    const tenantData = await getTenantForUser(user.uid);
+    
+    if (!tenantData) {
+      return res.status(403).json({ 
+        error: 'No tenant membership',
+        code: 'NO_TENANT'
+      });
+    }
+
+    const role = tenantData.member.role;
+    
+    // Nur Admins und Manager können MFA-Status abrufen
+    if (role !== 'admin' && role !== 'manager') {
+      return res.status(403).json({ 
+        error: 'Only admins and managers can view MFA status of other members',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // Prüfen, ob Ziel-User im gleichen Tenant ist
+    const targetTenantData = await getTenantForUser(memberId);
+    
+    if (!targetTenantData || targetTenantData.tenant.id !== tenantData.tenant.id) {
+      return res.status(404).json({ 
+        error: 'Member not found in your tenant',
+        code: 'MEMBER_NOT_FOUND'
+      });
+    }
+
+    // Prüfen, ob Ziel-User ein Freelancer ist
+    const db = (await import('../firebase/index.js')).getAdminFirestore();
+    const targetUserDoc = await db.collection('users').doc(memberId).get();
+    const targetUserData = targetUserDoc.data();
+    const isTargetFreelancer = targetUserData?.isFreelancer === true;
+
+    // Kann nicht für Freelancer verwendet werden
+    if (isTargetFreelancer) {
+      return res.status(403).json({ 
+        error: 'Cannot view MFA status for freelancers',
+        code: 'CANNOT_VIEW_FREELANCER_MFA'
+      });
+    }
+
+    // MFA-Status abrufen
+    const enabled = await isMfaEnabled(memberId);
+    const setupInProgress = await isMfaSetupInProgress(memberId);
+
+    const response: MfaStatusResponse = {
+      enabled,
+      setupInProgress: setupInProgress || undefined,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error in GET /api/mfa/status/:memberId:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+/**
  * POST /api/mfa/setup
  *
  * Startet MFA-Setup und gibt QR-Code zurück.
@@ -243,12 +319,13 @@ mfaRouter.post('/verify', requireAuth, async (req: Request, res: Response) => {
       console.error('Error getting MFA secret:', secretError);
       const errorMessage = secretError instanceof Error ? secretError.message : 'Unknown error';
       
-      // Wenn Secret korrupt war und zurückgesetzt wurde, informiere den User
-      if (errorMessage.includes('corrupted') || errorMessage.includes('reset')) {
-        return res.status(400).json({ 
-          error: 'MFA secret was corrupted and has been reset. Please set up MFA again.',
+      // WICHTIG: Bei korrupten Secrets wird MFA NICHT automatisch zurückgesetzt!
+      // Dies wäre ein Sicherheitsrisiko. Stattdessen wird der Login blockiert.
+      if (errorMessage.includes('corrupted')) {
+        return res.status(403).json({ 
+          error: 'MFA secret is corrupted. Please contact support to reset MFA.',
           code: 'MFA_SECRET_CORRUPTED',
-          requiresNewSetup: true
+          requiresSupport: true
         });
       }
       
@@ -259,9 +336,9 @@ mfaRouter.post('/verify', requireAuth, async (req: Request, res: Response) => {
     }
     
     if (!secret) {
-      // Secret wurde zurückgesetzt (war korrupt)
+      // Secret nicht gefunden - MFA ist nicht aktiviert oder wurde nie eingerichtet
       return res.status(400).json({ 
-        error: 'MFA secret not found. Please set up MFA again.',
+        error: 'MFA secret not found. Please set up MFA first.',
         code: 'MFA_SECRET_NOT_FOUND',
         requiresNewSetup: true
       });
@@ -328,14 +405,15 @@ mfaRouter.post('/verify', requireAuth, async (req: Request, res: Response) => {
  * POST /api/mfa/disable
  *
  * Deaktiviert MFA für den aktuellen User.
+ * 
+ * WICHTIG: 
+ * - Nur normale Mitarbeiter (employee) können ihr eigenes MFA deaktivieren
+ * - Admins und Manager können ihr eigenes MFA NICHT selbst deaktivieren (Sicherheit)
+ * - Freelancer können ihr eigenes MFA NICHT selbst deaktivieren (Sicherheit)
+ * - MFA muss bereits verifiziert sein (User muss eingeloggt sein)
  */
 mfaRouter.post('/disable', ...mfaGuard, async (req: Request, res: Response) => {
   const { user } = req as AuthenticatedRequest;
-  const { password } = req.body as MfaDisableRequest;
-
-  if (!password || typeof password !== 'string') {
-    return res.status(400).json({ error: 'Password is required' });
-  }
 
   try {
     // Prüfen ob MFA aktiviert ist
@@ -344,27 +422,137 @@ mfaRouter.post('/disable', ...mfaGuard, async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'MFA is not enabled' });
     }
 
-    // Passwort verifizieren (Firebase Admin SDK)
-    const auth = getAdminAuth();
-    try {
-      // User-Daten holen
-      const firebaseUser = await auth.getUser(user.uid);
-      
-      // Passwort kann nicht direkt verifiziert werden mit Admin SDK
-      // Alternative: User muss sich neu einloggen oder wir verwenden einen anderen Mechanismus
-      // Für jetzt: Nur prüfen ob User eingeloggt ist (bereits durch requireAuth)
-      
-      // MFA deaktivieren
-      await disableMfa(user.uid);
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error('Error verifying password:', error);
-      return res.status(401).json({ error: 'Invalid password' });
+    // WICHTIG: Prüfen, ob MFA bereits verifiziert wurde
+    // Wenn nicht, kann der User MFA nicht deaktivieren
+    const setupInProgress = await isMfaSetupInProgress(user.uid);
+    if (!setupInProgress) {
+      return res.status(403).json({ 
+        error: 'MFA verification required before disabling MFA',
+        code: 'MFA_VERIFICATION_REQUIRED'
+      });
     }
+
+    // Prüfen, ob User ein Freelancer ist
+    const db = (await import('../firebase/index.js')).getAdminFirestore();
+    const userDoc = await db.collection('users').doc(user.uid).get();
+    const userData = userDoc.data();
+    const isFreelancer = userData?.isFreelancer === true;
+
+    // Freelancer können ihr eigenes MFA NICHT selbst deaktivieren
+    if (isFreelancer) {
+      return res.status(403).json({ 
+        error: 'Freelancers cannot disable their own MFA. Please contact support.',
+        code: 'MFA_DISABLE_NOT_ALLOWED'
+      });
+    }
+
+    // Prüfen, ob User Admin oder Manager ist
+    const { getTenantForUser } = await import('../tenancy/index.js');
+    const tenantData = await getTenantForUser(user.uid);
+    
+    if (tenantData) {
+      const role = tenantData.member.role;
+      
+      // Admins und Manager können ihr eigenes MFA NICHT selbst deaktivieren
+      if (role === 'admin' || role === 'manager') {
+        return res.status(403).json({ 
+          error: 'Admins and managers cannot disable their own MFA. Please contact support or use the admin reset function.',
+          code: 'MFA_DISABLE_NOT_ALLOWED'
+        });
+      }
+    }
+
+    // Nur normale Mitarbeiter (employee) können ihr eigenes MFA deaktivieren
+    // MFA deaktivieren
+    await disableMfa(user.uid);
+
+    res.json({ success: true });
   } catch (error) {
     console.error('Error in POST /api/mfa/disable:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ error: errorMessage });
+  }
+});
+
+/**
+ * POST /api/mfa/reset/:memberId
+ *
+ * Setzt MFA für einen anderen Mitarbeiter zurück.
+ * 
+ * WICHTIG: 
+ * - Nur Admins und Manager können MFA für andere Mitarbeiter zurücksetzen
+ * - Kann NICHT für sich selbst verwendet werden (Sicherheit)
+ * - Kann NICHT für Freelancer verwendet werden
+ */
+mfaRouter.post('/reset/:memberId', requireAuth, async (req: Request, res: Response) => {
+  const { user } = req as AuthenticatedRequest;
+  const { memberId } = req.params;
+
+  try {
+    // Prüfen, ob User Admin oder Manager ist
+    const { getTenantForUser } = await import('../tenancy/index.js');
+    const tenantData = await getTenantForUser(user.uid);
+    
+    if (!tenantData) {
+      return res.status(403).json({ 
+        error: 'No tenant membership',
+        code: 'NO_TENANT'
+      });
+    }
+
+    const role = tenantData.member.role;
+    
+    // Nur Admins und Manager können MFA zurücksetzen
+    if (role !== 'admin' && role !== 'manager') {
+      return res.status(403).json({ 
+        error: 'Only admins and managers can reset MFA for other members',
+        code: 'INSUFFICIENT_PERMISSIONS'
+      });
+    }
+
+    // Kann nicht für sich selbst verwendet werden
+    if (user.uid === memberId) {
+      return res.status(403).json({ 
+        error: 'Cannot reset your own MFA. Please contact support.',
+        code: 'CANNOT_RESET_OWN_MFA'
+      });
+    }
+
+    // Prüfen, ob Ziel-User im gleichen Tenant ist
+    const targetTenantData = await getTenantForUser(memberId);
+    
+    if (!targetTenantData || targetTenantData.tenant.id !== tenantData.tenant.id) {
+      return res.status(404).json({ 
+        error: 'Member not found in your tenant',
+        code: 'MEMBER_NOT_FOUND'
+      });
+    }
+
+    // Prüfen, ob Ziel-User ein Freelancer ist
+    const db = (await import('../firebase/index.js')).getAdminFirestore();
+    const targetUserDoc = await db.collection('users').doc(memberId).get();
+    const targetUserData = targetUserDoc.data();
+    const isTargetFreelancer = targetUserData?.isFreelancer === true;
+
+    // Kann nicht für Freelancer verwendet werden
+    if (isTargetFreelancer) {
+      return res.status(403).json({ 
+        error: 'Cannot reset MFA for freelancers',
+        code: 'CANNOT_RESET_FREELANCER_MFA'
+      });
+    }
+
+    // MFA zurücksetzen
+    await disableMfa(memberId);
+
+    res.json({ 
+      success: true,
+      message: 'MFA has been reset for the member'
+    });
+  } catch (error) {
+    console.error('Error in POST /api/mfa/reset/:memberId:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ error: errorMessage });
   }
 });
 

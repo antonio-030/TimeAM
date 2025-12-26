@@ -7,7 +7,8 @@
 
 import { useState, useMemo } from 'react';
 import { usePool, useShiftDetail } from './hooks';
-import { APPLICATION_STATUS, type PoolShift, type ApplicationStatus } from '@timeam/shared';
+import { APPLICATION_STATUS, MEMBER_ROLES, type PoolShift, type ApplicationStatus } from '@timeam/shared';
+import { useTenant } from '../../core/tenant';
 import { openAddressInMaps } from './mapsUtils';
 import styles from './ShiftPool.module.css';
 
@@ -115,9 +116,10 @@ type AvailabilityFilter = 'all' | 'available' | 'applied';
 interface PoolShiftCardProps {
   shift: PoolShift;
   onClick: () => void;
+  showPayRate?: boolean;
 }
 
-function PoolShiftCard({ shift, onClick }: PoolShiftCardProps) {
+function PoolShiftCard({ shift, onClick, showPayRate = false }: PoolShiftCardProps) {
   const hasSlots = shift.freeSlots > 0;
   const relativeDate = getRelativeDate(shift.startsAt);
   const duration = getDuration(shift.startsAt, shift.endsAt);
@@ -147,7 +149,7 @@ function PoolShiftCard({ shift, onClick }: PoolShiftCardProps) {
       {/* Header */}
       <div className={styles.poolCardHeader}>
         <h3 className={styles.poolCardTitle}>{shift.title}</h3>
-        {shift.payRate && (
+        {showPayRate && shift.payRate && (
           <span className={styles.poolCardPay}>
             {shift.payRate.toFixed(0)}€<small>/h</small>
           </span>
@@ -218,10 +220,14 @@ interface ShiftDetailModalProps {
 
 function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
   const { shift, loading, error, apply, withdraw } = useShiftDetail(shiftId);
+  const { role, isFreelancer } = useTenant();
   const [note, setNote] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+
+  // Stundenlohn nur für Freelancer, Admins und Manager anzeigen
+  const showPayRate = isFreelancer || role === MEMBER_ROLES.ADMIN || role === MEMBER_ROLES.MANAGER;
 
   const handleApply = async () => {
     setIsApplying(true);
@@ -329,7 +335,7 @@ function ShiftDetailModal({ shiftId, onClose }: ShiftDetailModalProps) {
                   </div>
                 </div>
               </div>
-              {shift.payRate && (
+              {showPayRate && shift.payRate && (
                 <div className={styles.quickInfoCard}>
                   <span className={styles.quickInfoIcon}>💰</span>
                   <div>
@@ -447,10 +453,18 @@ export function PoolPage({ onLoginClick, onPrivacyClick, onImprintClick }: PoolP
   // Prüfen ob eingeloggt (wenn keine Props übergeben werden, ist man eingeloggt)
   const isLoggedIn = !onLoginClick && !onPrivacyClick && !onImprintClick;
   const { shifts, loading, error, refresh } = usePool();
+  const { role, isFreelancer } = useTenant();
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('date-asc');
   const [availabilityFilter, setAvailabilityFilter] = useState<AvailabilityFilter>('all');
+
+  // Stundenlohn nur für Freelancer, Admins und Manager anzeigen
+  const showPayRate = useMemo(() => {
+    if (isFreelancer) return true;
+    if (role === MEMBER_ROLES.ADMIN || role === MEMBER_ROLES.MANAGER) return true;
+    return false;
+  }, [isFreelancer, role]);
 
   // Nur zukünftige Schichten anzeigen (nicht in der Vergangenheit)
   const futureShifts = useMemo(() => {
@@ -681,6 +695,7 @@ export function PoolPage({ onLoginClick, onPrivacyClick, onImprintClick }: PoolP
                           key={shift.id}
                           shift={shift}
                           onClick={() => setSelectedShiftId(shift.id)}
+                          showPayRate={showPayRate}
                         />
                       ))}
                     </div>
@@ -700,6 +715,7 @@ export function PoolPage({ onLoginClick, onPrivacyClick, onImprintClick }: PoolP
                           key={shift.id}
                           shift={shift}
                           onClick={() => setSelectedShiftId(shift.id)}
+                          showPayRate={showPayRate}
                         />
                       ))}
                     </div>

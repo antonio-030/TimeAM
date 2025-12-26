@@ -4,7 +4,7 @@
  * Übersicht der eigenen zugewiesenen Schichten.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMyShifts } from './hooks';
 import { useAuth } from '../../core/auth';
 import { useTenant } from '../../core/tenant';
@@ -12,7 +12,10 @@ import { completeShift } from './api';
 import { ShiftTimeEntryList } from './ShiftTimeEntryList';
 import { ShiftDocumentList } from './ShiftDocumentList';
 import { openAddressInMaps } from './mapsUtils';
+import { getMembers } from '../members/api';
+import { getMemberFullName, getMemberInitials } from '../../utils/memberNames';
 import type { MyShift } from './api';
+import type { Member } from '@timeam/shared';
 import styles from './ShiftPool.module.css';
 
 // =============================================================================
@@ -85,9 +88,10 @@ function isUpcoming(isoString: string): boolean {
 interface ShiftCardProps {
   shift: MyShift;
   onClick: () => void;
+  members: Member[];
 }
 
-function ShiftCard({ shift, onClick }: ShiftCardProps) {
+function ShiftCard({ shift, onClick, members }: ShiftCardProps) {
   const upcoming = isUpcoming(shift.startsAt);
   const today = new Date(shift.startsAt).toDateString() === new Date().toDateString();
   const timeUntil = getTimeUntil(shift.startsAt);
@@ -160,7 +164,11 @@ function ShiftCard({ shift, onClick }: ShiftCardProps) {
           <span className={styles.cardMetaIcon}>👥</span>
           <span className={styles.colleaguesText}>
             {shift.colleagues.length === 1 
-              ? `Mit ${shift.colleagues[0].displayName}`
+              ? (() => {
+                  const member = members.find(m => m.uid === shift.colleagues[0].uid);
+                  const name = member ? getMemberFullName(member) : shift.colleagues[0].displayName;
+                  return `Mit ${name}`;
+                })()
               : `Mit ${shift.colleagues.length} Kollegen`}
           </span>
         </div>
@@ -175,9 +183,10 @@ interface ShiftDetailModalProps {
   onComplete: () => void;
   isCrewLeader: boolean;
   isCompleted: boolean;
+  members: Member[];
 }
 
-function ShiftDetailModal({ shift, onClose, onComplete, isCrewLeader, isCompleted }: ShiftDetailModalProps) {
+function ShiftDetailModal({ shift, onClose, onComplete, isCrewLeader, isCompleted, members }: ShiftDetailModalProps) {
   const { role } = useTenant();
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
@@ -320,16 +329,22 @@ function ShiftDetailModal({ shift, onClose, onComplete, isCrewLeader, isComplete
               👥 Deine Kollegen ({shift.colleagues.length})
             </h4>
             <div className={styles.colleaguesList}>
-              {shift.colleagues.map((colleague) => (
+              {shift.colleagues.map((colleague) => {
+                const member = members.find(m => m.uid === colleague.uid);
+                const displayName = member ? getMemberFullName(member) : colleague.displayName;
+                const initials = member ? getMemberInitials(member) : colleague.displayName.charAt(0).toUpperCase();
+                
+                return (
                 <div key={colleague.uid} className={styles.colleagueItem}>
                   <span className={styles.colleagueAvatar}>
-                    {colleague.displayName.charAt(0).toUpperCase()}
+                    {initials}
                   </span>
                   <span className={styles.colleagueName}>
-                    {colleague.displayName}
+                    {displayName}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -413,6 +428,16 @@ export function MyShiftsPage() {
   const { shifts, loading, error, refresh } = useMyShifts({ includeCompleted });
   const [selectedShift, setSelectedShift] = useState<MyShift | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [members, setMembers] = useState<Member[]>([]);
+  
+  // Mitglieder laden für vollständige Namen
+  useEffect(() => {
+    getMembers()
+      .then((data) => setMembers(data.members))
+      .catch(() => {
+        // Fehler ignorieren
+      });
+  }, []);
 
   // Filter Schichten nach Suchbegriff
   const filteredShifts = useMemo(() => {
@@ -554,6 +579,7 @@ export function MyShiftsPage() {
                     key={shift.id}
                     shift={shift}
                     onClick={() => setSelectedShift(shift)}
+                    members={members}
                   />
                 ))}
               </div>
@@ -575,6 +601,7 @@ export function MyShiftsPage() {
                     key={shift.id}
                     shift={shift}
                     onClick={() => setSelectedShift(shift)}
+                    members={members}
                   />
                 ))}
               </div>
@@ -611,6 +638,7 @@ export function MyShiftsPage() {
           onComplete={refresh}
           isCrewLeader={user?.uid === selectedShift.crewLeaderUid}
           isCompleted={selectedShift.status === 'COMPLETED'}
+          members={members}
         />
       )}
     </div>

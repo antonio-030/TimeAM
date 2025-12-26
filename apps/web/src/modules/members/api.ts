@@ -154,3 +154,10 @@ export function getMemberProfile(): Promise<MemberResponse> {
 export function updateMemberProfile(data: UpdateMemberRequest): Promise<MemberResponse> {
   return apiPatch<MemberResponse>('/api/members/me', data);
 }
+
+/**
+ * Setzt MFA für einen Mitarbeiter zurück (nur für Admins/Manager).
+ */
+export function resetMemberMfa(memberId: string): Promise<{ success: boolean; message?: string }> {
+  return apiPost<{ success: boolean; message?: string }>(`/api/mfa/reset/${memberId}`);
+}

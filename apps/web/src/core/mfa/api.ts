@@ -51,3 +51,10 @@ export async function disableMfa(password: string): Promise<{ success: boolean }
   return apiPost<{ success: boolean }>('/api/mfa/disable', request);
 }
 
+/**
+ * Holt den MFA-Status eines anderen Mitarbeiters (nur für Admins/Manager).
+ */
+export async function getMemberMfaStatus(memberId: string): Promise<MfaStatusResponse> {
+  return apiGet<MfaStatusResponse>(`/api/mfa/status/${memberId}`);
+}
+

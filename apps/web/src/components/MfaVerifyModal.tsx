@@ -66,14 +66,26 @@ export function MfaVerifyModal({ open, onSuccess, onCancel }: MfaVerifyModalProp
       const errorMessage = err instanceof Error ? err.message : 'Ungültiger Code. Bitte versuchen Sie es erneut.';
       
       // Spezielle Behandlung für korrupte Secrets
+      // WICHTIG: Bei korrupten Secrets wird der User NICHT automatisch eingeloggt!
+      // Der User muss Support kontaktieren, um MFA zurückzusetzen.
       if (err instanceof Error && (
         err.message.includes('corrupted') || 
+        (err as any).code === 'MFA_SECRET_CORRUPTED'
+      )) {
+        setError('Ihr MFA-Secret ist beschädigt. Bitte kontaktieren Sie den Support, um MFA zurückzusetzen. Sie werden jetzt ausgeloggt.');
+        // Nach 5 Sekunden ausloggen
+        setTimeout(() => {
+          if (onCancel) {
+            onCancel();
+          }
+        }, 5000);
+      } else if (err instanceof Error && (
         err.message.includes('reset') || 
         err.message.includes('requiresNewSetup') ||
-        (err as any).code === 'MFA_SECRET_CORRUPTED' ||
         (err as any).code === 'MFA_SECRET_NOT_FOUND'
       )) {
-        setError('Ihr MFA-Secret ist beschädigt und wurde zurückgesetzt. Bitte richten Sie MFA erneut ein. Sie werden jetzt ausgeloggt.');
+        // Secret nicht gefunden - MFA wurde nie eingerichtet
+        setError('MFA wurde noch nicht eingerichtet. Bitte richten Sie MFA in den Einstellungen ein.');
         // Nach 3 Sekunden ausloggen
         setTimeout(() => {
           if (onCancel) {

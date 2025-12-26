@@ -4,8 +4,10 @@
  * Mitarbeiterverwaltung für Admins - mit Detailansicht und Schichten.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMembers, useMemberShifts } from './hooks';
+import { useTenant } from '../../core/tenant';
 import {
   MEMBER_ROLES,
   MEMBER_STATUS,
@@ -18,7 +20,9 @@ import {
   getMemberStatusLabel,
 } from '@timeam/shared';
 import type { MemberShift } from './api';
-import { generateInviteLink } from './api';
+import { generateInviteLink, resetMemberMfa } from './api';
+import { getMemberMfaStatus } from '../../core/mfa/api';
+import { getMemberFullName, getMemberInitials } from '../../utils/memberNames';
 import styles from './Members.module.css';
 
 // =============================================================================
@@ -51,19 +55,7 @@ function getStatusBadgeClass(status: MemberStatus): string {
   }
 }
 
-function getInitials(name?: string, email?: string): string {
-  if (name) {
-    const parts = name.split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
-  }
-  if (email) {
-    return email.substring(0, 2).toUpperCase();
-  }
-  return '??';
-}
+// getInitials wird jetzt durch getMemberInitials aus utils/memberNames ersetzt
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -394,7 +386,7 @@ function InviteSuccessModal({ member, passwordResetLink, onClose }: InviteSucces
         
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
           <p style={{ marginBottom: 'var(--spacing-md)' }}>
-            <strong>{member.displayName || member.email}</strong> wurde erfolgreich angelegt.
+            <strong>{getMemberFullName(member)}</strong> wurde erfolgreich angelegt.
           </p>
           
           {passwordResetLink ? (
@@ -871,6 +863,7 @@ interface MemberDetailPanelProps {
   onDelete: () => void;
   onClose: () => void;
   actionInProgress: boolean;
+  onRefresh?: () => void;
 }
 
 function MemberDetailPanel({ 
@@ -879,11 +872,40 @@ function MemberDetailPanel({
   onToggleStatus, 
   onDelete, 
   onClose,
-  actionInProgress 
+  actionInProgress,
+  onRefresh
 }: MemberDetailPanelProps) {
+  const { role, hasEntitlement } = useTenant();
   const [activeTab, setActiveTab] = useState<'info' | 'shifts'>('info');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isResettingMfa, setIsResettingMfa] = useState(false);
+  const [mfaStatus, setMfaStatus] = useState<{ enabled: boolean; setupInProgress?: boolean } | null>(null);
+  const [mfaStatusLoading, setMfaStatusLoading] = useState(false);
+  const [showMfaDropdown, setShowMfaDropdown] = useState(false);
+  
+  // Prüfen, ob User Admin oder Manager ist
+  const isAdminOrManager = role === 'admin' || role === 'manager';
+  const mfaModuleEnabled = hasEntitlement('module.mfa');
+  
+  // MFA-Status laden (nur wenn Modul aktiviert ist und User Admin/Manager ist)
+  useEffect(() => {
+    if (mfaModuleEnabled && isAdminOrManager && member.id) {
+      setMfaStatusLoading(true);
+      getMemberMfaStatus(member.id)
+        .then((status) => {
+          setMfaStatus(status);
+        })
+        .catch((err) => {
+          console.error('Fehler beim Laden des MFA-Status:', err);
+          // Bei Fehler Status auf null setzen (unbekannt)
+          setMfaStatus(null);
+        })
+        .finally(() => {
+          setMfaStatusLoading(false);
+        });
+    }
+  }, [member.id, mfaModuleEnabled, isAdminOrManager]);
 
   const handleCopyInviteLink = async () => {
     setIsGeneratingLink(true);
@@ -900,6 +922,28 @@ function MemberDetailPanel({
     }
   };
 
+  const handleResetMfa = async () => {
+    if (!confirm(`MFA für "${getMemberFullName(member)}" wirklich zurücksetzen? Der Mitarbeiter muss MFA danach neu einrichten.`)) {
+      return;
+    }
+    
+    setIsResettingMfa(true);
+    try {
+      await resetMemberMfa(member.id);
+      alert('MFA wurde erfolgreich zurückgesetzt.');
+      // MFA-Status neu laden
+      if (mfaModuleEnabled && isAdminOrManager) {
+        const status = await getMemberMfaStatus(member.id);
+        setMfaStatus(status);
+      }
+      onRefresh?.();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Fehler beim Zurücksetzen von MFA');
+    } finally {
+      setIsResettingMfa(false);
+    }
+  };
+
   return (
     <div className={styles.detailPanel}>
       <div className={styles.detailPanelHeader}>
@@ -911,10 +955,10 @@ function MemberDetailPanel({
           ✕
         </button>
         <div className={styles.detailPanelAvatar}>
-          {getInitials(member.displayName, member.email)}
+          {getMemberInitials(member)}
         </div>
         <h2 className={styles.detailPanelName}>
-          {member.displayName || '(Kein Name)'}
+          {getMemberFullName(member)}
         </h2>
         <p className={styles.detailPanelEmail}>{member.email}</p>
         <div className={styles.detailPanelBadges}>
@@ -1028,6 +1072,67 @@ function MemberDetailPanel({
                 <span className={styles.infoValue}>{formatDate(member.lastActiveAt)}</span>
               </div>
             )}
+            {/* MFA-Status und Reset-Button (nur für Admins/Manager, wenn MFA-Modul aktiviert ist) */}
+            {isAdminOrManager && mfaModuleEnabled && (
+              <div className={styles.infoItem} style={{ gridColumn: '1 / -1', position: 'relative' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--spacing-xs)' }}>
+                  <span className={styles.infoLabel}>🔐 Zwei-Faktor-Authentifizierung</span>
+                  <button
+                    className={`${styles.button} ${styles.buttonGhost} ${styles.buttonIcon}`}
+                    onClick={() => setShowMfaDropdown(!showMfaDropdown)}
+                    style={{ 
+                      fontSize: 'var(--font-size-sm)',
+                      padding: '4px 8px',
+                      minHeight: 'auto',
+                      opacity: 0.7
+                    }}
+                    title="MFA-Optionen"
+                  >
+                    {showMfaDropdown ? '▲' : '▼'}
+                  </button>
+                </div>
+                <div style={{ marginTop: 'var(--spacing-xs)' }}>
+                  {mfaStatusLoading ? (
+                    <span className={styles.infoValue} style={{ opacity: 0.7, fontSize: 'var(--font-size-sm)' }}>
+                      Wird geladen...
+                    </span>
+                  ) : (
+                    <span className={styles.infoValue} style={{ opacity: 0.7, fontSize: 'var(--font-size-sm)' }}>
+                      {mfaStatus?.enabled ? '✅ Aktiviert' : mfaStatus === null ? '❓ Status unbekannt' : '❌ Nicht aktiviert'}
+                    </span>
+                  )}
+                </div>
+                {showMfaDropdown && (
+                  <div style={{ 
+                    marginTop: 'var(--spacing-sm)',
+                    padding: 'var(--spacing-sm)',
+                    background: 'var(--color-bg-secondary)',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--color-border)'
+                  }}>
+                    <p style={{ 
+                      fontSize: 'var(--font-size-sm)', 
+                      color: 'var(--color-text-secondary)', 
+                      marginBottom: 'var(--spacing-sm)'
+                    }}>
+                      Setzt MFA für diesen Mitarbeiter zurück. Der Mitarbeiter muss MFA danach neu einrichten.
+                    </p>
+                    <button
+                      className={`${styles.button} ${styles.buttonSecondary}`}
+                      onClick={handleResetMfa}
+                      disabled={isResettingMfa || actionInProgress || mfaStatusLoading}
+                      style={{ 
+                        fontSize: 'var(--font-size-sm)',
+                        padding: '6px 12px',
+                        width: '100%'
+                      }}
+                    >
+                      {isResettingMfa ? '⏳ Wird zurückgesetzt...' : '🔄 MFA zurücksetzen'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <MemberShiftsPanel member={member} />
@@ -1085,11 +1190,11 @@ function MemberCard({ member, isSelected, onClick }: MemberCardProps) {
       onClick={onClick}
     >
       <div className={styles.memberCardAvatar}>
-        {getInitials(member.displayName, member.email)}
+        {getMemberInitials(member)}
       </div>
       <div className={styles.memberCardInfo}>
         <span className={styles.memberCardName}>
-          {member.displayName || '(Kein Name)'}
+          {getMemberFullName(member)}
         </span>
         <span className={styles.memberCardEmail}>{member.email}</span>
         <div className={styles.memberCardBadges}>
@@ -1113,6 +1218,7 @@ function MemberCard({ member, isSelected, onClick }: MemberCardProps) {
 // =============================================================================
 
 export function MembersPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     members,
     stats,
@@ -1130,18 +1236,32 @@ export function MembersPage() {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState<{ member: Member; passwordResetLink?: string } | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Initialisiere searchQuery aus URL-Parameter
+  const urlSearchQuery = searchParams.get('search') || '';
+  const [searchQuery, setSearchQuery] = useState(urlSearchQuery);
   const [roleFilter, setRoleFilter] = useState<MemberRole | ''>('');
   const [statusFilter, setStatusFilter] = useState<MemberStatus | ''>('');
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
+  // URL-Parameter beim ersten Laden lesen
+  useEffect(() => {
+    if (urlSearchQuery && urlSearchQuery !== searchQuery) {
+      setSearchQuery(urlSearchQuery);
+    }
+  }, [urlSearchQuery]);
+
   // Filter members
   const filteredMembers = members.filter((member) => {
+    const query = searchQuery.toLowerCase();
     const matchesSearch =
       !searchQuery ||
-      member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.displayName?.toLowerCase().includes(searchQuery.toLowerCase());
+      member.email.toLowerCase().includes(query) ||
+      member.displayName?.toLowerCase().includes(query) ||
+      member.firstName?.toLowerCase().includes(query) ||
+      member.lastName?.toLowerCase().includes(query) ||
+      (member.firstName && member.lastName && `${member.firstName} ${member.lastName}`.toLowerCase().includes(query));
     const matchesRole = !roleFilter || member.role === roleFilter;
     const matchesStatus = !statusFilter || member.status === statusFilter;
     return matchesSearch && matchesRole && matchesStatus;
@@ -1163,7 +1283,7 @@ export function MembersPage() {
   };
 
   const handleDelete = async (member: Member) => {
-    if (!confirm(`Mitarbeiter "${member.displayName || member.email}" wirklich löschen?`)) {
+    if (!confirm(`Mitarbeiter "${getMemberFullName(member)}" wirklich löschen?`)) {
       return;
     }
     setActionInProgress(member.id);
@@ -1342,11 +1462,11 @@ export function MembersPage() {
               >
                 <div className={styles.memberInfo}>
                   <div className={styles.avatar}>
-                    {getInitials(member.displayName, member.email)}
+                    {getMemberInitials(member)}
                   </div>
                   <div className={styles.memberDetails}>
                     <span className={styles.memberName}>
-                      {member.displayName || '(Kein Name)'}
+                      {getMemberFullName(member)}
                     </span>
                     <span className={styles.memberEmail}>{member.email}</span>
                   </div>
@@ -1405,6 +1525,7 @@ export function MembersPage() {
           onDelete={() => handleDelete(selectedMember)}
           onClose={() => setSelectedMember(null)}
           actionInProgress={actionInProgress === selectedMember.id}
+          onRefresh={refresh}
         />
       )}
 

@@ -14,6 +14,7 @@ import { ShiftDocumentList } from './ShiftDocumentList';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { openAddressInMaps } from './mapsUtils';
 import { VerificationBadge } from '../../components/VerificationBadge';
+import { getMemberFullName, getMemberInitials } from '../../utils/memberNames';
 import styles from './ShiftPool.module.css';
 
 // =============================================================================
@@ -344,7 +345,7 @@ function CreateShiftForm({ onSubmit, onCancel }: CreateShiftFormProps) {
             <option value="">Kein Crew-Leiter</option>
             {members.map((member) => (
               <option key={member.uid} value={member.uid}>
-                {member.displayName || member.email}
+                {getMemberFullName(member)}
                 {member.role === 'admin' && ' (Admin)'}
                 {member.role === 'manager' && ' (Manager)'}
               </option>
@@ -404,10 +405,10 @@ function CreateShiftForm({ onSubmit, onCancel }: CreateShiftFormProps) {
                     className={styles.memberCheckbox}
                   />
                   <span className={styles.memberCheckboxAvatar}>
-                    {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
+                    {getMemberInitials(member)}
                   </span>
                   <span className={styles.memberCheckboxName}>
-                    {member.displayName || member.email}
+                    {getMemberFullName(member)}
                     {member.role === 'admin' && <span className={styles.memberRole}>Admin</span>}
                     {member.role === 'manager' && <span className={styles.memberRole}>Manager</span>}
                   </span>
@@ -529,15 +530,21 @@ function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount, allowRem
       {/* Liste der Zuweisungen */}
       {!loading && assignments.length > 0 && (
         <div className={styles.assignmentsList}>
-          {assignments.map((assignment) => (
+          {assignments.map((assignment) => {
+            // Finde das entsprechende Member-Objekt für vollständigen Namen
+            const member = members.find(m => m.uid === assignment.uid);
+            const displayName = member ? getMemberFullName(member) : assignment.displayName;
+            const initials = member ? getMemberInitials(member) : assignment.displayName.charAt(0).toUpperCase();
+            
+            return (
             <div key={assignment.assignmentId} className={styles.assignmentItem}>
               <div className={styles.assignmentInfo}>
                 <span className={styles.assignmentAvatar}>
-                  {assignment.displayName.charAt(0).toUpperCase()}
+                  {initials}
                 </span>
                 <div className={styles.assignmentDetails}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span className={styles.assignmentName}>{assignment.displayName}</span>
+                    <span className={styles.assignmentName}>{displayName}</span>
                     {assignment.isFreelancer && (
                       <span style={{
                         background: 'var(--color-primary-light)',
@@ -602,7 +609,8 @@ function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount, allowRem
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -633,7 +641,7 @@ function ShiftAssignmentsManager({ shiftId, requiredCount, filledCount, allowRem
               </option>
               {availableMembers.map((member) => (
                 <option key={member.uid} value={member.uid}>
-                  {member.displayName || member.email} {member.role === 'admin' ? '(Admin)' : member.role === 'manager' ? '(Manager)' : ''}
+                  {getMemberFullName(member)} {member.role === 'admin' ? '(Admin)' : member.role === 'manager' ? '(Manager)' : ''}
                 </option>
               ))}
             </select>
@@ -862,7 +870,7 @@ function EditShiftForm({ shift, onSubmit, onCancel }: EditShiftFormProps) {
             <option value="">Kein Crew-Leiter</option>
             {members.map((member) => (
               <option key={member.uid} value={member.uid}>
-                {member.displayName || member.email}
+                {getMemberFullName(member)}
                 {member.role === 'admin' && ' (Admin)'}
                 {member.role === 'manager' && ' (Manager)'}
               </option>
