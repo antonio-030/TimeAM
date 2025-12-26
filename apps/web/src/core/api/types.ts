@@ -11,6 +11,8 @@ export type MemberRole = 'admin' | 'manager' | 'employee';
 export type TenantEntitlements = Record<string, boolean | string | number>;
 
 /** Response von GET /api/me */
+// WICHTIG: MeResponse sollte aus @timeam/shared importiert werden, nicht lokal definiert
+// Diese Datei wird möglicherweise nicht mehr benötigt, wenn alle Types aus @timeam/shared importiert werden
 export interface MeResponse {
   uid: string;
   email?: string;
@@ -23,6 +25,10 @@ export interface MeResponse {
   };
   role?: MemberRole;
   entitlements?: TenantEntitlements;
+  /** MFA aktiviert? */
+  mfaEnabled?: boolean;
+  /** MFA-Verifizierung erforderlich? (true wenn MFA aktiviert aber noch nicht verifiziert) */
+  mfaRequired?: boolean;
 }
 
 /** Request für POST /api/onboarding/create-tenant */

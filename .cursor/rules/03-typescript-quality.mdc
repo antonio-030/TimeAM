@@ -5,6 +5,68 @@ alwaysApply: true
 
 # TypeScript
 
+## Build-Reihenfolge (KRITISCH)
+
+**WICHTIG:** Beim Build muss IMMER zuerst das `@timeam/shared`-Paket gebaut werden, bevor andere Pakete gebaut werden.
+
+```bash
+npm run build -w @timeam/shared && npm run build -w @timeam/web && npm run build -w @timeam/api
+```
+
+**Regel:** Wenn TypeScript-Fehler auftreten, müssen diese IMMER behoben werden, bevor Code committed wird.
+
+### Häufige Fehler und Lösungen:
+
+1. **Fehlende Properties in Types:**
+   - Wenn ein Property in einem Type fehlt (z.B. `mfaEnabled` in `MeResponse`):
+     - Prüfe, ob das Property in `packages/shared/src/types/` definiert ist
+     - Baue das shared-Paket neu: `npm run build -w @timeam/shared`
+     - Prüfe, ob das Property in `packages/shared/src/types/index.ts` exportiert wird
+
+2. **React Event Handler:**
+   - `stopImmediatePropagation()` existiert NICHT auf React's `MouseEvent`
+   - Nur `e.nativeEvent.stopImmediatePropagation()` verwenden
+   - Oder `e.preventDefault()` und `e.stopPropagation()` verwenden
+
+3. **Fehlende Imports:**
+   - Wenn ein Import fehlt, prüfe die Exports in `packages/shared/src/types/index.ts`
+   - Baue das shared-Paket neu, wenn neue Types hinzugefügt wurden
+
+### Checkliste vor Commit:
+
+- [ ] `npm run build` läuft ohne Fehler
+- [ ] `npm run typecheck` läuft ohne Fehler
+- [ ] Alle TypeScript-Fehler sind behoben
+- [ ] Shared-Paket wurde neu gebaut, wenn Types geändert wurden
+
+### Wenn Fehler auf dem Server auftreten, die lokal nicht auftreten:
+
+**WICHTIG:** Dies ist ein häufiges Problem bei Monorepos!
+
+**Lösungsschritte:**
+
+1. **Lösche node_modules und dist-Ordner:**
+   ```bash
+   rm -rf node_modules packages/*/node_modules apps/*/node_modules
+   rm -rf packages/*/dist apps/*/dist
+   ```
+
+2. **Installiere Dependencies neu:**
+   ```bash
+   npm install
+   ```
+
+3. **Baue in der korrekten Reihenfolge:**
+   ```bash
+   npm run build -w @timeam/shared
+   npm run build -w @timeam/web
+   npm run build -w @timeam/api
+   ```
+
+4. **Prüfe TypeScript-Version:** `npx tsc --version`
+5. **Prüfe Node-Version:** `node --version`
+6. **Prüfe tsconfig.json-Konsistenz**
+
 - strict TS, keine any.
 - Status/Keys als unions/const objects (keine Magic Strings).
 - Validierung an Grenzen (API Input, URL Params). Shared Schemas bevorzugen.

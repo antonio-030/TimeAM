@@ -1,0 +1,98 @@
+---
+alwaysApply: false
+---
+
+# TypeScript Build & Konsistenz
+
+## Build-Reihenfolge
+
+**WICHTIG:** Beim Build muss immer zuerst das `@timeam/shared`-Paket gebaut werden, bevor andere Pakete gebaut werden.
+
+```bash
+npm run build -w @timeam/shared && npm run build -w @timeam/web && npm run build -w @timeam/api
+```
+
+## TypeScript-Fehler beheben
+
+**Regel:** Wenn TypeScript-Fehler auftreten, müssen diese IMMER behoben werden, bevor Code committed wird.
+
+### Häufige Fehler und Lösungen:
+
+1. **Fehlende Properties in Types:**
+   - Wenn ein Property in einem Type fehlt (z.B. `mfaEnabled` in `MeResponse`):
+     - Prüfe, ob das Property in `packages/shared/src/types/` definiert ist
+     - Baue das shared-Paket neu: `npm run build -w @timeam/shared`
+     - Prüfe, ob das Property in `packages/shared/src/types/index.ts` exportiert wird
+
+2. **React Event Handler:**
+   - `stopImmediatePropagation()` existiert NICHT auf React's `MouseEvent`
+   - Nur `e.nativeEvent.stopImmediatePropagation()` verwenden
+   - Oder `e.preventDefault()` und `e.stopPropagation()` verwenden
+
+3. **Fehlende Imports:**
+   - Wenn ein Import fehlt, prüfe die Exports in `packages/shared/src/types/index.ts`
+   - Baue das shared-Paket neu, wenn neue Types hinzugefügt wurden
+
+## TypeScript-Konsistenz
+
+**Regel:** TypeScript-Fehler müssen lokal UND auf dem Server behoben werden.
+
+### Checkliste vor Commit:
+
+- [ ] `npm run build` läuft ohne Fehler
+- [ ] `npm run typecheck` läuft ohne Fehler
+- [ ] Alle TypeScript-Fehler sind behoben
+- [ ] Shared-Paket wurde neu gebaut, wenn Types geändert wurden
+
+### Build-Prozess:
+
+1. **Shared-Paket bauen:**
+   ```bash
+   npm run build -w @timeam/shared
+   ```
+
+2. **Web-App bauen:**
+   ```bash
+   npm run build -w @timeam/web
+   ```
+
+3. **API bauen:**
+   ```bash
+   npm run build -w @timeam/api
+   ```
+
+## TypeScript-Version
+
+**Regel:** Die TypeScript-Version muss konsistent sein.
+
+- Root: `typescript: ^5.3.3`
+- Alle Pakete sollten die gleiche Version verwenden (oder kompatibel sein)
+
+## TypeScript-Konfiguration
+
+**Regel:** TypeScript-Konfigurationen müssen konsistent sein.
+
+- `strict: true` in allen tsconfig.json
+- `skipLibCheck: true` für bessere Performance
+- `noEmit: true` für Web-App (Vite übernimmt das)
+- `noEmit: false` für API (TypeScript generiert JS)
+
+## Fehlerbehandlung
+
+**Regel:** Wenn TypeScript-Fehler auf dem Server auftreten, die lokal nicht auftreten:
+
+1. Prüfe TypeScript-Version: `npx tsc --version`
+2. Prüfe Node-Version: `node --version`
+3. Baue shared-Paket neu: `npm run build -w @timeam/shared`
+4. Prüfe tsconfig.json-Konsistenz
+5. Prüfe, ob alle Dependencies installiert sind: `npm install`
+
+## Automatische Prüfung
+
+**Regel:** Vor jedem Build sollte `typecheck` ausgeführt werden:
+
+```bash
+npm run typecheck
+```
+
+Dies stellt sicher, dass alle TypeScript-Fehler erkannt werden, bevor der Build startet.

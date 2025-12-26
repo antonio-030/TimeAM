@@ -1,0 +1,109 @@
+# Server Deployment & Build
+
+## Build-Prozess auf dem Server
+
+**WICHTIG:** Beim Deployment auf dem Server müssen die folgenden Schritte befolgt werden:
+
+### 1. Dependencies installieren
+
+```bash
+npm install
+```
+
+### 2. Build-Reihenfolge (KRITISCH)
+
+**Die Build-Reihenfolge ist entscheidend!** Das shared-Paket MUSS zuerst gebaut werden:
+
+```bash
+# Schritt 1: Shared-Paket bauen
+npm run build -w @timeam/shared
+
+# Schritt 2: Web-App bauen
+npm run build -w @timeam/web
+
+# Schritt 3: API bauen
+npm run build -w @timeam/api
+```
+
+Oder alles in einem Befehl:
+
+```bash
+npm run build
+```
+
+### 3. Wenn TypeScript-Fehler auftreten
+
+**Problem:** TypeScript-Fehler auf dem Server, die lokal nicht auftreten.
+
+**Lösung:**
+
+1. **Lösche node_modules und dist-Ordner:**
+   ```bash
+   rm -rf node_modules packages/*/node_modules apps/*/node_modules
+   rm -rf packages/*/dist apps/*/dist
+   ```
+
+2. **Installiere Dependencies neu:**
+   ```bash
+   npm install
+   ```
+
+3. **Baue in der korrekten Reihenfolge:**
+   ```bash
+   npm run build -w @timeam/shared
+   npm run build -w @timeam/web
+   npm run build -w @timeam/api
+   ```
+
+### 4. TypeScript-Version prüfen
+
+**Regel:** Die TypeScript-Version muss konsistent sein.
+
+```bash
+# Prüfe TypeScript-Version
+npx tsc --version
+
+# Sollte sein: Version 5.3.3 (oder kompatibel)
+```
+
+### 5. Node-Version prüfen
+
+**Regel:** Node-Version muss >= 18.0.0 sein.
+
+```bash
+# Prüfe Node-Version
+node --version
+
+# Sollte sein: v18.x.x oder höher
+```
+
+## Häufige Probleme
+
+### Problem: "Property 'mfaEnabled' does not exist on type 'MeResponse'"
+
+**Ursache:** Das shared-Paket wurde nicht korrekt gebaut oder node_modules sind veraltet.
+
+**Lösung:**
+1. Lösche `packages/shared/dist` und `packages/shared/node_modules`
+2. Baue shared-Paket neu: `npm run build -w @timeam/shared`
+3. Prüfe, ob `packages/shared/dist/types/api.d.ts` die Properties enthält
+4. Baue Web-App neu: `npm run build -w @timeam/web`
+
+### Problem: "Cannot find module '@timeam/shared'"
+
+**Ursache:** Workspace-Dependencies sind nicht korrekt installiert.
+
+**Lösung:**
+1. Lösche alle `node_modules`-Ordner
+2. Führe `npm install` im Root-Verzeichnis aus
+3. Prüfe, ob `node_modules/@timeam/shared` existiert
+
+## Deployment-Checkliste
+
+- [ ] Node-Version >= 18.0.0
+- [ ] TypeScript-Version konsistent
+- [ ] Alle Dependencies installiert: `npm install`
+- [ ] Shared-Paket gebaut: `npm run build -w @timeam/shared`
+- [ ] Web-App gebaut: `npm run build -w @timeam/web`
+- [ ] API gebaut: `npm run build -w @timeam/api`
+- [ ] Keine TypeScript-Fehler: `npm run typecheck`
