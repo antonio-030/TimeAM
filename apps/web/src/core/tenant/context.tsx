@@ -140,8 +140,21 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
   // Bei User-Änderung neu laden
   useEffect(() => {
-    loadTenantData();
-  }, [loadTenantData]);
+    if (user) {
+      loadTenantData();
+    } else {
+      // User ist ausgeloggt → alle Tenant-Daten zurücksetzen
+      setLoading(false);
+      setError(null);
+      setNeedsOnboarding(false);
+      setIsFreelancer(false);
+      setTenant(null);
+      setRole(null);
+      setEntitlements({});
+      setMfaEnabled(false);
+      setMfaRequired(false);
+    }
+  }, [user, loadTenantData]);
 
   // Tenant erstellen
   const createTenant = useCallback(async (tenantName: string) => {

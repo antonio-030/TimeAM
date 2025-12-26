@@ -28,7 +28,7 @@ module.exports = {
     {
       name: 'timeam-web',
       script: 'npx',
-      args: 'serve -s apps/web/dist -l 3001',
+      args: 'serve -s apps/web/dist -l 3001 --single',
       cwd: './',
       instances: 1,
       exec_mode: 'fork',
