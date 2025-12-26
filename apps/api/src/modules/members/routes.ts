@@ -42,11 +42,11 @@ router.get('/', ...membersGuard, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
 
   try {
-    console.log(`🔐 GET /api/members - User: ${user.uid}, Tenant: ${tenant.id} (${tenant.name})`);
+    // GET /api/members
     
     const { members, stats } = await getMembers(tenant.id, user.uid);
 
-    console.log(`✅ Returning ${members.length} members for tenant ${tenant.id}`);
+    // Returning members
 
     res.json({
       members,

@@ -138,8 +138,8 @@ app.get('/api', (_req, res) => {
 app.get('/api/me', requireAuth, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
   
-  // DEBUG: Log jeden /api/me Aufruf
-  console.log(`📞 GET /api/me für User: ${user.uid} (${user.email})`);
+  // DEBUG: Log jeden /api/me Aufruf (ohne sensible Daten)
+  console.log(`📞 GET /api/me`);
 
     try {
       // WICHTIG: Bei jedem /api/me Call prüfen, ob MFA-Verifizierung zurückgesetzt werden muss
@@ -162,12 +162,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
       const { isSuperAdmin } = await import('./core/super-admin/index.js');
       const isSuper = isSuperAdmin(user.uid);
       
-      // DEBUG: Log Super-Admin-Status
+      // DEBUG: Log Super-Admin-Status (ohne sensible Daten)
       if (isSuper) {
-        console.log(`🔐 Super Admin erkannt: ${user.uid} (${user.email})`);
-      } else {
-        const superAdminUids = (await import('./core/super-admin/index.js')).getSuperAdminUids();
-        console.log(`ℹ️ User ${user.uid} ist KEIN Super Admin. SUPER_ADMIN_UIDS: [${superAdminUids.join(', ')}]`);
+        console.log(`🔐 Super Admin erkannt`);
       }
 
       // Prüfen ob User ein Dev-Mitarbeiter ist (inkl. Super-Admins)
@@ -175,34 +172,20 @@ app.get('/api/me', requireAuth, async (req, res) => {
       
       // Super-Admins automatisch als Dev-Staff registrieren (falls nicht vorhanden)
       if (isSuper) {
-        console.log(`🔐 Super Admin ${user.uid}: Registriere als Dev-Staff...`);
         await ensureDevStaffForSuperAdmin(user.uid, user.email || '');
-        console.log(`✅ Super Admin ${user.uid}: Dev-Staff-Registrierung abgeschlossen`);
       }
       
       const isDev = await isDevStaff(user.uid) || isSuper; // Super-Admins sind immer Dev-Staff
-      
-      if (isSuper) {
-        console.log(`🔐 Super Admin ${user.uid}: isDev=${isDev}, isSuper=${isSuper}`);
-      }
 
       // Wenn Dev-Mitarbeiter ODER Super-Admin, Dev-Tenant-Daten laden
       if (isDev || isSuper) {
-        if (isSuper) {
-          console.log(`🔐 Super Admin ${user.uid}: Lade Dev-Tenant-Daten...`);
-        }
         const { getTenantForUser } = await import('./core/tenancy/index.js');
         let tenantData = await getTenantForUser(user.uid);
-        
-        if (isSuper) {
-          console.log(`🔐 Super Admin ${user.uid}: getTenantForUser zurückgegeben: ${tenantData ? `Tenant ${tenantData.tenant.id}` : 'null'}`);
-        }
         
         // WICHTIG: Wenn Super Admin und kein Tenant gefunden, Dev-Tenant explizit erstellen
         // Das kann passieren, wenn ensureDevStaffForSuperAdmin den Tenant noch nicht erstellt hat
         // ODER wenn eine neue Super-Admin-UID verwendet wird
         if (!tenantData && isSuper) {
-          console.log(`⚠️ Super Admin ${user.uid} hat noch keinen Tenant, erstelle Dev-Tenant...`);
           const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service.js');
           
           // Dev-Tenant erstellen (oder zurückgeben falls bereits vorhanden)
@@ -218,16 +201,9 @@ app.get('/api/me', requireAuth, async (req, res) => {
           tenantData = await getTenantForUser(user.uid);
           
           if (!tenantData) {
-            console.error(`❌ Konnte Dev-Tenant für Super Admin ${user.uid} nicht erstellen, versuche erneut...`);
             // Nochmal versuchen mit längerer Wartezeit
             await new Promise(resolve => setTimeout(resolve, 1000));
             tenantData = await getTenantForUser(user.uid);
-          }
-          
-          if (tenantData) {
-            console.log(`✅ Dev-Tenant für Super Admin ${user.uid} erfolgreich erstellt/gefunden: ${tenantData.tenant.id}`);
-          } else {
-            console.error(`❌ Konnte Dev-Tenant für Super Admin ${user.uid} auch nach Wartezeit nicht erstellen`);
           }
         }
         
@@ -285,7 +261,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
           res.json(response);
         } else if (isSuper) {
           // Fallback für Super-Admins: Wenn Tenant immer noch nicht gefunden, Dev-Tenant direkt laden
-          console.log(`⚠️ Super Admin ${user.uid}: Tenant-Daten nicht gefunden, lade Dev-Tenant direkt...`);
           const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service.js');
           const tenantId = await getOrCreateDevTenant(user.uid);
           await assignDevStaffToTenant(user.uid, user.email || '');
@@ -310,7 +285,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
             
             if (memberSnap.exists) {
               const memberData = memberSnap.data();
-              console.log(`✅ Super Admin ${user.uid} erfolgreich Dev-Tenant zugeordnet: ${tenantId}`);
               
               const response: any = {
                 uid: user.uid,
@@ -332,7 +306,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
           }
           
           // Wenn auch das fehlschlägt, trotzdem Antwort senden (Super-Admins brauchen kein Onboarding)
-          console.error(`❌ Konnte Dev-Tenant für Super Admin ${user.uid} auch direkt nicht laden`);
           res.json({
             uid: user.uid,
             email: user.email,
@@ -400,7 +373,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
             // Fallback: Wenn immer noch kein Tenant gefunden, aber Super-Admin ist
             // Dann sollte der Dev-Tenant existieren - versuche nochmal explizit
             if (isSuper) {
-              console.log(`⚠️ Super Admin ${user.uid}: Tenant immer noch nicht gefunden nach assignDevStaffToTenant, lade Dev-Tenant direkt...`);
               
               // Warte etwas länger, damit Firestore propagiert
               await new Promise(resolve => setTimeout(resolve, 1500));
@@ -408,7 +380,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
               // Versuche nochmal mit getTenantForUser
               const retryTenantData = await getTenantForUser(user.uid);
               if (retryTenantData) {
-                console.log(`✅ Super Admin ${user.uid}: Tenant nach Wartezeit gefunden: ${retryTenantData.tenant.id}`);
                 const hasMfaEntitlement = retryTenantData.entitlements?.['module.mfa'] === true;
                 let mfaEnabled = false;
                 let mfaRequired = false;
@@ -456,7 +427,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
               }
               
               // Wenn auch das fehlschlägt, Dev-Tenant direkt laden (ohne getTenantForUser)
-              console.log(`⚠️ Super Admin ${user.uid}: Lade Dev-Tenant direkt aus Firestore...`);
               const db = (await import('./core/firebase/index.js')).getAdminFirestore();
               const tenantId = 'dev-tenant'; // Dev-Tenant hat immer diese ID
               const tenantRef = db.collection('tenants').doc(tenantId);
@@ -477,7 +447,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
                 
                 if (memberSnap.exists) {
                   const memberData = memberSnap.data();
-                  console.log(`✅ Super Admin ${user.uid} erfolgreich Dev-Tenant direkt geladen: ${tenantId}`);
                   
                   const response: any = {
                     uid: user.uid,
@@ -496,7 +465,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
                   res.json(response);
                   return;
                 } else {
-                  console.error(`❌ Super Admin ${user.uid} ist nicht Mitglied des Dev-Tenants, füge hinzu...`);
                   // Member nochmal hinzufügen
                   await memberRef.set({
                     uid: user.uid,
@@ -530,7 +498,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
               }
               
               // Wenn auch das fehlschlägt, trotzdem Antwort senden (Super-Admins brauchen kein Onboarding)
-              console.error(`❌ Konnte Dev-Tenant für Super Admin ${user.uid} auch direkt nicht laden`);
               res.json({
                 uid: user.uid,
                 email: user.email,
@@ -639,7 +606,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
     if (!tenantData) {
       // Prüfen ob User Super Admin ist - dann sollte er einen Dev-Tenant haben
       if (isSuper) {
-        console.log(`⚠️ Super Admin ${user.uid} hat keinen Tenant im normalen Flow, erstelle Dev-Tenant...`);
         // Super Admin ohne Tenant - Dev-Tenant erstellen
         const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service.js');
         const tenantId = await getOrCreateDevTenant(user.uid);
@@ -651,7 +617,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
         // Nochmal laden
         const newTenantData = await getTenantForUser(user.uid);
         if (newTenantData) {
-          console.log(`✅ Dev-Tenant für Super Admin ${user.uid} erfolgreich erstellt: ${newTenantData.tenant.id}`);
           res.json({
             uid: user.uid,
             email: user.email,
@@ -668,7 +633,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
           });
           return;
         } else {
-          console.error(`❌ Konnte Dev-Tenant für Super Admin ${user.uid} auch im Fallback nicht erstellen`);
           // Auch wenn Tenant nicht erstellt werden kann, Super-Admin sollte kein Onboarding sehen
           res.json({
             uid: user.uid,
@@ -796,7 +760,7 @@ app.post('/api/onboarding/create-tenant', requireAuth, async (req, res) => {
       tenantName.trim()
     );
 
-    console.log(`✅ Tenant created: ${tenantId} by ${user.uid}`);
+    console.log(`✅ Tenant created`);
 
     // Wenn Freelancer: Freelancer-Dokument aktualisieren
     if (isFreelancer) {
@@ -809,7 +773,7 @@ app.post('/api/onboarding/create-tenant', requireAuth, async (req, res) => {
           tenantId: tenantId,
           updatedAt: FieldValue.serverTimestamp(),
         });
-        console.log(`✅ Updated freelancer document with tenant ${tenantId}`);
+        console.log(`✅ Updated freelancer document with tenant`);
       }
     }
 

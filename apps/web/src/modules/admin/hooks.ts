@@ -57,10 +57,18 @@ export function useSuperAdminCheck() {
       try {
         const result = await checkSuperAdmin();
         if (!cancelled) {
+          // Debug: Log Super-Admin-Status (nur in Development)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Super Admin check result:', result.isSuperAdmin);
+          }
           setIsSuperAdmin(result.isSuperAdmin);
         }
       } catch (err) {
         if (!cancelled) {
+          // Debug: Log Fehler (nur in Development)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('Super Admin check error:', err);
+          }
           // Bei 401 ist der User einfach kein Super-Admin
           if (err instanceof Error && err.message.includes('401')) {
             setIsSuperAdmin(false);

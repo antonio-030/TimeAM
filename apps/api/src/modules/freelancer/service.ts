@@ -119,8 +119,6 @@ export async function registerFreelancer(
   const companyName = data.companyName?.trim() || data.displayName.trim();
   const { tenantId, entitlements } = await createTenant(uid, email, companyName);
   
-  console.log(`✅ Created tenant ${tenantId} for freelancer ${uid} (${companyName})`);
-
   // WICHTIG: Rolle von 'admin' auf 'freelancer' ändern
   // createTenant erstellt automatisch einen Admin, aber Freelancer sollten die Rolle 'freelancer' haben
   const memberRef = db.collection('tenants').doc(tenantId).collection('members').doc(uid);
@@ -128,8 +126,6 @@ export async function registerFreelancer(
     role: 'freelancer',
     updatedAt: FieldValue.serverTimestamp(),
   });
-  
-  console.log(`✅ Updated member role to 'freelancer' for ${uid} in tenant ${tenantId}`);
 
   // Freelancer-Dokument speichern
   const freelancerData: Record<string, unknown> = {
@@ -457,7 +453,7 @@ export async function deleteFreelancerAccount(uid: string): Promise<void> {
 
   const freelancerData = freelancerSnap.data() as FreelancerDoc;
 
-  console.log(`🗑️ Deleting freelancer account: ${uid} (${freelancerData.email})`);
+  // Deleting freelancer account
 
   // 1. Storage-Dateien löschen (Verifizierungsdokumente)
   try {
@@ -521,7 +517,7 @@ export async function deleteFreelancerAccount(uid: string): Promise<void> {
 
       // Tenant-Dokument löschen
       await db.collection('tenants').doc(freelancerData.tenantId).delete();
-      console.log(`  ✓ Deleted tenant: ${freelancerData.tenantId}`);
+      // Deleted tenant
     } catch (tenantError) {
       console.warn('⚠️ Error deleting tenant:', tenantError);
     }
@@ -545,6 +541,6 @@ export async function deleteFreelancerAccount(uid: string): Promise<void> {
     throw new Error('Failed to delete authentication account');
   }
 
-  console.log(`✅ Freelancer account ${uid} completely deleted`);
+  // Freelancer account completely deleted
 }
 

@@ -72,34 +72,26 @@ export async function getTenantForUser(uid: string): Promise<{
 
   // 2. Wenn defaultTenantId vorhanden, VALIDIERE dass User wirklich Mitglied ist
   if (tenantId) {
-    console.log(`🔍 User ${uid} has defaultTenantId: ${tenantId}, validating membership...`);
-    
     const tenantRef = db.collection('tenants').doc(tenantId);
     const memberRef = tenantRef.collection('members').doc(uid);
     const memberSnap = await memberRef.get();
     
     if (!memberSnap.exists) {
-      console.warn(`⚠️ User ${uid} has defaultTenantId ${tenantId} but is NOT a member! Removing invalid defaultTenantId...`);
-      
       // Invalid defaultTenantId entfernen
       try {
         await db.collection('users').doc(uid).update({
           defaultTenantId: FieldValue.delete(),
         });
-        console.log(`🗑️ Removed invalid defaultTenantId for user ${uid}`);
       } catch (updateError) {
-        console.warn(`⚠️ Could not remove invalid defaultTenantId for user ${uid}:`, updateError);
+        // Silent fail
       }
       
       tenantId = null; // Suche nach anderen Tenants
-    } else {
-      console.log(`✅ User ${uid} is validated member of tenant ${tenantId}`);
     }
   }
 
   // 3. Wenn kein defaultTenantId ODER defaultTenantId war ungültig, suche nach Membership in allen Tenants
   if (!tenantId) {
-    console.log(`🔍 No valid defaultTenantId for user ${uid}, searching for memberships...`);
     
     // Suche nach Member-Dokument mit dieser UID (Dokument-ID = UID)
     const tenantsSnap = await db.collection('tenants').get();
@@ -110,7 +102,7 @@ export async function getTenantForUser(uid: string): Promise<{
       const { isDevStaff } = await import('../../modules/support/service.js');
       isUserDevStaff = await isDevStaff(uid);
     } catch (error) {
-      console.warn(`⚠️ Could not check if user ${uid} is dev staff:`, error);
+      // Silent fail
     }
     
     // Suche nach allen Tenants, in denen User Mitglied ist
@@ -122,7 +114,6 @@ export async function getTenantForUser(uid: string): Promise<{
       if (memberSnap.exists) {
         const isDevTenant = tenantDoc.id === 'dev-tenant';
         foundTenants.push({ tenantId: tenantDoc.id, isDevTenant });
-        console.log(`✅ Found membership for user ${uid} in tenant ${tenantDoc.id} (dev-tenant: ${isDevTenant})`);
       }
     }
     
@@ -136,14 +127,11 @@ export async function getTenantForUser(uid: string): Promise<{
     if (normalTenant) {
       // Normale Tenants haben Priorität
       selectedTenant = normalTenant;
-      console.log(`📝 User ${uid} has normal tenant ${normalTenant.tenantId}, using it instead of dev-tenant`);
     } else if (devTenant && isUserDevStaff) {
       // Nur wenn User wirklich Dev-Staff ist, verwende dev-tenant
       selectedTenant = devTenant;
-      console.log(`📝 User ${uid} is Dev-Staff and has no normal tenant, using dev-tenant`);
     } else if (devTenant && !isUserDevStaff) {
       // User ist Mitglied im dev-tenant, aber ist kein Dev-Staff - das ist ein Fehler!
-      console.error(`🚫 SECURITY: User ${uid} is member of dev-tenant but is NOT Dev-Staff! Ignoring dev-tenant.`);
       // Suche nach anderen Tenants (falls vorhanden)
       selectedTenant = foundTenants[0]; // Fallback auf ersten gefundenen Tenant
     } else {
@@ -153,21 +141,17 @@ export async function getTenantForUser(uid: string): Promise<{
     
     if (selectedTenant) {
       tenantId = selectedTenant.tenantId;
-      console.log(`📝 Selected tenant ${tenantId} for user ${uid} (dev-tenant: ${selectedTenant.isDevTenant})`);
       
       // User-Dokument aktualisieren mit defaultTenantId
       await db.collection('users').doc(uid).set({
         defaultTenantId: tenantId,
         createdAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      
-      console.log(`📝 Updated user document with defaultTenantId: ${tenantId}`);
     }
   }
 
   // Immer noch kein Tenant gefunden
   if (!tenantId) {
-    console.log(`❌ No tenant found for user ${uid}`);
     return null;
   }
 
@@ -176,7 +160,6 @@ export async function getTenantForUser(uid: string): Promise<{
   const tenantSnap = await tenantRef.get();
 
   if (!tenantSnap.exists) {
-    console.error(`❌ Tenant ${tenantId} does not exist in Firestore`);
     return null;
   }
 
@@ -185,8 +168,6 @@ export async function getTenantForUser(uid: string): Promise<{
   const memberSnap = await memberRef.get();
 
   if (!memberSnap.exists) {
-    console.error(`❌ User ${uid} is not a member of tenant ${tenantId} (member document not found)`);
-    
     // WICHTIG: Wenn Member-Dokument nicht existiert, aber defaultTenantId noch gesetzt ist,
     // dann defaultTenantId löschen, damit der User nicht mehr diesem Tenant zugeordnet wird
     if (userDoc?.defaultTenantId === tenantId) {
@@ -194,9 +175,8 @@ export async function getTenantForUser(uid: string): Promise<{
         await db.collection('users').doc(uid).update({
           defaultTenantId: FieldValue.delete(),
         });
-        console.log(`🗑️ Removed invalid defaultTenantId for user ${uid} (member not found in tenant ${tenantId})`);
       } catch (updateError) {
-        console.warn(`⚠️ Could not remove invalid defaultTenantId for user ${uid}:`, updateError);
+        // Silent fail
       }
     }
     return null;
@@ -358,7 +338,7 @@ export async function setFreelancerEntitlement(
       value,
       grantedAt: FieldValue.serverTimestamp(),
     });
-    console.log(`✅ Updated entitlement ${key} = ${value} for freelancer ${freelancerUid}`);
+    // Updated entitlement for freelancer
   } else {
     // Neues Entitlement erstellen
     await freelancerRef.collection('entitlements').doc().set({
@@ -366,7 +346,7 @@ export async function setFreelancerEntitlement(
       value,
       grantedAt: FieldValue.serverTimestamp(),
     });
-    console.log(`✅ Created entitlement ${key} = ${value} for freelancer ${freelancerUid}`);
+    // Created entitlement for freelancer
   }
 }
 
@@ -387,7 +367,7 @@ export async function createTenant(
   const tenantRef = db.collection('tenants').doc();
   const tenantId = tenantRef.id;
 
-  console.log(`Creating tenant: ${tenantId} for user: ${uid}`);
+  // Creating tenant
 
   try {
     // 1. Tenant-Dokument erstellen
@@ -397,8 +377,6 @@ export async function createTenant(
       createdBy: uid,
     });
 
-    console.log(`Tenant document created: ${tenantId}`);
-
     // 2. Member (Admin) erstellen
     await tenantRef.collection('members').doc(uid).set({
       uid,
@@ -406,8 +384,6 @@ export async function createTenant(
       role: 'admin',
       joinedAt: FieldValue.serverTimestamp(),
     });
-
-    console.log(`Member document created for: ${uid}`);
 
     // 3. Default Entitlements erstellen
     const defaultEntitlements: Record<string, boolean> = {
@@ -425,16 +401,12 @@ export async function createTenant(
       });
     }
 
-    console.log(`Entitlements created for tenant: ${tenantId}`);
-
     // 4. User-Dokument erstellen/aktualisieren
     await db.collection('users').doc(uid).set({
       email,
       defaultTenantId: tenantId,
       createdAt: FieldValue.serverTimestamp(),
     }, { merge: true });
-
-    console.log(`User document updated for: ${uid}`);
 
     return {
       tenantId,
@@ -466,5 +438,5 @@ export async function updateTenantName(
     name: newName.trim(),
   });
   
-  console.log(`✅ Tenant name updated: ${tenantId} -> ${newName.trim()}`);
+  // Tenant name updated
 }

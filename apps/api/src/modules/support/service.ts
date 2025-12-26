@@ -373,8 +373,8 @@ export async function approveVerification(
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      console.log(`✅ Created tenant ${tenantId} for verified freelancer ${freelancerUid} (${finalCompanyName})`);
-      console.log(`✅ Updated member role to 'freelancer' for ${freelancerUid} in tenant ${tenantId}`);
+      // Created tenant for verified freelancer
+      // Updated member role to 'freelancer'
     } catch (tenantError) {
       console.error('Failed to create tenant for verified freelancer:', tenantError);
       // Nicht kritisch - kann später manuell erstellt werden
@@ -498,7 +498,7 @@ export async function getOrCreateDevTenant(createdByUid: string): Promise<string
   
   await batch.commit();
 
-  console.log(`✅ Dev-Tenant created: ${DEV_TENANT_ID} with all modules activated`);
+  // Dev-Tenant created with all modules activated
 
   return DEV_TENANT_ID;
 }
@@ -523,9 +523,7 @@ export async function assignDevStaffToTenant(uid: string, email: string): Promis
       joinedAt: FieldValue.serverTimestamp(),
     });
 
-    console.log(`✅ Dev-Mitarbeiter ${uid} zum Dev-Tenant hinzugefügt`);
-  } else {
-    console.log(`ℹ️ Dev-Mitarbeiter ${uid} ist bereits Mitglied des Dev-Tenants`);
+    // Dev-Mitarbeiter zum Dev-Tenant hinzugefügt
   }
 
   // WICHTIG: defaultTenantId IMMER setzen, auch wenn Member bereits existiert
@@ -535,8 +533,6 @@ export async function assignDevStaffToTenant(uid: string, email: string): Promis
     defaultTenantId: tenantId,
     createdAt: FieldValue.serverTimestamp(),
   }, { merge: true });
-
-  console.log(`✅ defaultTenantId für Dev-Mitarbeiter ${uid} gesetzt: ${tenantId}`);
   
   // WICHTIG: Kurz warten, damit Firestore die Änderungen propagiert
   // Dies hilft bei Race Conditions, wenn getTenantForUser direkt danach aufgerufen wird
@@ -672,7 +668,7 @@ export async function approveDeletionRequest(
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  console.log(`✅ Deletion request approved for ${uid}. Scheduled deletion: ${scheduledDeletionDate.toISOString()}`);
+  // Deletion request approved
 }
 
 /**
@@ -708,7 +704,7 @@ export async function rejectDeletionRequest(
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  console.log(`❌ Deletion request rejected for ${uid}. Reason: ${reason}`);
+  // Deletion request rejected
 }
 
 /**
@@ -744,7 +740,7 @@ export async function executeDeletionRequest(
     }
   }
 
-  console.log(`🗑️ Executing deletion for account: ${uid} (${requestData.email})`);
+  // Executing deletion for account
 
   // Je nach User-Typ unterschiedlich löschen
   if (requestData.userType === 'freelancer') {
@@ -787,6 +783,6 @@ export async function executeDeletionRequest(
     updatedAt: FieldValue.serverTimestamp(),
   });
 
-  console.log(`✅ Account ${uid} successfully deleted`);
+  // Account successfully deleted
 }
 

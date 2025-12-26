@@ -52,7 +52,6 @@ export function requireEntitlements(requiredEntitlements: EntitlementKey[]) {
         const isSuper = isSuperAdmin(authReq.user.uid);
         
         if (isSuper) {
-          console.log(`🔐 Super Admin ${authReq.user.uid}: Kein Tenant gefunden in requireEntitlements, erstelle Dev-Tenant...`);
           const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('../../modules/support/service.js');
           
           const tenantId = await getOrCreateDevTenant(authReq.user.uid);
@@ -63,12 +62,6 @@ export function requireEntitlements(requiredEntitlements: EntitlementKey[]) {
           
           // Nochmal versuchen
           tenantData = await getTenantForUser(authReq.user.uid);
-          
-          if (tenantData) {
-            console.log(`✅ Super Admin ${authReq.user.uid}: Dev-Tenant erfolgreich erstellt/gefunden in requireEntitlements`);
-          } else {
-            console.error(`❌ Konnte Dev-Tenant für Super Admin ${authReq.user.uid} auch in requireEntitlements nicht erstellen`);
-          }
         }
       }
 
@@ -110,7 +103,7 @@ export function requireEntitlements(requiredEntitlements: EntitlementKey[]) {
       };
       (req as TenantRequest).entitlements = tenantData.entitlements;
 
-      console.log(`🔐 Tenant context set for user ${authReq.user.uid}: ${tenantData.tenant.id} (${tenantData.tenant.name})`);
+      // Tenant context set
 
       next();
     } catch (error) {
@@ -157,7 +150,6 @@ export function requireTenantOnly() {
         const isSuper = isSuperAdmin(authReq.user.uid);
         
         if (isSuper) {
-          console.log(`🔐 Super Admin ${authReq.user.uid}: Kein Tenant gefunden in requireTenantOnly, erstelle Dev-Tenant...`);
           const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('../../modules/support/service.js');
           
           const tenantId = await getOrCreateDevTenant(authReq.user.uid);
@@ -168,12 +160,6 @@ export function requireTenantOnly() {
           
           // Nochmal versuchen
           tenantData = await getTenantForUser(authReq.user.uid);
-          
-          if (tenantData) {
-            console.log(`✅ Super Admin ${authReq.user.uid}: Dev-Tenant erfolgreich erstellt/gefunden in requireTenantOnly`);
-          } else {
-            console.error(`❌ Konnte Dev-Tenant für Super Admin ${authReq.user.uid} auch in requireTenantOnly nicht erstellen`);
-          }
         }
       }
 

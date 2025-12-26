@@ -131,21 +131,16 @@ export async function getMembers(tenantId: string, requestingUid: string): Promi
   // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
   const isMember = await validateUserTenantMembership(tenantId, requestingUid);
   if (!isMember) {
-    console.error(`🚫 SECURITY: User ${requestingUid} tried to access members of tenant ${tenantId} but is not a member`);
     throw new Error('Access denied: User is not a member of this tenant');
   }
 
   const db = getAdminFirestore();
-
-  console.log(`📋 Loading members for tenant ${tenantId} (requested by ${requestingUid})`);
 
   const snapshot = await db
     .collection('tenants')
     .doc(tenantId)
     .collection('members')
     .get();
-
-  console.log(`✅ Found ${snapshot.docs.length} members in tenant ${tenantId}`);
 
   const members = snapshot.docs.map((doc) => {
     const data = doc.data();
@@ -287,7 +282,6 @@ export async function inviteMember(
 
     if (existingUser) {
       uid = existingUser.uid;
-      console.log(`📧 User ${email} exists in Firebase Auth (uid: ${uid})`);
     } else {
       // Neuen Firebase Auth User erstellen mit temporärem Passwort
       const tempPassword = `Temp${Math.random().toString(36).slice(2)}!${Date.now()}`;
@@ -300,15 +294,12 @@ export async function inviteMember(
       });
       
       uid = newUser.uid;
-      console.log(`✅ Created Firebase Auth user: ${email} (uid: ${uid})`);
     }
 
     // Password Reset Link generieren
     try {
       passwordResetLink = await auth.generatePasswordResetLink(email);
-      console.log(`🔗 Password reset link generated for: ${email}`);
     } catch (linkError) {
-      console.warn(`⚠️ Could not generate password reset link:`, linkError);
       // Nicht kritisch - User kann auch "Passwort vergessen" nutzen
     }
   } catch (authError) {
@@ -384,7 +375,7 @@ export async function inviteMember(
     createdAt: FieldValue.serverTimestamp(),
   }, { merge: true });
   
-  console.log(`📝 User document updated for ${email} with tenant ${tenantId}`);
+  // User document updated
 
   // Zurücklesen
   const savedDoc = await memberRef.get();

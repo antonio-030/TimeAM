@@ -31,9 +31,15 @@ router.get(
   requireAuth,
   async (req: Request, res: Response): Promise<void> => {
     const authReq = req as AuthenticatedRequest;
+    const superAdminStatus = isSuperAdmin(authReq.user.uid);
+    
+    // Debug: Log Super-Admin-Status (ohne sensible Daten)
+    if (superAdminStatus) {
+      console.log('✅ Super Admin check: true');
+    }
     
     res.json({
-      isSuperAdmin: isSuperAdmin(authReq.user.uid),
+      isSuperAdmin: superAdminStatus,
       uid: authReq.user.uid,
     });
   }
