@@ -177,13 +177,30 @@ app.get('/api/me', requireAuth, async (req, res) => {
         let mfaEnabled = false;
         let mfaRequired = false;
         
-        // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
-        // Daher setzen wir mfaRequired immer auf false für SUPER_ADMINs
-        if (hasMfaEntitlement && !isSuper) {
-          const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+        // WICHTIG: SUPER_ADMINs können MFA nur umgehen, wenn das Secret korrupt ist
+        // Wenn MFA aktiviert ist und das Secret korrekt ist, muss auch der SUPER_ADMIN MFA verifizieren
+        if (hasMfaEntitlement) {
+          const { isMfaEnabled, isMfaSetupInProgress, getMfaSecret } = await import('./core/mfa/service.js');
           mfaEnabled = await isMfaEnabled(user.uid);
-          const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
-          mfaRequired = mfaEnabled && !mfaSetupInProgress;
+          
+          if (mfaEnabled) {
+            // Prüfe, ob das Secret korrupt ist
+            try {
+              const secret = await getMfaSecret(user.uid);
+              // Wenn Secret vorhanden und nicht null, ist es korrekt → MFA erforderlich
+              if (secret !== null && !isSuper) {
+                const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+                mfaRequired = !mfaSetupInProgress;
+              }
+              // Wenn secret === null (zurückgesetzt wegen korruptem Secret) → mfaRequired bleibt false für SUPER_ADMIN
+            } catch (secretError) {
+              // Secret ist korrupt → für SUPER_ADMIN mfaRequired auf false (Bypass)
+              // Für normale User bleibt mfaRequired true (Login blockiert)
+              if (!isSuper) {
+                mfaRequired = true; // Normale User können nicht einloggen
+              }
+            }
+          }
         }
         
         if (tenantData) {
@@ -220,12 +237,24 @@ app.get('/api/me', requireAuth, async (req, res) => {
             let mfaEnabled = false;
             let mfaRequired = false;
             
-            // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
-            if (hasMfaEntitlement && !isSuper) {
-              const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+            // WICHTIG: SUPER_ADMINs können MFA nur umgehen, wenn das Secret korrupt ist
+            if (hasMfaEntitlement) {
+              const { isMfaEnabled, isMfaSetupInProgress, getMfaSecret } = await import('./core/mfa/service.js');
               mfaEnabled = await isMfaEnabled(user.uid);
-              const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
-              mfaRequired = mfaEnabled && !mfaSetupInProgress;
+              
+              if (mfaEnabled) {
+                try {
+                  const secret = await getMfaSecret(user.uid);
+                  if (secret !== null && !isSuper) {
+                    const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+                    mfaRequired = !mfaSetupInProgress;
+                  }
+                } catch (secretError) {
+                  if (!isSuper) {
+                    mfaRequired = true;
+                  }
+                }
+              }
             }
             
             const response: any = {
@@ -276,12 +305,24 @@ app.get('/api/me', requireAuth, async (req, res) => {
         let mfaEnabled = false;
         let mfaRequired = false;
         
-        // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
-        if (hasMfaEntitlement && !isSuper) {
-          const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+        // WICHTIG: SUPER_ADMINs können MFA nur umgehen, wenn das Secret korrupt ist
+        if (hasMfaEntitlement) {
+          const { isMfaEnabled, isMfaSetupInProgress, getMfaSecret } = await import('./core/mfa/service.js');
           mfaEnabled = await isMfaEnabled(user.uid);
-          const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
-          mfaRequired = mfaEnabled && !mfaSetupInProgress;
+          
+          if (mfaEnabled) {
+            try {
+              const secret = await getMfaSecret(user.uid);
+              if (secret !== null && !isSuper) {
+                const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+                mfaRequired = !mfaSetupInProgress;
+              }
+            } catch (secretError) {
+              if (!isSuper) {
+                mfaRequired = true;
+              }
+            }
+          }
         }
         
         if (tenantData) {

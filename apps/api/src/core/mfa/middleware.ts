@@ -56,12 +56,51 @@ export async function requireMfaVerification(
   }
 
   try {
-    // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang für Entwickler)
-    // Dies ist notwendig, falls MFA-Secrets korrupt sind oder der Encryption-Key sich geändert hat
+    // WICHTIG: SUPER_ADMINs können MFA nur umgehen, wenn das Secret korrupt ist (Notfall-Zugang)
+    // Wenn MFA aktiviert ist und das Secret korrekt ist, muss auch der SUPER_ADMIN MFA verifizieren
     if (isSuperAdmin(user.uid)) {
-      console.log(`⚠️ SUPER_ADMIN ${user.uid} umgeht MFA-Verifizierung (Notfall-Zugang)`);
-      next();
-      return;
+      // Prüfen, ob MFA aktiviert ist
+      const mfaEnabled = await isMfaEnabled(user.uid);
+      
+      if (mfaEnabled) {
+        // Versuche, das Secret zu holen - wenn es korrupt ist, wird ein Fehler geworfen
+        try {
+          const { getMfaSecret } = await import('./service.js');
+          const secret = await getMfaSecret(user.uid);
+          
+          // Wenn Secret vorhanden und nicht null, ist es korrekt → MFA-Verifizierung erforderlich
+          if (secret !== null) {
+            // Secret ist korrekt, prüfe ob MFA verifiziert wurde
+            const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+            
+            if (!mfaSetupInProgress) {
+              res.status(403).json({
+                error: 'MFA verification required',
+                code: 'MFA_REQUIRED',
+                mfaRequired: true,
+              });
+              return;
+            }
+            // MFA ist verifiziert → Request durchlassen
+            next();
+            return;
+          }
+          // Wenn secret === null, wurde MFA zurückgesetzt (korruptes Secret) → Bypass aktivieren
+          console.log(`⚠️ SUPER_ADMIN ${user.uid} umgeht MFA-Verifizierung (MFA zurückgesetzt - Notfall-Zugang)`);
+          next();
+          return;
+        } catch (secretError) {
+          // Secret ist korrupt → Bypass aktivieren (Notfall-Zugang)
+          const errorMessage = secretError instanceof Error ? secretError.message : 'Unknown error';
+          if (errorMessage.includes('corrupted')) {
+            console.log(`⚠️ SUPER_ADMIN ${user.uid} umgeht MFA-Verifizierung (korruptes Secret - Notfall-Zugang)`);
+            next();
+            return;
+          }
+          // Anderer Fehler → weiter mit normaler Prüfung
+        }
+      }
+      // Wenn MFA nicht aktiviert ist, Request durchlassen
     }
 
     // Tenant-Daten laden, um Entitlements zu prüfen
