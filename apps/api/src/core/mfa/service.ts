@@ -1,13 +1,14 @@
 /**
  * MFA Service
  *
- * Service für Multi-Factor Authentication mit TOTP.
+ * Service für Multi-Factor Authentication mit TOTP und Phone Auth.
  */
 
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
-import { getAdminFirestore } from '../firebase/index.js';
+import { getAdminFirestore, getAdminAuth } from '../firebase/index.js';
 import crypto from 'crypto';
+import type { MfaMethod } from '@timeam/shared';
 
 // TOTP-Konfiguration
 const TOTP_ISSUER = 'TimeAM';
@@ -205,6 +206,8 @@ export async function disableMfa(uid: string): Promise<void> {
     mfaSetupInProgress: false,
     mfaSecret: null,
     mfaBackupCodes: null,
+    mfaPhoneNumber: null,
+    mfaMethod: null,
   });
 }
 
@@ -212,7 +215,7 @@ export async function disableMfa(uid: string): Promise<void> {
  * Repariert ein korruptes MFA Secret, indem MFA zurückgesetzt wird.
  */
 async function repairCorruptedMfaSecret(uid: string): Promise<void> {
-  console.warn(`MFA secret for user ${uid} is corrupted. Resetting MFA.`);
+  // MFA secret is corrupted. Resetting MFA.
   const db = getAdminFirestore();
   // WICHTIG: mfaEnabled auf false setzen, damit mfaRequired auch false wird
   // und der User nicht mehr im MFA-Modal hängen bleibt
@@ -222,7 +225,7 @@ async function repairCorruptedMfaSecret(uid: string): Promise<void> {
     mfaSecret: null,
     mfaBackupCodes: null,
   });
-  console.log(`MFA reset completed for user ${uid}. User needs to set up MFA again.`);
+  // MFA reset completed. User needs to set up MFA again.
 }
 
 /**
@@ -252,13 +255,12 @@ export async function getMfaSecret(uid: string): Promise<string | null> {
   const parts = secretStr.split(':');
   
   if (parts.length !== 3) {
-    console.error(`Invalid MFA secret format for user ${uid}: expected 3 parts, got ${parts.length}`);
-    console.error('Secret (first 100 chars):', secretStr.substring(0, 100));
+    // Invalid MFA secret format: expected 3 parts
     
     // AUSNAHME: Für SUPER_ADMINs MFA automatisch zurücksetzen
     const { isSuperAdmin } = await import('../super-admin/index.js');
     if (isSuperAdmin(uid)) {
-      console.warn(`⚠️ SUPER_ADMIN ${uid}: MFA secret is corrupted. Automatically resetting MFA.`);
+      // SUPER_ADMIN: MFA secret is corrupted. Automatically resetting MFA.
       await repairCorruptedMfaSecret(uid);
       return null; // MFA wurde zurückgesetzt, kein Secret mehr vorhanden
     }
@@ -271,19 +273,12 @@ export async function getMfaSecret(uid: string): Promise<string | null> {
   try {
     return decrypt(secretStr);
   } catch (error) {
-    console.error(`❌ Error decrypting MFA secret for user ${uid}:`, error);
-    console.error('Secret format (first 100 chars):', secretStr.substring(0, 100));
-    
-    // Debug: Prüfe, ob der Key sich geändert hat
-    const currentKey = getEncryptionKey();
-    const currentKeyHash = crypto.createHash('sha256').update(currentKey).digest('hex').substring(0, 16);
-    console.error(`Current encryption key hash: ${currentKeyHash}...`);
-    console.error(`Error details:`, error instanceof Error ? error.message : String(error));
+    // Error decrypting MFA secret
     
     // AUSNAHME: Für SUPER_ADMINs MFA automatisch zurücksetzen
     const { isSuperAdmin } = await import('../super-admin/index.js');
     if (isSuperAdmin(uid)) {
-      console.warn(`⚠️ SUPER_ADMIN ${uid}: MFA secret decryption failed. Automatically resetting MFA.`);
+      // SUPER_ADMIN: MFA secret decryption failed. Automatically resetting MFA.
       await repairCorruptedMfaSecret(uid);
       return null; // MFA wurde zurückgesetzt, kein Secret mehr vorhanden
     }
@@ -411,5 +406,162 @@ export async function verifyBackupCode(uid: string, code: string): Promise<boole
   }
   
   return false;
+}
+
+/**
+ * Validiert eine Telefonnummer im internationalen Format.
+ * Erwartet Format: +[Ländercode][Nummer] (z.B. +491234567890)
+ */
+function validatePhoneNumber(phoneNumber: string): boolean {
+  // Einfache Validierung: Muss mit + beginnen und mindestens 10 Zeichen haben
+  // Detailliertere Validierung kann später hinzugefügt werden
+  const phoneRegex = /^\+[1-9]\d{1,14}$/;
+  return phoneRegex.test(phoneNumber);
+}
+
+/**
+ * Maskiert eine Telefonnummer für Anzeige.
+ * Zeigt nur die letzten 4 Ziffern: +49****7890
+ */
+function maskPhoneNumber(phoneNumber: string): string {
+  if (phoneNumber.length <= 4) {
+    return phoneNumber;
+  }
+  const last4 = phoneNumber.slice(-4);
+  const prefix = phoneNumber.slice(0, -4);
+  return prefix.replace(/\d/g, '*') + last4;
+}
+
+/**
+ * Holt die MFA-Methode für einen User.
+ */
+export async function getMfaMethod(uid: string): Promise<MfaMethod | null> {
+  const db = getAdminFirestore();
+  const userDoc = await db.collection('users').doc(uid).get();
+  const userData = userDoc.data();
+  
+  // Standard: 'totp' für Rückwärtskompatibilität
+  const method = userData?.mfaMethod as MfaMethod | undefined;
+  return method || 'totp';
+}
+
+/**
+ * Startet Phone MFA Setup.
+ * Sendet eine SMS mit Verifizierungscode an die angegebene Telefonnummer.
+ * 
+ * WICHTIG: Diese Funktion erwartet, dass das Frontend bereits Firebase Phone Auth
+ * verwendet hat, um einen Verifizierungscode zu senden. Das Backend speichert nur
+ * die Telefonnummer (verschlüsselt) und markiert Setup als in Progress.
+ */
+export async function setupPhoneMfa(uid: string, phoneNumber: string): Promise<{ phoneNumber: string }> {
+  // Validierung
+  if (!validatePhoneNumber(phoneNumber)) {
+    throw new Error('Ungültige Telefonnummer. Bitte verwenden Sie das internationale Format (z.B. +491234567890)');
+  }
+
+  // Prüfen, ob MFA bereits aktiviert ist
+  const alreadyEnabled = await isMfaEnabled(uid);
+  if (alreadyEnabled) {
+    throw new Error('MFA ist bereits aktiviert');
+  }
+
+  const db = getAdminFirestore();
+  
+  // Telefonnummer verschlüsseln
+  const encryptedPhoneNumber = encrypt(phoneNumber);
+  
+  // Setup in Progress markieren
+  await db.collection('users').doc(uid).update({
+    mfaPhoneNumber: encryptedPhoneNumber,
+    mfaMethod: 'phone' as MfaMethod,
+    mfaEnabled: false, // Wird erst nach Verifizierung aktiviert
+    mfaSetupInProgress: true,
+  });
+
+  // Maskierte Telefonnummer zurückgeben
+  return {
+    phoneNumber: maskPhoneNumber(phoneNumber),
+  };
+}
+
+/**
+ * Verifiziert einen SMS-Code für Phone MFA Setup.
+ * 
+ * WICHTIG: Diese Funktion erwartet, dass das Frontend bereits Firebase Phone Auth
+ * verwendet hat, um den Code zu verifizieren. Das Backend aktiviert nur MFA.
+ */
+export async function verifyPhoneMfaSetup(uid: string): Promise<void> {
+  const db = getAdminFirestore();
+  const userDoc = await db.collection('users').doc(uid).get();
+  const userData = userDoc.data();
+  
+  // Prüfen, ob Phone MFA Setup in Progress ist
+  if (!userData?.mfaSetupInProgress) {
+    throw new Error('Phone MFA Setup ist nicht in Progress');
+  }
+  
+  // Prüfen, ob Telefonnummer vorhanden ist
+  if (!userData?.mfaPhoneNumber) {
+    throw new Error('Telefonnummer nicht gefunden');
+  }
+  
+  // Prüfen, ob Methode 'phone' ist
+  if (userData?.mfaMethod !== 'phone') {
+    throw new Error('MFA-Methode ist nicht Phone Auth');
+  }
+  
+  // MFA aktivieren
+  await enableMfa(uid);
+}
+
+/**
+ * Verifiziert einen SMS-Code für Phone MFA beim Login.
+ * 
+ * WICHTIG: Diese Funktion erwartet, dass das Frontend bereits Firebase Phone Auth
+ * verwendet hat, um den Code zu verifizieren. Das Backend markiert nur die Session
+ * als verifiziert.
+ */
+export async function verifyPhoneMfaCode(uid: string): Promise<void> {
+  const db = getAdminFirestore();
+  const userDoc = await db.collection('users').doc(uid).get();
+  const userData = userDoc.data();
+  
+  // Prüfen, ob MFA aktiviert ist
+  if (!userData?.mfaEnabled) {
+    throw new Error('MFA ist nicht aktiviert');
+  }
+  
+  // Prüfen, ob Methode 'phone' ist
+  if (userData?.mfaMethod !== 'phone') {
+    throw new Error('MFA-Methode ist nicht Phone Auth');
+  }
+  
+  // Session als verifiziert markieren
+  const now = Math.floor(Date.now() / 1000);
+  await db.collection('users').doc(uid).update({
+    mfaSetupInProgress: true, // Session-Verifizierung
+    mfaVerifiedAt: now,
+  });
+}
+
+/**
+ * Holt die Telefonnummer für einen User (maskiert).
+ */
+export async function getMfaPhoneNumber(uid: string): Promise<string | null> {
+  const db = getAdminFirestore();
+  const userDoc = await db.collection('users').doc(uid).get();
+  const userData = userDoc.data();
+  
+  if (!userData?.mfaPhoneNumber) {
+    return null;
+  }
+  
+  try {
+    const decryptedPhoneNumber = decrypt(userData.mfaPhoneNumber);
+    return maskPhoneNumber(decryptedPhoneNumber);
+  } catch (error) {
+    console.error('Fehler beim Entschlüsseln der Telefonnummer:', error);
+    return null;
+  }
 }
 

@@ -22,10 +22,10 @@ import { MembersPage } from './modules/members';
 import { CalendarPage } from './modules/calendar-core';
 import { AdminDashboard, useSuperAdminCheck } from './modules/admin';
 import { ReportsPage } from './modules/reports';
+import { CompliancePage } from './modules/work-time-compliance';
 import { SupportDashboard, DevStaffAdminPage, useDevStaffCheck } from './modules/support';
+import { SecurityAuditPage } from './modules/security-audit';
 import { FreelancerPoolPage } from './modules/freelancer/FreelancerPoolPage';
-import { FreelancerLoginForm } from './modules/freelancer/FreelancerLoginForm';
-import { FreelancerRegisterForm } from './modules/freelancer/FreelancerRegisterForm';
 import { FreelancerDashboardPage } from './modules/freelancer/FreelancerDashboardPage';
 import { FreelancerMyShiftsPage } from './modules/freelancer/FreelancerMyShiftsPage';
 import { MfaVerifyModal } from './components/MfaVerifyModal';
@@ -101,6 +101,7 @@ function AppContent() {
   const mfaModuleEnabled = hasEntitlement('module.mfa');
   const { isSuperAdmin } = useSuperAdminCheck();
   const { isDevStaff } = useDevStaffCheck();
+  const isDevTenant = tenant?.id === 'dev-tenant';
   const location = useLocation();
   const navigate = useNavigate();
   
@@ -110,22 +111,30 @@ function AppContent() {
 
   // WICHTIG: Nach erfolgreichem Login von /login weg navigieren
   // UND: Nach Logout/Login zu korrekter Route navigieren
+  // WICHTIG: Warte bis ALLE Daten geladen sind (Tenant, MFA, etc.)
   useEffect(() => {
-    // Wenn User eingeloggt ist und Tenant-Daten geladen sind
-    if (user && !tenantLoading && !mfaRequired) {
-      // Nur von /login weiterleiten, nicht von /dashboard (damit Dev-Staff Dashboard nutzen kann)
+    // Wenn User eingeloggt ist und ALLE Daten geladen sind
+    if (user && !tenantLoading && !mfaRequired && tenant !== undefined) {
+      // Nur von /login weiterleiten
       if (location.pathname === '/login') {
         // Bestimme Standard-Route basierend auf User-Typ
         let defaultRoute = '/dashboard';
-        // Dev-Staff kommt auch auf Dashboard (nicht nur Support)
         if (isFreelancer) {
           defaultRoute = '/freelancer-dashboard';
         }
-        // Super Admin kann sowohl Dashboard als auch Support nutzen, Standard ist Dashboard
         navigate(defaultRoute, { replace: true });
       }
     }
-  }, [user, location.pathname, tenantLoading, mfaRequired, isDevStaff, isFreelancer, isSuperAdmin, navigate]);
+  }, [user, location.pathname, tenantLoading, mfaRequired, isFreelancer, tenant, navigate]);
+
+  // Route-Guard: Freelancer von /dashboard auf /freelancer-dashboard umleiten
+  useEffect(() => {
+    if (user && !tenantLoading && !mfaRequired && isFreelancer) {
+      if (location.pathname === '/dashboard') {
+        navigate('/freelancer-dashboard', { replace: true });
+      }
+    }
+  }, [user, location.pathname, tenantLoading, mfaRequired, isFreelancer, navigate]);
 
   // MFA-Verifizierung erforderlich (nur wenn MFA-Modul aktiviert ist)
   // WICHTIG: useEffect muss vor allen frühen Returns stehen!
@@ -249,27 +258,9 @@ function AppContent() {
             path="/freelancer-pool" 
             element={
               <FreelancerPoolPage 
-                onLoginClick={() => navigate('/freelancer-login')}
+                onLoginClick={() => navigate('/login')}
                 onPrivacyClick={() => setLegalPage('privacy')}
                 onImprintClick={() => setLegalPage('imprint')}
-              />
-            } 
-          />
-          <Route 
-            path="/freelancer-login" 
-            element={
-              <FreelancerLoginForm
-                onSuccess={() => navigate('/freelancer-dashboard')}
-                onRegisterClick={() => navigate('/freelancer-register')}
-              />
-            } 
-          />
-          <Route 
-            path="/freelancer-register" 
-            element={
-              <FreelancerRegisterForm
-                onSuccess={() => navigate('/freelancer-pool')}
-                onCancel={() => navigate('/freelancer-login')}
               />
             } 
           />
@@ -430,6 +421,23 @@ function AppContent() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/security-audit" 
+              element={
+                <ProtectedRoute requireSuperAdmin>
+                  {isDevTenant && hasEntitlement('module.security_audit') ? (
+                    <ModuleBoundary moduleId="security-audit" moduleName="Security Audit">
+                      <SecurityAuditPage />
+                    </ModuleBoundary>
+                  ) : (
+                    <div className={styles.noAccess}>
+                      <span>🔒</span>
+                      <p>Security Audit ist nur im Dev-Tenant verfügbar</p>
+                    </div>
+                  )}
+                </ProtectedRoute>
+              } 
+            />
             {/* Dashboard auch für Dev-Staff verfügbar */}
             <Route 
               path="/dashboard" 
@@ -508,10 +516,37 @@ function AppContent() {
               } 
             />
             <Route 
+              path="/work-time-compliance" 
+              element={
+                <ProtectedRoute requiredEntitlement="module.work_time_compliance">
+                  <ModuleBoundary moduleId="work-time-compliance" moduleName="Arbeitszeit-Compliance">
+                    <CompliancePage />
+                  </ModuleBoundary>
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
               path="/dev-dashboard" 
               element={
                 <ProtectedRoute requireSuperAdmin>
                   <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/security-audit" 
+              element={
+                <ProtectedRoute requireSuperAdmin>
+                  {isDevTenant && hasEntitlement('module.security_audit') ? (
+                    <ModuleBoundary moduleId="security-audit" moduleName="Security Audit">
+                      <SecurityAuditPage />
+                    </ModuleBoundary>
+                  ) : (
+                    <div className={styles.noAccess}>
+                      <span>🔒</span>
+                      <p>Security Audit ist nur im Dev-Tenant verfügbar</p>
+                    </div>
+                  )}
                 </ProtectedRoute>
               } 
             />

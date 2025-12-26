@@ -15,6 +15,7 @@ export const ENTITLEMENT_KEYS = {
   MODULE_SHIFT_POOL: 'module.shift_pool',
   MODULE_REPORTS: 'module.reports',
   MODULE_MFA: 'module.mfa',
+  MODULE_WORK_TIME_COMPLIANCE: 'module.work_time_compliance',
 
   // Freelancer Module
   MODULE_FREELANCER_MY_SHIFTS: 'module.freelancer_my_shifts',
@@ -25,6 +26,7 @@ export const ENTITLEMENT_KEYS = {
   MODULE_DEV_LOGS: 'module.dev_logs',
   MODULE_DEV_API_TESTING: 'module.dev_api_testing',
   MODULE_DEV_DATABASE: 'module.dev_database',
+  MODULE_SECURITY_AUDIT: 'module.security_audit',
 
   // Firmen-spezifische Module
   MODULE_COMPANY_BRANDING: 'module.company_branding',

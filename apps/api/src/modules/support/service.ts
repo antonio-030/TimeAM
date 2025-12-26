@@ -36,6 +36,7 @@ function devStaffToResponse(doc: DevStaffDoc): DevStaffResponse {
     displayName: doc.displayName,
     createdAt: doc.createdAt.toDate().toISOString(),
     createdBy: doc.createdBy,
+    role: doc.role || 'dev-staff', // Fallback für alte Einträge
     permissions: doc.permissions,
   };
 }
@@ -46,11 +47,8 @@ function devStaffToResponse(doc: DevStaffDoc): DevStaffResponse {
 
 /**
  * Erstellt einen neuen Dev-Mitarbeiter.
- * WICHTIG: Nur Super-Admins (aus SUPER_ADMIN_UIDS) können als Dev-Staff erkannt werden.
- * Diese Funktion erstellt nur einen Eintrag in der dev-staff Collection, aber isDevStaff()
- * prüft nur SUPER_ADMIN_UIDS. Daher funktionieren manuell erstellte Dev-Staff-Einträge nicht.
- * 
- * @deprecated Diese Funktion sollte nicht mehr verwendet werden. Nur SUPER_ADMIN_UIDS zählt.
+ * Nur Super-Admins (aus SUPER_ADMIN_UIDS) können Dev-Mitarbeiter erstellen.
+ * Nur Super-Admins können die Rolle 'super-admin' vergeben.
  */
 export async function createDevStaff(
   data: CreateDevStaffRequest,
@@ -59,8 +57,10 @@ export async function createDevStaff(
   const db = getAdminFirestore();
   const auth = getAdminAuth();
   
-  // Warnung: Nur Super-Admins werden als Dev-Staff erkannt
-  console.warn('⚠️ createDevStaff: Nur Super-Admins aus SUPER_ADMIN_UIDS werden als Dev-Staff erkannt. Manuell erstellte Einträge funktionieren nicht.');
+  // Validierung: Nur Super-Admins können Dev-Staff erstellen
+  if (!isSuperAdmin(createdByUid)) {
+    throw new Error('Only super-admins can create dev staff members');
+  }
 
   // Validierung
   if (!data.email || !data.email.includes('@')) {
@@ -71,6 +71,12 @@ export async function createDevStaff(
   }
   if (!Array.isArray(data.permissions) || data.permissions.length === 0) {
     throw new Error('At least one permission is required');
+  }
+
+  // Rolle validieren: Nur Super-Admins können 'super-admin' Rolle vergeben
+  const requestedRole = data.role || 'dev-staff';
+  if (requestedRole === 'super-admin' && !isSuperAdmin(createdByUid)) {
+    throw new Error('Only super-admins can assign the super-admin role');
   }
 
   const email = data.email.toLowerCase().trim();
@@ -114,7 +120,6 @@ export async function createDevStaff(
       uid = newUser.uid;
     }
   } catch (authError) {
-    console.error('❌ Firebase Auth error:', authError);
     throw new Error(`Failed to create user account: ${authError instanceof Error ? authError.message : 'Unknown error'}`);
   }
 
@@ -125,6 +130,7 @@ export async function createDevStaff(
     displayName: data.displayName.trim(),
     createdAt: FieldValue.serverTimestamp() as Timestamp,
     createdBy: createdByUid,
+    role: requestedRole,
     permissions: data.permissions,
   };
 
@@ -133,39 +139,43 @@ export async function createDevStaff(
   // Dev-Mitarbeiter zum Dev-Tenant hinzufügen
   await assignDevStaffToTenant(uid, email);
 
+  // Password Reset Link generieren
+  let passwordResetLink: string | undefined;
+  try {
+    passwordResetLink = await auth.generatePasswordResetLink(email);
+  } catch (linkError) {
+    // Nicht kritisch - User kann auch "Passwort vergessen" nutzen
+    console.warn('Could not generate password reset link for dev staff:', linkError);
+  }
+
   // Zurücklesen
   const savedDoc = await db.collection('dev-staff').doc(uid).get();
-  return devStaffToResponse(savedDoc.data() as DevStaffDoc);
+  const response = devStaffToResponse(savedDoc.data() as DevStaffDoc);
+  
+  // Password-Reset-Link nur beim Erstellen zurückgeben
+  if (passwordResetLink) {
+    response.passwordResetLink = passwordResetLink;
+  }
+  
+  return response;
 }
 
 /**
  * Lädt alle Dev-Mitarbeiter.
- * Gibt nur Super-Admins zurück (aus SUPER_ADMIN_UIDS).
+ * Gibt alle Dev-Staff-Einträge zurück (sowohl Super-Admins als auch manuell erstellte).
  */
 export async function getAllDevStaff(): Promise<DevStaffResponse[]> {
   const db = getAdminFirestore();
   const snapshot = await db.collection('dev-staff').orderBy('createdAt', 'desc').get();
 
-  // Nur Super-Admins zurückgeben
-  return snapshot.docs
-    .map(doc => {
-      const data = doc.data() as DevStaffDoc;
-      return { doc: data, uid: data.uid };
-    })
-    .filter(({ uid }) => isSuperAdmin(uid))
-    .map(({ doc }) => devStaffToResponse(doc));
+  return snapshot.docs.map(doc => devStaffToResponse(doc.data() as DevStaffDoc));
 }
 
 /**
  * Lädt einen Dev-Mitarbeiter.
- * Gibt nur zurück, wenn die UID ein Super-Admin ist (aus SUPER_ADMIN_UIDS).
+ * Gibt den Dev-Staff-Eintrag zurück, falls vorhanden.
  */
 export async function getDevStaff(uid: string): Promise<DevStaffResponse | null> {
-  // Nur Super-Admins sind Dev-Staff
-  if (!isSuperAdmin(uid)) {
-    return null;
-  }
-
   const db = getAdminFirestore();
   const doc = await db.collection('dev-staff').doc(uid).get();
 
@@ -178,12 +188,18 @@ export async function getDevStaff(uid: string): Promise<DevStaffResponse | null>
 
 /**
  * Prüft ob ein User ein Dev-Mitarbeiter ist.
- * NUR Super-Admins (aus SUPER_ADMIN_UIDS) werden als Dev-Staff erkannt.
- * Die dev-staff Collection wird ignoriert - nur SUPER_ADMIN_UIDS zählt.
+ * Erkennt sowohl Super-Admins (aus SUPER_ADMIN_UIDS) als auch manuell erstellte Dev-Staff-Einträge.
  */
 export async function isDevStaff(uid: string): Promise<boolean> {
-  // NUR Super-Admins aus SUPER_ADMIN_UIDS sind Dev-Staff
-  return isSuperAdmin(uid);
+  // Super-Admins sind immer Dev-Staff
+  if (isSuperAdmin(uid)) {
+    return true;
+  }
+
+  // Prüfe ob User in dev-staff Collection existiert
+  const db = getAdminFirestore();
+  const doc = await db.collection('dev-staff').doc(uid).get();
+  return doc.exists;
 }
 
 /**
@@ -215,7 +231,7 @@ export async function ensureDevStaffForSuperAdmin(uid: string, email: string): P
     displayName = userRecord.displayName || email;
   } catch (error) {
     // Falls User nicht gefunden wird, verwenden wir email
-    console.warn(`Could not fetch user ${uid} for dev staff creation:`, error);
+    // Could not fetch user for dev staff creation
   }
 
   await devStaffRef.set({
@@ -224,6 +240,7 @@ export async function ensureDevStaffForSuperAdmin(uid: string, email: string): P
     displayName,
     createdAt: FieldValue.serverTimestamp(),
     createdBy: 'system', // Super-Admins werden automatisch erstellt
+    role: 'super-admin', // Super-Admins haben immer die super-admin Rolle
     permissions: ['verification.review', 'verification.approve', 'verification.reject'], // Standard-Rechte
   });
 
@@ -232,11 +249,13 @@ export async function ensureDevStaffForSuperAdmin(uid: string, email: string): P
 }
 
 /**
- * Aktualisiert die Rechte eines Dev-Mitarbeiters.
+ * Aktualisiert die Rechte und/oder Rolle eines Dev-Mitarbeiters.
+ * Nur Super-Admins können die Rolle 'super-admin' vergeben.
  */
 export async function updateDevStaffPermissions(
   uid: string,
-  data: UpdateDevStaffPermissionsRequest
+  data: UpdateDevStaffPermissionsRequest,
+  updatedByUid: string
 ): Promise<DevStaffResponse> {
   const db = getAdminFirestore();
   const devStaffRef = db.collection('dev-staff').doc(uid);
@@ -247,13 +266,26 @@ export async function updateDevStaffPermissions(
     throw new Error('Dev staff member not found');
   }
 
-  if (!Array.isArray(data.permissions) || data.permissions.length === 0) {
-    throw new Error('At least one permission is required');
+  // Validierung: Nur Super-Admins können die super-admin Rolle vergeben
+  if (data.role === 'super-admin' && !isSuperAdmin(updatedByUid)) {
+    throw new Error('Only super-admins can assign the super-admin role');
   }
 
-  await devStaffRef.update({
-    permissions: data.permissions,
-  });
+  // Update-Daten vorbereiten
+  const updateData: Partial<DevStaffDoc> = {};
+
+  if (data.permissions !== undefined) {
+    if (!Array.isArray(data.permissions) || data.permissions.length === 0) {
+      throw new Error('At least one permission is required');
+    }
+    updateData.permissions = data.permissions;
+  }
+
+  if (data.role !== undefined) {
+    updateData.role = data.role;
+  }
+
+  await devStaffRef.update(updateData);
 
   // Zurücklesen
   const savedDoc = await devStaffRef.get();
@@ -482,6 +514,8 @@ export async function getOrCreateDevTenant(createdByUid: string): Promise<string
     'module.reports',
     'module.mfa',
     'module.calendar_core',
+    'module.security_audit',
+    'module.work_time_compliance',
   ];
 
   const entitlementsRef = tenantRef.collection('entitlements');

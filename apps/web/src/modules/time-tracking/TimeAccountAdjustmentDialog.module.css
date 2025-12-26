@@ -1,0 +1,279 @@
+/**
+ * Time Account Adjustment Dialog Styles
+ * WCAG 2.2 AA konform
+ */
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: fadeIn 0.25s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modalContent {
+  position: relative;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.35);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:global(.dark) .modalContent {
+  background: #1f2937;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+:global(.dark) .modalHeader {
+  border-bottom-color: var(--color-gray-700);
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-navy);
+}
+
+:global(.dark) .modalTitle {
+  color: var(--color-gray-100);
+}
+
+.modalClose {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  color: var(--color-gray-600);
+  transition: color 0.2s;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius-sm);
+}
+
+.modalClose:hover {
+  color: var(--color-gray-900);
+  background: var(--color-gray-100);
+}
+
+:global(.dark) .modalClose:hover {
+  color: var(--color-gray-100);
+  background: var(--color-gray-800);
+}
+
+.modalClose:focus-visible {
+  outline: 2px solid var(--color-blue-600);
+  outline-offset: 2px;
+}
+
+.modalClose:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  overflow-y: auto;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.formLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-navy);
+}
+
+:global(.dark) .formLabel {
+  color: var(--color-gray-100);
+}
+
+.formInput,
+.formTextarea {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  transition: border-color 0.2s;
+  min-height: 44px; /* WCAG Touch Target */
+}
+
+:global(.dark) .formInput,
+:global(.dark) .formTextarea {
+  background: var(--color-gray-800);
+  border-color: var(--color-gray-600);
+  color: var(--color-gray-100);
+}
+
+.formInput:focus,
+.formTextarea:focus {
+  outline: none;
+  border-color: var(--color-blue-600);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.formInput:disabled,
+.formTextarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.formTextarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.formHelp {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray-600);
+}
+
+:global(.dark) .formHelp {
+  color: var(--color-gray-400);
+}
+
+.formError {
+  font-size: var(--font-size-xs);
+  color: #dc2626;
+  margin-top: var(--spacing-xs);
+}
+
+:global(.dark) .formError {
+  color: #f87171;
+}
+
+.error {
+  padding: var(--spacing-md);
+  background: #fee2e2;
+  color: #dc2626;
+  border-radius: var(--border-radius-md);
+  border: 1px solid #fecaca;
+  font-size: var(--font-size-sm);
+}
+
+:global(.dark) .error {
+  background: #7f1d1d;
+  color: #f87171;
+  border-color: #991b1b;
+}
+
+.formActions {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+  margin-top: var(--spacing-md);
+}
+
+.cancelButton,
+.submitButton {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 44px; /* WCAG Touch Target */
+  min-width: 100px;
+}
+
+.cancelButton {
+  background: var(--color-gray-200);
+  color: var(--color-gray-700);
+}
+
+:global(.dark) .cancelButton {
+  background: var(--color-gray-700);
+  color: var(--color-gray-200);
+}
+
+.cancelButton:hover {
+  background: var(--color-gray-300);
+}
+
+:global(.dark) .cancelButton:hover {
+  background: var(--color-gray-600);
+}
+
+.cancelButton:focus-visible {
+  outline: 2px solid var(--color-gray-600);
+  outline-offset: 2px;
+}
+
+.cancelButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.submitButton {
+  background: var(--color-blue-600);
+  color: var(--color-white);
+}
+
+.submitButton:hover {
+  background: var(--color-blue-700);
+}
+
+.submitButton:focus-visible {
+  outline: 2px solid var(--color-blue-600);
+  outline-offset: 2px;
+}
+
+.submitButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+

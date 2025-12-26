@@ -22,22 +22,28 @@ export interface VerificationOverview {
   businessLicenseNumber?: string;
 }
 
+export type DevStaffRole = 'super-admin' | 'dev-staff';
+
 export interface DevStaff {
   uid: string;
   email: string;
   displayName: string;
   createdAt: string;
   createdBy: string;
+  role: DevStaffRole;
   permissions: string[];
+  passwordResetLink?: string; // Optional: Password-Reset-Link (nur beim Erstellen)
 }
 
 export interface CreateDevStaffRequest {
   email: string;
   displayName: string;
+  role?: DevStaffRole; // Optional, default: 'dev-staff'. Nur Super-Admins können 'super-admin' setzen
   permissions: string[];
 }
 
 export interface UpdateDevStaffPermissionsRequest {
+  role?: DevStaffRole; // Optional. Nur Super-Admins können 'super-admin' setzen
   permissions: string[];
 }
 

@@ -15,6 +15,7 @@ export const ENTITLEMENT_KEYS = {
   MODULE_SHIFT_POOL: 'module.shift_pool',
   MODULE_REPORTS: 'module.reports',
   MODULE_MFA: 'module.mfa',
+  MODULE_WORK_TIME_COMPLIANCE: 'module.work_time_compliance',
 
   // Features
   TIME_TRACKING_APPROVALS: 'time_tracking.approvals',

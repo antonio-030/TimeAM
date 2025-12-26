@@ -2865,7 +2865,7 @@ export async function completeShift(
   // Automatisch Zeiteinträge für alle zugewiesenen Mitarbeiter erstellen
   try {
     const assigneesUids = await getAssignedUserIds(tenantId, shiftId);
-    const endsAt = shiftData.endsAt.toDate();
+    const shiftEndsAt = shiftData.endsAt.toDate();
     
     for (const uid of assigneesUids) {
       // Prüfen ob bereits ein Eintrag existiert
@@ -2880,7 +2880,7 @@ export async function completeShift(
 
       // Nur erstellen wenn noch kein Eintrag existiert
       if (existingSnapshot.empty) {
-        const durationMs = endsAt.getTime() - startsAt.getTime();
+        const durationMs = shiftEndsAt.getTime() - startsAt.getTime();
         const durationMinutes = Math.round(durationMs / (1000 * 60));
 
         const entryRef = db
@@ -2893,7 +2893,7 @@ export async function completeShift(
           shiftId,
           uid,
           actualClockIn: Timestamp.fromDate(startsAt),
-          actualClockOut: Timestamp.fromDate(endsAt),
+          actualClockOut: Timestamp.fromDate(shiftEndsAt),
           durationMinutes,
           enteredByUid: actorUid,
           createdAt: FieldValue.serverTimestamp(),
@@ -2905,6 +2905,17 @@ export async function completeShift(
     // Fehler bei Zeiteinträgen sollten nicht die Schicht-Beendigung blockieren
     console.error('Failed to create automatic time entries:', timeEntryError);
   }
+
+  // Compliance-Prüfung für alle zugewiesenen Mitarbeiter (asynchron, nicht blockierend)
+  checkComplianceAfterShiftComplete(tenantId, shiftId, startsAt, shiftEndsAt).catch((error) => {
+    console.error('Error in compliance check after shift complete:', error);
+  });
+
+  // Zeitkonto aktualisieren für alle zugewiesenen Mitarbeiter (asynchron, nicht blockierend)
+  const shiftEndsAt = shiftData.endsAt.toDate();
+  updateTimeAccountAfterShiftComplete(tenantId, shiftId, shiftEndsAt).catch((error) => {
+    console.error('Error in time account update after shift complete:', error);
+  });
 
   // Benachrichtigung an zugewiesene Mitarbeiter
   try {
@@ -3081,7 +3092,14 @@ export async function createShiftTimeEntry(
   await entryRef.set(entryData);
 
   const savedDoc = await entryRef.get();
-  return shiftTimeEntryToResponse(entryRef.id, savedDoc.data() as ShiftTimeEntryDoc);
+  const response = shiftTimeEntryToResponse(entryRef.id, savedDoc.data() as ShiftTimeEntryDoc);
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterShiftTimeEntry(tenantId, data.uid, clockOut).catch((error) => {
+    console.error('Error in time account update after create shift time entry:', error);
+  });
+
+  return response;
 }
 
 /**
@@ -3173,7 +3191,14 @@ export async function updateShiftTimeEntry(
   await entryRef.update(updateData);
 
   const updatedDoc = await entryRef.get();
-  return shiftTimeEntryToResponse(entryId, updatedDoc.data() as ShiftTimeEntryDoc);
+  const response = shiftTimeEntryToResponse(entryId, updatedDoc.data() as ShiftTimeEntryDoc);
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterShiftTimeEntry(tenantId, entryData.uid, clockOut).catch((error) => {
+    console.error('Error in time account update after update shift time entry:', error);
+  });
+
+  return response;
 }
 
 // =============================================================================
@@ -3437,4 +3462,87 @@ export async function deleteShiftDocument(
 
   // Audit Log
   await createAuditLog(tenantId, actorUid, 'SHIFT_DOCUMENT_DELETE', 'shift', shiftId);
+}
+
+/**
+ * Prüft Compliance nach Schicht-Beendigung für alle zugewiesenen Mitarbeiter.
+ */
+async function checkComplianceAfterShiftComplete(
+  tenantId: string,
+  shiftId: string,
+  startsAt: Date,
+  endsAt: Date
+): Promise<void> {
+  try {
+    const { detectViolations } = await import('../work-time-compliance/service.js');
+    const assigneesUids = await getAssignedUserIds(tenantId, shiftId);
+    
+    // Prüfe Compliance für jeden zugewiesenen Mitarbeiter
+    for (const uid of assigneesUids) {
+      // Prüfe Zeitraum um diese Schicht (7 Tage vorher bis heute)
+      const startDate = new Date(startsAt);
+      startDate.setDate(startDate.getDate() - 7);
+      const endDate = new Date(endsAt);
+      endDate.setHours(23, 59, 59, 999);
+      
+      await detectViolations(tenantId, uid, startDate, endDate);
+    }
+  } catch (error) {
+    // Ignoriere Fehler (Modul möglicherweise nicht aktiv)
+    if (error instanceof Error && error.message.includes('Missing entitlements')) {
+      return; // Modul nicht aktiv
+    }
+    throw error;
+  }
+}
+
+/**
+ * Aktualisiert das Zeitkonto nach Schicht-Abschluss für alle zugewiesenen Mitarbeiter.
+ */
+async function updateTimeAccountAfterShiftComplete(
+  tenantId: string,
+  shiftId: string,
+  shiftEndDate: Date
+): Promise<void> {
+  try {
+    const { calculateTimeAccount } = await import('../time-tracking/time-account-service.js');
+    const assigneesUids = await getAssignedUserIds(tenantId, shiftId);
+    const year = shiftEndDate.getFullYear();
+    const month = shiftEndDate.getMonth() + 1;
+    
+    // Zeitkonto für jeden zugewiesenen Mitarbeiter aktualisieren
+    for (const uid of assigneesUids) {
+      await calculateTimeAccount(tenantId, uid, year, month);
+    }
+  } catch (error) {
+    // Ignoriere Fehler (Modul möglicherweise nicht aktiv oder andere Fehler)
+    if (error instanceof Error && error.message.includes('Missing entitlements')) {
+      return; // Modul nicht aktiv
+    }
+    // Logge Fehler, aber blockiere nicht
+    console.error('Error updating time account after shift complete:', error);
+  }
+}
+
+/**
+ * Aktualisiert das Zeitkonto nach ShiftTimeEntry-Änderung.
+ */
+async function updateTimeAccountAfterShiftTimeEntry(
+  tenantId: string,
+  userId: string,
+  entryDate: Date
+): Promise<void> {
+  try {
+    const { calculateTimeAccount } = await import('../time-tracking/time-account-service.js');
+    const year = entryDate.getFullYear();
+    const month = entryDate.getMonth() + 1;
+    await calculateTimeAccount(tenantId, userId, year, month);
+  } catch (error) {
+    // Ignoriere Fehler (Modul möglicherweise nicht aktiv oder andere Fehler)
+    if (error instanceof Error && error.message.includes('Missing entitlements')) {
+      return; // Modul nicht aktiv
+    }
+    // Logge Fehler, aber blockiere nicht
+    console.error('Error updating time account after shift time entry:', error);
+  }
 }

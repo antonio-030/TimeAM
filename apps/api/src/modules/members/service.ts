@@ -147,7 +147,7 @@ export async function getMembers(tenantId: string, requestingUid: string): Promi
     // ZUSÄTZLICHE SICHERHEIT: Prüfe ob das Member-Dokument wirklich zu diesem Tenant gehört
     // (sollte durch die Query bereits sichergestellt sein, aber Defense-in-Depth)
     if (data.uid && doc.id !== data.uid) {
-      console.warn(`⚠️ WARNING: Member document ${doc.id} has mismatched uid ${data.uid} in tenant ${tenantId}`);
+      // WARNING: Member document has mismatched uid
     }
     return memberToResponse(doc.id, data);
   });
@@ -533,12 +533,12 @@ export async function deleteMember(
         await userRef.update({
           defaultTenantId: FieldValue.delete(),
         });
-        console.log(`🗑️ Removed defaultTenantId for user ${deletedUid} after deletion from tenant ${tenantId}`);
+        // Removed defaultTenantId after deletion
       }
     }
   } catch (userUpdateError) {
     // Nicht kritisch - loggen aber trotzdem
-    console.warn(`⚠️ Could not update defaultTenantId for user ${deletedUid}:`, userUpdateError);
+    // Could not update defaultTenantId
   }
 }
 

@@ -11,6 +11,8 @@ import type {
   MfaVerifyRequest,
   MfaVerifyResponse,
   MfaDisableRequest,
+  MfaPhoneSetupRequest,
+  MfaPhoneVerifyRequest,
 } from '@timeam/shared';
 
 /**
@@ -56,5 +58,27 @@ export async function disableMfa(password: string): Promise<{ success: boolean }
  */
 export async function getMemberMfaStatus(memberId: string): Promise<MfaStatusResponse> {
   return apiGet<MfaStatusResponse>(`/api/mfa/status/${memberId}`);
+}
+
+/**
+ * Startet Phone MFA Setup.
+ */
+export async function setupPhoneMfa(phoneNumber: string): Promise<MfaSetupResponse> {
+  const request: MfaPhoneSetupRequest = { phoneNumber };
+  return apiPost<MfaSetupResponse>('/api/mfa/setup-phone', request);
+}
+
+/**
+ * Verifiziert Phone MFA Setup und aktiviert MFA.
+ */
+export async function verifyPhoneMfaSetup(): Promise<MfaVerifyResponse> {
+  return apiPost<MfaVerifyResponse>('/api/mfa/verify-phone-setup', {});
+}
+
+/**
+ * Verifiziert Phone MFA Code beim Login.
+ */
+export async function verifyPhoneMfa(): Promise<MfaVerifyResponse> {
+  return apiPost<MfaVerifyResponse>('/api/mfa/verify-phone', {});
 }
 

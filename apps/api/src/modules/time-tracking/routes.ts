@@ -19,6 +19,22 @@ import {
   getTimeEntryById,
 } from './service.js';
 import type { CreateTimeEntryRequest, UpdateTimeEntryRequest } from './types.js';
+import {
+  getTimeAccount,
+  getTimeAccountHistory,
+  updateTimeAccountTarget,
+  addManualAdjustment,
+  exportTimeAccountData,
+} from './time-account-service.js';
+import { getAdminFirestore } from '../../core/firebase/index.js';
+import type { TimeAccountTargetDoc } from './time-account-types.js';
+import { timeAccountTargetToResponse } from './time-account-service.js';
+import { EMPLOYMENT_TYPE } from '@timeam/shared';
+import type {
+  UpdateTimeAccountTargetRequest,
+  AddTimeAccountAdjustmentRequest,
+} from '@timeam/shared';
+import { getTenantForUser } from '../../core/tenancy/service.js';
 
 const router = Router();
 
@@ -299,6 +315,311 @@ router.delete('/entries/:entryId', ...timeTrackingGuard, async (req, res) => {
     }
 
     console.error('Error in DELETE /time-tracking/entries/:entryId:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * Middleware: Prüft Admin- oder Manager-Rolle.
+ */
+async function requireAdminOrManager(
+  req: import('express').Request,
+  res: import('express').Response,
+  next: import('express').NextFunction
+): Promise<void> {
+  const authReq = req as AuthenticatedRequest;
+  const tenantReq = req as TenantRequest;
+
+  if (!authReq.user) {
+    res.status(401).json({ error: 'Not authenticated' });
+    return;
+  }
+
+  try {
+    const tenantData = await getTenantForUser(authReq.user.uid);
+
+    if (!tenantData) {
+      res.status(403).json({
+        error: 'No tenant membership',
+        code: 'NO_TENANT',
+      });
+      return;
+    }
+
+    const role = tenantData.member.role;
+    if (role !== 'admin' && role !== 'manager') {
+      res.status(403).json({
+        error: 'Admin or Manager role required',
+        code: 'ADMIN_OR_MANAGER_REQUIRED',
+      });
+      return;
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error in requireAdminOrManager:', error);
+    const message = error instanceof Error ? error.message : 'Internal server error';
+    res.status(500).json({ error: message });
+  }
+}
+
+// Admin/Manager-only Routes
+const adminGuard = [
+  requireAuth,
+  requireEntitlements([ENTITLEMENT_KEYS.MODULE_TIME_TRACKING]),
+  requireAdminOrManager,
+];
+
+// =============================================================================
+// Time Account Routes
+// =============================================================================
+
+/**
+ * GET /api/time-tracking/time-account/:year/:month
+ *
+ * Lädt das Zeitkonto für einen Monat.
+ */
+router.get('/time-account/:year/:month', ...timeTrackingGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const year = parseInt(req.params.year);
+  const month = parseInt(req.params.month);
+
+  try {
+    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+      res.status(400).json({ error: 'Ungültiges Jahr oder Monat', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    const account = await getTimeAccount(tenant.id, user.uid, year, month);
+
+    if (!account) {
+      res.status(404).json({ error: 'Zeitkonto nicht gefunden', code: 'NOT_FOUND' });
+      return;
+    }
+
+    res.json({ account });
+  } catch (error) {
+    console.error('Error in GET /time-tracking/time-account/:year/:month:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Laden';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/time-tracking/time-account/history
+ *
+ * Lädt die Historie der Zeitkonten.
+ */
+router.get('/time-account/history', ...timeTrackingGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const limit = Math.min(parseInt(req.query.limit as string) || 12, 24);
+
+  try {
+    const accounts = await getTimeAccountHistory(tenant.id, user.uid, limit);
+
+    res.json({
+      accounts,
+      count: accounts.length,
+    });
+  } catch (error) {
+    console.error('Error in GET /time-tracking/time-account/history:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Laden';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/time-tracking/time-account/target/:userId
+ *
+ * Lädt die Zielstunden für einen User (nur Admin/Manager).
+ */
+router.get('/time-account/target/:userId', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const userId = req.params.userId;
+
+  try {
+    // Validierung
+    if (!userId || userId.trim() === '') {
+      res.status(400).json({
+        error: 'userId ist erforderlich',
+        code: 'VALIDATION_ERROR',
+      });
+      return;
+    }
+
+    if (!tenant || !tenant.id) {
+      res.status(400).json({
+        error: 'Tenant-Kontext fehlt',
+        code: 'MISSING_TENANT',
+      });
+      return;
+    }
+
+    const db = getAdminFirestore();
+    const targetRef = db
+      .collection('tenants')
+      .doc(tenant.id)
+      .collection('timeAccountTargets')
+      .doc(userId);
+
+    const targetSnap = await targetRef.get();
+
+    if (!targetSnap.exists) {
+      // Fallback: Standardwert
+      res.json({
+        target: {
+          userId,
+          monthlyTargetHours: 160,
+          employmentType: EMPLOYMENT_TYPE.FULL_TIME,
+          weeklyHours: 40,
+          updatedAt: new Date().toISOString(),
+          updatedBy: 'system',
+        },
+      });
+      return;
+    }
+
+    const targetData = targetSnap.data() as TimeAccountTargetDoc;
+    const target = timeAccountTargetToResponse(targetData);
+
+    res.json({ target });
+  } catch (error) {
+    console.error('Error in GET /time-tracking/time-account/target/:userId:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Laden';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * PUT /api/time-tracking/time-account/target
+ *
+ * Setzt die Zielstunden für einen User (nur Admin/Manager).
+ */
+router.put('/time-account/target', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
+  const body = req.body as UpdateTimeAccountTargetRequest;
+
+  try {
+    if (!body.userId || body.monthlyTargetHours === undefined) {
+      res.status(400).json({
+        error: 'userId und monthlyTargetHours sind erforderlich',
+        code: 'VALIDATION_ERROR',
+      });
+      return;
+    }
+
+    const target = await updateTimeAccountTarget(
+      tenant.id,
+      body.userId,
+      body.monthlyTargetHours,
+      user.uid,
+      body.employmentType,
+      body.weeklyHours
+    );
+
+    res.json({ target });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Fehler beim Aktualisieren';
+
+    if (message.includes('Ungültige')) {
+      res.status(400).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    console.error('Error in PUT /time-tracking/time-account/target:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/time-tracking/time-account/:year/:month/adjust
+ *
+ * Fügt eine manuelle Anpassung hinzu (nur Admin/Manager).
+ */
+router.post('/time-account/:year/:month/adjust', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
+  const year = parseInt(req.params.year);
+  const month = parseInt(req.params.month);
+  const body = req.body as AddTimeAccountAdjustmentRequest & { userId: string };
+
+  try {
+    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
+      res.status(400).json({ error: 'Ungültiges Jahr oder Monat', code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    if (!body.userId || body.amountHours === undefined || !body.reason) {
+      res.status(400).json({
+        error: 'userId, amountHours und reason sind erforderlich',
+        code: 'VALIDATION_ERROR',
+      });
+      return;
+    }
+
+    const account = await addManualAdjustment(
+      tenant.id,
+      body.userId,
+      year,
+      month,
+      body.amountHours,
+      body.reason,
+      user.uid
+    );
+
+    res.json({ account });
+  } catch (error) {
+    console.error('Error in POST /time-tracking/time-account/:year/:month/adjust:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Hinzufügen';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/time-tracking/time-account/export
+ *
+ * Exportiert Zeitkonto-Daten für DSGVO (Art. 15).
+ */
+router.get('/time-account/export', ...timeTrackingGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const format = (req.query.format as 'json' | 'csv') || 'json';
+  const startYear = req.query.startYear ? parseInt(req.query.startYear as string) : undefined;
+  const startMonth = req.query.startMonth ? parseInt(req.query.startMonth as string) : undefined;
+  const endYear = req.query.endYear ? parseInt(req.query.endYear as string) : undefined;
+  const endMonth = req.query.endMonth ? parseInt(req.query.endMonth as string) : undefined;
+
+  try {
+    const accounts = await exportTimeAccountData(
+      tenant.id,
+      user.uid,
+      startYear,
+      startMonth,
+      endYear,
+      endMonth
+    );
+
+    if (format === 'csv') {
+      // CSV-Export
+      const csvHeader = 'Jahr,Monat,Zielstunden,Ist-Stunden (Zeiterfassung),Ist-Stunden (Schichten),Saldo,Erstellt,Zuletzt aktualisiert\n';
+      const csvRows = accounts.map((acc) => {
+        return `${acc.year},${acc.month},${acc.targetHours},${acc.timeTrackingHours},${acc.shiftHours},${acc.balanceHours},${acc.createdAt},${acc.updatedAt}`;
+      });
+      const csv = csvHeader + csvRows.join('\n');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="zeitkonto-export-${Date.now()}.csv"`);
+      res.send('\ufeff' + csv); // UTF-8 BOM für Excel-Kompatibilität
+    } else {
+      // JSON-Export
+      res.json({ accounts, count: accounts.length });
+    }
+  } catch (error) {
+    console.error('Error in GET /time-tracking/time-account/export:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Export';
     res.status(500).json({ error: message });
   }
 });

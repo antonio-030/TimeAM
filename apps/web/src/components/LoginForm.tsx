@@ -25,6 +25,8 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -49,10 +51,12 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
             email,
             password,
             displayName,
+            firstName: firstName.trim() || undefined,
+            lastName: lastName.trim() || undefined,
             companyName: companyName.trim(),
-            phone: phone || undefined,
-            address: address || undefined,
-            businessLicenseNumber: businessLicenseNumber || undefined,
+            phone: phone.trim() || undefined,
+            address: address.trim() || undefined,
+            businessLicenseNumber: businessLicenseNumber.trim() || undefined,
           });
           // Automatisch einloggen
           await signIn(email, password);
@@ -71,11 +75,12 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
       
       // Nach erfolgreichem Login/Registrierung: Tenant-Context neu laden
       // (wichtig für Freelancer-Erkennung)
-      // Warte kurz, damit Firebase Auth aktualisiert wird
-      await new Promise(resolve => setTimeout(resolve, 500));
-      // Tenant-Context explizit neu laden
+      // User-State wird jetzt sofort in signIn aktualisiert, daher kein Timeout nötig
+      // Tenant-Context explizit neu laden - warte bis alle Daten geladen sind
       await refresh();
       
+      // Die Weiterleitung erfolgt dann automatisch in App.tsx
+      // Keine manuelle Navigation hier, damit App.tsx die korrekte Route bestimmen kann
       if (onSuccess) {
         onSuccess();
       }
@@ -90,11 +95,29 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
   const toggleMode = () => {
     setMode(mode === 'login' ? 'register' : 'login');
     clearError();
+    // Felder zurücksetzen beim Wechsel
+    if (mode === 'register') {
+      setDisplayName('');
+      setFirstName('');
+      setLastName('');
+      setCompanyName('');
+      setPhone('');
+      setAddress('');
+      setBusinessLicenseNumber('');
+    }
   };
 
   const toggleUserType = () => {
     setUserType(userType === 'employee' ? 'freelancer' : 'employee');
     clearError();
+    // Felder zurücksetzen beim Wechsel
+    setDisplayName('');
+    setFirstName('');
+    setLastName('');
+    setCompanyName('');
+    setPhone('');
+    setAddress('');
+    setBusinessLicenseNumber('');
   };
 
   const isRegister = mode === 'register';
@@ -152,11 +175,36 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
         <form onSubmit={handleSubmit} className={styles.form}>
           {isRegister && userType === 'freelancer' && (
             <>
+              <div className={styles.fieldRow}>
+                <div className={styles.field}>
+                  <label className={styles.label}>Vorname</label>
+                  <input
+                    type="text"
+                    placeholder="Max"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    disabled={isLoading}
+                    className={styles.input}
+                  />
+                </div>
+                <div className={styles.field}>
+                  <label className={styles.label}>Nachname</label>
+                  <input
+                    type="text"
+                    placeholder="Mustermann"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    disabled={isLoading}
+                    className={styles.input}
+                  />
+                </div>
+              </div>
+
               <div className={styles.field}>
-                <label className={styles.label}>Name *</label>
+                <label className={styles.label}>Anzeigename *</label>
                 <input
                   type="text"
-                  placeholder="Vor- und Nachname"
+                  placeholder="Max Mustermann"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   required
@@ -164,6 +212,9 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
                   minLength={2}
                   className={styles.input}
                 />
+                <p className={styles.hint}>
+                  Wird in der App und bei Bewerbungen angezeigt
+                </p>
               </div>
 
               <div className={styles.field}>

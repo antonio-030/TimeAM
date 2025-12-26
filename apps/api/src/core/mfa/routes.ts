@@ -19,6 +19,11 @@ import {
   generateBackupCodes,
   verifyBackupCode,
   encrypt,
+  getMfaMethod,
+  setupPhoneMfa,
+  verifyPhoneMfaSetup,
+  verifyPhoneMfaCode,
+  getMfaPhoneNumber,
 } from './service.js';
 import { getAdminAuth } from '../firebase/index.js';
 import type {
@@ -27,6 +32,8 @@ import type {
   MfaVerifyResponse,
   MfaStatusResponse,
   MfaDisableRequest,
+  MfaPhoneSetupRequest,
+  MfaPhoneVerifyRequest,
 } from '@timeam/shared';
 
 export const mfaRouter = Router();
@@ -48,10 +55,12 @@ mfaRouter.get('/status', ...mfaGuard, async (req: Request, res: Response) => {
   try {
     const enabled = await isMfaEnabled(user.uid);
     const setupInProgress = await isMfaSetupInProgress(user.uid);
+    const method = enabled ? await getMfaMethod(user.uid) : undefined;
 
     const response: MfaStatusResponse = {
       enabled,
       setupInProgress: setupInProgress || undefined,
+      method: method || undefined,
     };
 
     res.json(response);
@@ -430,6 +439,125 @@ mfaRouter.post('/verify', requireAuth, async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/mfa/setup-phone
+ *
+ * Startet Phone MFA Setup und sendet SMS-Code.
+ * 
+ * WICHTIG: Das Frontend muss Firebase Phone Auth verwenden, um den Code zu senden.
+ * Das Backend speichert nur die Telefonnummer (verschlüsselt).
+ */
+mfaRouter.post('/setup-phone', ...mfaGuard, async (req: Request, res: Response) => {
+  const { user } = req as AuthenticatedRequest;
+
+  try {
+    // Prüfen ob MFA bereits aktiviert ist
+    const alreadyEnabled = await isMfaEnabled(user.uid);
+    if (alreadyEnabled) {
+      return res.status(400).json({ error: 'MFA is already enabled' });
+    }
+
+    // Request validieren
+    const body = req.body as MfaPhoneSetupRequest;
+    if (!body.phoneNumber || typeof body.phoneNumber !== 'string') {
+      return res.status(400).json({ error: 'phoneNumber is required' });
+    }
+
+    // Phone MFA Setup starten
+    const result = await setupPhoneMfa(user.uid, body.phoneNumber);
+
+    const response: MfaSetupResponse = {
+      method: 'phone',
+      phoneNumber: result.phoneNumber, // Maskiert
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error in POST /api/mfa/setup-phone:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    res.status(400).json({ error: errorMessage });
+  }
+});
+
+/**
+ * POST /api/mfa/verify-phone-setup
+ *
+ * Verifiziert SMS-Code für Phone MFA Setup und aktiviert MFA.
+ * 
+ * WICHTIG: Das Frontend muss Firebase Phone Auth verwenden, um den Code zu verifizieren.
+ * Das Backend aktiviert nur MFA.
+ */
+mfaRouter.post('/verify-phone-setup', ...mfaGuard, async (req: Request, res: Response) => {
+  const { user } = req as AuthenticatedRequest;
+
+  try {
+    // Prüfen ob Setup in Progress ist
+    const setupInProgress = await isMfaSetupInProgress(user.uid);
+    if (!setupInProgress) {
+      return res.status(400).json({ error: 'Phone MFA setup is not in progress' });
+    }
+
+    // WICHTIG: Das Frontend muss Firebase Phone Auth verwenden, um den Code zu verifizieren.
+    // Das Backend aktiviert nur MFA, nachdem das Frontend die Verifizierung bestätigt hat.
+    // Hier wird nur die Backend-Aktivierung durchgeführt.
+    
+    // Phone MFA Setup verifizieren und aktivieren
+    await verifyPhoneMfaSetup(user.uid);
+
+    const response: MfaVerifyResponse = {
+      verified: true,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error in POST /api/mfa/verify-phone-setup:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    res.status(400).json({ error: errorMessage });
+  }
+});
+
+/**
+ * POST /api/mfa/verify-phone
+ *
+ * Verifiziert SMS-Code für Phone MFA beim Login.
+ * 
+ * WICHTIG: Das Frontend muss Firebase Phone Auth verwenden, um den Code zu verifizieren.
+ * Das Backend markiert nur die Session als verifiziert.
+ */
+mfaRouter.post('/verify-phone', requireAuth, async (req: Request, res: Response) => {
+  const { user } = req as AuthenticatedRequest;
+
+  try {
+    // Prüfen ob MFA aktiviert ist
+    const enabled = await isMfaEnabled(user.uid);
+    if (!enabled) {
+      return res.status(400).json({ error: 'MFA is not enabled' });
+    }
+
+    // Prüfen ob Methode 'phone' ist
+    const method = await getMfaMethod(user.uid);
+    if (method !== 'phone') {
+      return res.status(400).json({ error: 'MFA method is not phone' });
+    }
+
+    // WICHTIG: Das Frontend muss Firebase Phone Auth verwenden, um den Code zu verifizieren.
+    // Das Backend markiert nur die Session als verifiziert.
+    
+    // Phone MFA Code verifizieren
+    await verifyPhoneMfaCode(user.uid);
+
+    const response: MfaVerifyResponse = {
+      verified: true,
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error in POST /api/mfa/verify-phone:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    res.status(400).json({ error: errorMessage });
+  }
+});
+
+/**
  * POST /api/mfa/disable
  *
  * Deaktiviert MFA für den aktuellen User.
@@ -450,7 +578,7 @@ mfaRouter.post('/disable', ...mfaGuard, async (req: Request, res: Response) => {
     const isSuper = isSuperAdmin(user.uid);
     
     if (isSuper) {
-      console.log(`⚠️ SUPER_ADMIN ${user.uid}: Bypassing MFA disable restrictions`);
+      // SUPER_ADMIN: Bypassing MFA disable restrictions
       await disableMfa(user.uid);
       return res.json({ success: true, message: 'MFA disabled (SUPER_ADMIN bypass)' });
     }
@@ -533,7 +661,7 @@ mfaRouter.post('/reset/:memberId', requireAuth, async (req: Request, res: Respon
     const isSuper = isSuperAdmin(user.uid);
     
     if (isSuper) {
-      console.log(`⚠️ SUPER_ADMIN ${user.uid}: Resetting MFA for ${memberId} (bypass)`);
+      // SUPER_ADMIN: Resetting MFA (bypass)
       
       // Prüfen, ob Ziel-User ein Freelancer ist
       const db = (await import('../firebase/index.js')).getAdminFirestore();

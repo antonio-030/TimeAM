@@ -1,0 +1,532 @@
+/**
+ * Time Account Management Section Styles
+ * Modern, barrierefrei, mobile-optimiert
+ */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+  padding: var(--spacing-xl);
+  background: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-navy);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.titleIcon {
+  font-size: 1.5em;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+/* Search */
+.searchContainer {
+  width: 100%;
+}
+
+.searchLabel {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.searchWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.searchIcon {
+  position: absolute;
+  left: var(--spacing-md);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.searchInput {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-md) var(--spacing-md) calc(var(--spacing-md) * 3);
+  font-size: var(--font-size-base);
+  border: 2px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  min-height: 48px; /* WCAG Touch Target */
+  transition: all 0.2s ease;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.searchInput::placeholder {
+  color: var(--color-text-secondary);
+}
+
+/* Members List */
+.membersList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.memberRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  padding: var(--spacing-lg);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--color-border-light);
+  transition: all 0.2s ease;
+}
+
+.memberRow:hover {
+  border-color: var(--color-blue);
+  box-shadow: var(--shadow-md);
+}
+
+@media (min-width: 768px) {
+  .memberRow {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+}
+
+.memberInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  flex: 1;
+  min-width: 0;
+}
+
+.memberName {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.memberEmail {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.memberTarget {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.targetDisplay {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex: 1;
+}
+
+.targetIcon {
+  font-size: var(--font-size-xl);
+}
+
+.targetInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.targetValue {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-navy);
+  white-space: nowrap;
+}
+
+.targetType {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.targetWeekly {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+/* Edit Form */
+.editForm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.editContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  flex: 1;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.formLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* Employment Type Buttons */
+.employmentTypeButtons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.employmentTypeButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  border: 2px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 100px;
+  min-width: 120px;
+}
+
+.employmentTypeButton:hover {
+  border-color: var(--color-blue);
+  background: var(--color-bg-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+
+.employmentTypeButton:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.employmentTypeButtonActive {
+  border-color: var(--color-blue);
+  background: rgba(52, 152, 219, 0.1);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.employmentTypeIcon {
+  font-size: var(--font-size-2xl);
+}
+
+.employmentTypeLabel {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.employmentTypeDescription {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* Input Wrapper */
+.inputWrapper {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  border: 2px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  padding: 0 var(--spacing-sm);
+  transition: all 0.2s ease;
+}
+
+.inputWrapper:focus-within {
+  border-color: var(--color-blue);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.numberInput {
+  flex: 1;
+  padding: var(--spacing-md);
+  font-size: var(--font-size-base);
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  min-height: 48px; /* WCAG Touch Target */
+  min-width: 0;
+}
+
+.numberInput:focus {
+  outline: none;
+}
+
+.numberInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.inputSuffix {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  font-weight: var(--font-weight-medium);
+}
+
+.inputDescription {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+/* Action Buttons */
+.actionButtons {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  margin-top: var(--spacing-md);
+}
+
+.buttonEdit,
+.buttonSave,
+.buttonCancel {
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 48px; /* WCAG Touch Target */
+  min-width: 120px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+.buttonEdit {
+  background: var(--color-blue);
+  color: var(--color-text-white);
+}
+
+.buttonEdit:hover:not(:disabled) {
+  background: var(--color-blue-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.buttonEdit:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.buttonSave {
+  background: var(--color-green);
+  color: var(--color-text-white);
+  flex: 1;
+}
+
+@media (min-width: 768px) {
+  .buttonSave {
+    flex: 0;
+  }
+}
+
+.buttonSave:hover:not(:disabled) {
+  background: #27ae60;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.buttonSave:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonSave:focus-visible {
+  outline: 2px solid var(--color-green);
+  outline-offset: 2px;
+}
+
+.buttonCancel {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  border: 2px solid var(--color-border-light);
+  flex: 1;
+}
+
+@media (min-width: 768px) {
+  .buttonCancel {
+    flex: 0;
+  }
+}
+
+.buttonCancel:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border);
+}
+
+.buttonCancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.buttonCancel:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.buttonSpinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: var(--color-text-white);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Loading & Error */
+.loading {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.loadingSpinner {
+  display: inline-block;
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(52, 152, 219, 0.2);
+  border-top-color: var(--color-blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.error {
+  padding: var(--spacing-lg);
+  background: rgba(231, 76, 60, 0.1);
+  color: var(--color-red);
+  border-radius: var(--radius-md);
+  border: 2px solid rgba(231, 76, 60, 0.3);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.errorIcon {
+  font-size: var(--font-size-xl);
+}
+
+.empty {
+  padding: var(--spacing-xl);
+  text-align: center;
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.emptyIcon {
+  font-size: var(--font-size-3xl);
+  opacity: 0.5;
+}
+
+.clearSearch {
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-blue);
+  background: transparent;
+  border: 1px solid var(--color-blue);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 44px;
+}
+
+.clearSearch:hover {
+  background: var(--color-blue);
+  color: var(--color-text-white);
+}
+
+.clearSearch:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+  .section {
+    padding: var(--spacing-md);
+    gap: var(--spacing-lg);
+  }
+
+  .title {
+    font-size: var(--font-size-xl);
+  }
+
+  .employmentTypeButtons {
+    grid-template-columns: 1fr;
+  }
+
+  .actionButtons {
+    flex-direction: column;
+  }
+
+  .buttonSave,
+  .buttonCancel {
+    width: 100%;
+  }
+}

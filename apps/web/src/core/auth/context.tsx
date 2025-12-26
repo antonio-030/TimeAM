@@ -23,6 +23,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from 'firebase/auth';
+import { logAuthEvent } from '../api/auth-logging';
 
 /**
  * Auth Context State.
@@ -86,13 +87,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     try {
       const auth = getFirebaseAuth();
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // User-State sofort aktualisieren (onAuthStateChanged könnte verzögert sein)
+      setUser(userCredential.user);
+      setLoading(false);
+      
+      // Erfolgreichen Login loggen (Fehler ignorieren, sollte Login nicht blockieren)
+      try {
+        await logAuthEvent({
+          eventType: 'auth.login.success',
+          email,
+          userId: userCredential.user.uid,
+        });
+      } catch (loggingError) {
+        // Logging-Fehler ignorieren, sollte erfolgreichen Login nicht blockieren
+        console.warn('Failed to log successful login:', loggingError);
+      }
     } catch (err) {
       const message = getAuthErrorMessage(err);
+      
+      // Fehlgeschlagenen Login loggen (mit Rate-Limiting)
+      // WICHTIG: Logging-Fehler sollten den Login-Flow nicht blockieren
+      try {
+        await logAuthEvent({
+          eventType: 'auth.login.failed',
+          email,
+          errorMessage: message,
+        });
+      } catch (rateLimitError: any) {
+        // Rate-Limit-Fehler weiterwerfen (sollte den Login blockieren)
+        if (rateLimitError.code === 'RATE_LIMIT_EXCEEDED') {
+          setError(rateLimitError.message || 'Zu viele fehlgeschlagene Login-Versuche. Bitte später erneut versuchen.');
+          setLoading(false);
+          throw rateLimitError;
+        }
+        // Andere Logging-Fehler ignorieren (sollten den Login nicht blockieren)
+        console.warn('Failed to log auth event:', rateLimitError);
+      }
+      
       setError(message);
-      throw new Error(message);
-    } finally {
       setLoading(false);
+      throw new Error(message);
     }
   }, []);
 
@@ -103,13 +139,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     try {
       const auth = getFirebaseAuth();
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // User-State sofort aktualisieren (onAuthStateChanged könnte verzögert sein)
+      setUser(userCredential.user);
+      setLoading(false);
     } catch (err) {
       const message = getAuthErrorMessage(err);
       setError(message);
-      throw new Error(message);
-    } finally {
       setLoading(false);
+      throw new Error(message);
     }
   }, []);
 
@@ -118,7 +157,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setError(null);
 
     try {
+      const currentUser = getFirebaseAuth().currentUser;
       await firebaseSignOut();
+      
+      // Logout loggen
+      if (currentUser) {
+        await logAuthEvent({
+          eventType: 'auth.logout',
+          email: currentUser.email || undefined,
+          userId: currentUser.uid,
+        });
+      }
     } catch (err) {
       const message = getAuthErrorMessage(err);
       setError(message);

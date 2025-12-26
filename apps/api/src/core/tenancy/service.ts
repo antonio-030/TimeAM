@@ -228,7 +228,7 @@ export async function setEntitlement(
       value,
       grantedAt: FieldValue.serverTimestamp(),
     });
-    console.log(`✅ Updated entitlement ${key} = ${value} for tenant ${tenantId}`);
+    // Updated entitlement
   } else {
     // Neues Entitlement erstellen
     await tenantRef.collection('entitlements').doc().set({
@@ -236,7 +236,7 @@ export async function setEntitlement(
       value,
       grantedAt: FieldValue.serverTimestamp(),
     });
-    console.log(`✅ Created entitlement ${key} = ${value} for tenant ${tenantId}`);
+    // Created entitlement
   }
 }
 
@@ -259,7 +259,7 @@ export async function deleteEntitlement(
     await doc.ref.delete();
   }
   
-  console.log(`✅ Deleted entitlement ${key} for tenant ${tenantId}`);
+  // Deleted entitlement
 }
 
 /**

@@ -121,11 +121,12 @@ router.get('/admin/dev-staff/:uid', requireAuth, requireSuperAdmin, async (req, 
  * Aktualisiert die Rechte eines Dev-Mitarbeiters (nur Super-Admin).
  */
 router.put('/admin/dev-staff/:uid/permissions', requireAuth, requireSuperAdmin, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
   const { uid } = req.params;
   const body = req.body as UpdateDevStaffPermissionsRequest;
 
   try {
-    const devStaff = await updateDevStaffPermissions(uid, body);
+    const devStaff = await updateDevStaffPermissions(uid, body, user.uid);
 
     res.json({
       devStaff,

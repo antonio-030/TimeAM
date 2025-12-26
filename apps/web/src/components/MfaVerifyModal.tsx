@@ -2,10 +2,14 @@
  * MFA Verify Modal
  *
  * Modal für MFA-Code-Verifizierung beim Login.
+ * Unterstützt TOTP und Phone Auth.
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { verifyMfa } from '../core/mfa/api';
+import { verifyMfa, verifyPhoneMfa, getMfaStatus } from '../core/mfa/api';
+import { getFirebaseAuth } from '../core/firebase';
+import { signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { createRecaptchaVerifier, clearRecaptchaVerifier } from '../core/firebase';
 import styles from './MfaVerifyModal.module.css';
 
 interface MfaVerifyModalProps {
@@ -19,6 +23,10 @@ export function MfaVerifyModal({ open, onSuccess, onCancel }: MfaVerifyModalProp
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mfaMethod, setMfaMethod] = useState<'totp' | 'phone' | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState<string | null>(null);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
+  const [smsSent, setSmsSent] = useState(false);
 
   // ESC zum Schließen (nur wenn onCancel vorhanden)
   useEffect(() => {
@@ -36,14 +44,72 @@ export function MfaVerifyModal({ open, onSuccess, onCancel }: MfaVerifyModalProp
     return () => document.removeEventListener('keydown', handleEscape);
   }, [open, loading, onCancel]);
 
-  // Reset beim Öffnen
+  // MFA-Methode beim Öffnen ermitteln
   useEffect(() => {
     if (open) {
       setCode('');
       setError(null);
       setLoading(false);
+      setSmsSent(false);
+      setConfirmationResult(null);
+      clearRecaptchaVerifier();
+      
+      // MFA-Status abrufen, um Methode zu ermitteln
+      getMfaStatus()
+        .then((status) => {
+          if (status.method === 'phone') {
+            setMfaMethod('phone');
+            // Telefonnummer aus Backend holen (wird maskiert zurückgegeben)
+            // Für Phone Auth müssen wir die Telefonnummer aus dem User-Objekt holen
+            // oder einen separaten API-Call machen
+            // Hier vereinfacht: User muss Telefonnummer erneut eingeben
+          } else {
+            setMfaMethod('totp');
+          }
+        })
+        .catch((err) => {
+          console.error('Fehler beim Abrufen des MFA-Status:', err);
+          // Fallback: TOTP annehmen
+          setMfaMethod('totp');
+        });
     }
   }, [open]);
+
+  // SMS senden für Phone Auth
+  const sendSms = async () => {
+    if (!phoneNumber || !phoneNumber.startsWith('+')) {
+      setError('Bitte geben Sie eine gültige Telefonnummer im internationalen Format ein (z.B. +491234567890)');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const auth = getFirebaseAuth();
+      const recaptchaVerifier = await createRecaptchaVerifier();
+      
+      // SMS senden
+      const confirmation = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+      setConfirmationResult(confirmation);
+      setSmsSent(true);
+    } catch (err) {
+      clearRecaptchaVerifier();
+      if (err instanceof Error) {
+        if (err.message.includes('reCAPTCHA')) {
+          setError('reCAPTCHA-Fehler. Bitte versuchen Sie es erneut.');
+        } else if (err.message.includes('invalid-phone-number')) {
+          setError('Ungültige Telefonnummer. Bitte verwenden Sie das internationale Format (z.B. +491234567890)');
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('Fehler beim Senden der SMS. Bitte versuchen Sie es erneut.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleVerify = async (e?: React.MouseEvent<HTMLButtonElement>) => {
     if (e) {
@@ -62,7 +128,26 @@ export function MfaVerifyModal({ open, onSuccess, onCancel }: MfaVerifyModalProp
     setError(null);
 
     try {
-      await verifyMfa(code);
+      if (mfaMethod === 'phone') {
+        // Phone Auth: Code mit Firebase verifizieren, dann Backend benachrichtigen
+        if (!confirmationResult) {
+          setError('SMS-Verifizierung nicht gestartet. Bitte senden Sie zuerst eine SMS.');
+          setLoading(false);
+          sessionStorage.removeItem('mfa_verifying');
+          return;
+        }
+        
+        // Firebase Phone Auth: Code verifizieren
+        await confirmationResult.confirm(code);
+        
+        // Backend: Phone MFA Session als verifiziert markieren
+        await verifyPhoneMfa();
+      } else {
+        // TOTP: Code mit Backend verifizieren
+        await verifyMfa(code);
+      }
+      
+      clearRecaptchaVerifier();
       // Flag löschen vor onSuccess, damit das Modal nicht wieder geöffnet wird
       sessionStorage.removeItem('mfa_verifying');
       onSuccess();
@@ -125,7 +210,11 @@ export function MfaVerifyModal({ open, onSuccess, onCancel }: MfaVerifyModalProp
           <div>
             <h2 className={styles.modalTitle}>Zwei-Faktor-Authentifizierung</h2>
             <p className={styles.modalSubtitle}>
-              Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein
+              {mfaMethod === 'phone' 
+                ? (smsSent 
+                    ? 'Geben Sie den SMS-Code ein, den wir Ihnen gesendet haben'
+                    : 'Geben Sie Ihre Telefonnummer ein, um einen SMS-Code zu erhalten')
+                : 'Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein'}
             </p>
           </div>
         </div>
@@ -139,65 +228,119 @@ export function MfaVerifyModal({ open, onSuccess, onCancel }: MfaVerifyModalProp
               <div className={styles.icon}>🔐</div>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (code.length === 6 && !loading) {
-                  handleVerify();
-                }
-              }}
-            >
+            {mfaMethod === 'phone' && !smsSent && (
               <div className={styles.codeInput}>
-                <label className={styles.label}>6-stelliger Code</label>
+                <label className={styles.label}>Telefonnummer</label>
                 <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  value={code}
+                  type="tel"
+                  value={phoneNumber || ''}
                   onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setCode(value);
+                    setPhoneNumber(e.target.value);
                     setError(null);
                   }}
-                  onKeyPress={handleKeyPress}
-                  placeholder="000000"
+                  placeholder="+491234567890"
                   className={styles.input}
                   disabled={loading}
                   autoFocus
                 />
+                <button
+                  type="button"
+                  onClick={sendSms}
+                  disabled={loading || !phoneNumber || !phoneNumber.startsWith('+')}
+                  className={styles.verifyButton}
+                  style={{ marginTop: '1rem' }}
+                >
+                  {loading ? 'SMS wird gesendet...' : 'SMS-Code senden'}
+                </button>
               </div>
-            </form>
+            )}
 
-            <div className={styles.actions}>
-              <button
-                type="button"
-                onClick={handleVerify}
-                disabled={loading || code.length !== 6}
-                className={styles.verifyButton}
-              >
-                {loading ? 'Wird verifiziert...' : 'Verifizieren'}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
+            {(mfaMethod === 'totp' || (mfaMethod === 'phone' && smsSent)) && (
+              <form
+                onSubmit={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (onCancel) {
-                    onCancel();
+                  if (code.length === 6 && !loading) {
+                    handleVerify();
                   }
                 }}
-                disabled={loading}
-                className={styles.cancelButton}
               >
-                Abbrechen
-              </button>
-            </div>
+                <div className={styles.codeInput}>
+                  <label className={styles.label}>
+                    {mfaMethod === 'phone' ? '6-stelliger SMS-Code' : '6-stelliger Code'}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setCode(value);
+                      setError(null);
+                    }}
+                    onKeyPress={handleKeyPress}
+                    placeholder="000000"
+                    className={styles.input}
+                    disabled={loading}
+                    autoFocus
+                  />
+                </div>
+              </form>
+            )}
 
-            <p className={styles.hint}>
-              Sie können auch einen Backup-Code verwenden, falls Sie keinen Zugriff auf Ihre Authenticator-App haben.
-            </p>
+            {(mfaMethod === 'totp' || (mfaMethod === 'phone' && smsSent)) && (
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  onClick={handleVerify}
+                  disabled={loading || code.length !== 6}
+                  className={styles.verifyButton}
+                >
+                  {loading ? 'Wird verifiziert...' : 'Verifizieren'}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onCancel) {
+                      onCancel();
+                    }
+                  }}
+                  disabled={loading}
+                  className={styles.cancelButton}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            )}
+
+            {mfaMethod === 'phone' && !smsSent && (
+              <div className={styles.actions}>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onCancel) {
+                      onCancel();
+                    }
+                  }}
+                  disabled={loading}
+                  className={styles.cancelButton}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            )}
+
+            {mfaMethod === 'totp' && (
+              <p className={styles.hint}>
+                Sie können auch einen Backup-Code verwenden, falls Sie keinen Zugriff auf Ihre Authenticator-App haben.
+              </p>
+            )}
           </div>
         </div>
       </div>

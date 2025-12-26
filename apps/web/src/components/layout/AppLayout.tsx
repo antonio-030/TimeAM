@@ -37,6 +37,8 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { user, signOut } = useAuth();
   const { tenant, role, hasEntitlement, isFreelancer, refresh: refreshTenant } = useTenant();
   const { isDevStaff } = useDevStaffCheck();
+  const isDevTenant = tenant?.id === 'dev-tenant';
+  const hasSecurityAuditAccess = isSuperAdmin && isDevTenant && hasEntitlement('module.security_audit');
   
   // State-Deklarationen
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -268,6 +270,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const hasShiftPoolAccess = hasEntitlement('module.shift_pool');
   const hasTimeTrackingAccess = hasEntitlement('module.time_tracking');
   const hasReportsAccess = hasEntitlement('module.reports');
+  const hasComplianceAccess = hasEntitlement('module.work_time_compliance');
   
   // Dev-Mitarbeiter haben Zugriff auf alle Module in ihrem Dev-Tenant
   const devStaffHasAllAccess = isDevStaff;
@@ -331,6 +334,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       'dev-dashboard': '/dev-dashboard',
       'support': '/support',
       'dev-staff-admin': '/dev-staff-admin',
+      'security-audit': '/security-audit',
+      'work-time-compliance': '/work-time-compliance',
       'freelancer-dashboard': '/freelancer-dashboard',
       'freelancer-my-shifts': '/freelancer-my-shifts',
       'freelancer-pool': '/freelancer-pool',
@@ -361,6 +366,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (path === '/dev-dashboard') return 'dev-dashboard';
     if (path === '/support') return 'support';
     if (path === '/dev-staff-admin') return 'dev-staff-admin';
+    if (path === '/security-audit') return 'security-audit';
+    if (path === '/work-time-compliance') return 'work-time-compliance';
     if (path === '/freelancer-dashboard') return 'freelancer-dashboard';
     if (path === '/freelancer-my-shifts') return 'freelancer-my-shifts';
     if (path === '/freelancer-pool') return 'freelancer-pool';
@@ -483,6 +490,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: 'support', label: 'Verifizierungen', icon: '🛠️', enabled: true },
     { id: 'dev-staff-admin', label: 'Dev-Mitarbeiter', icon: '👥', enabled: isSuperAdmin },
     { id: 'dev-dashboard', label: 'Developer', icon: '🔐', enabled: isSuperAdmin },
+    { id: 'security-audit', label: 'Security Audit', icon: '🔒', enabled: hasSecurityAuditAccess },
     // Module für Dev-Staff basierend auf Entitlements
     { id: 'dashboard', label: 'Dashboard', icon: '📊', enabled: true },
     { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },
@@ -491,6 +499,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: 'my-shifts', label: 'Meine Schichten', icon: '✅', enabled: hasShiftPoolAccess },
     { id: 'admin-shifts', label: 'Schicht-Verwaltung', icon: '⚙️', enabled: hasShiftPoolAccess && isAdminOrManager },
     { id: 'reports', label: 'Berichte', icon: '📈', enabled: hasReportsAccess && isAdminOrManager },
+    { id: 'work-time-compliance', label: 'Compliance', icon: '⚖️', enabled: hasComplianceAccess },
     { id: 'members', label: 'Mitarbeiter', icon: '👥', enabled: isAdminOrManager },
   ] : isFreelancer ? [
     { id: 'freelancer-dashboard', label: 'Dashboard', icon: '📊', enabled: true },
@@ -500,6 +509,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: 'freelancer-pool', label: 'Schicht-Pool', icon: '🔍', enabled: true },
     { id: 'freelancer-admin-shifts', label: 'Schicht-Verwaltung', icon: '⚙️', enabled: hasShiftPoolAccess },
     { id: 'reports', label: 'Berichte', icon: '📈', enabled: hasReportsAccess },
+    { id: 'work-time-compliance', label: 'Compliance', icon: '⚖️', enabled: hasComplianceAccess },
   ] : [
     { id: 'dashboard', label: 'Dashboard', icon: '📊', enabled: true },
     { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },
@@ -508,6 +518,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: 'my-shifts', label: 'Meine Schichten', icon: '✅', enabled: hasShiftPoolAccess },
     { id: 'admin-shifts', label: 'Schicht-Verwaltung', icon: '⚙️', enabled: hasShiftPoolAccess && isAdminOrManager },
     { id: 'reports', label: 'Berichte', icon: '📈', enabled: hasReportsAccess && isAdminOrManager },
+    { id: 'work-time-compliance', label: 'Compliance', icon: '⚖️', enabled: hasComplianceAccess && isAdminOrManager },
     { id: 'members', label: 'Mitarbeiter', icon: '👥', enabled: isAdminOrManager },
     { id: 'dev-dashboard', label: 'Developer', icon: '🔐', enabled: isSuperAdmin },
   ];

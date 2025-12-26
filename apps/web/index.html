@@ -8,6 +8,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- reCAPTCHA Container für Phone Auth (unsichtbar) -->
+    <div id="recaptcha-invisible-container" style="visibility: hidden; position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; pointer-events: none; z-index: -1;"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       // Google Places API Script wird dynamisch geladen, wenn benötigt

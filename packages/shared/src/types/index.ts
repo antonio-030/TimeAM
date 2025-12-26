@@ -125,9 +125,86 @@ export {
 
 // MFA
 export {
+  type MfaMethod,
   type MfaStatusResponse,
   type MfaSetupResponse,
   type MfaVerifyRequest,
   type MfaVerifyResponse,
   type MfaDisableRequest,
+  type MfaPhoneSetupRequest,
+  type MfaPhoneVerifyRequest,
 } from './mfa.js';
+
+// Security Audit
+export {
+  SECURITY_EVENT_TYPES,
+  SECURITY_EVENT_SEVERITY,
+  type SecurityEventType,
+  type SecurityEventSeverity,
+  type SecurityEventDoc,
+  type SecurityEvent,
+  type RateLimitDoc,
+  type RateLimit,
+  type SecurityEventsListResponse,
+  type SecurityEventDetailResponse,
+  type SecurityStatsResponse,
+  type RateLimitsListResponse,
+  type SecurityEventsQueryParams,
+  isValidSecurityEventType,
+  isValidSecurityEventSeverity,
+  getSeverityForEventType,
+} from './security-audit.js';
+
+// Work Time Compliance
+export {
+  VIOLATION_TYPE,
+  VIOLATION_SEVERITY,
+  RULE_SET,
+  COMPLIANCE_AUDIT_ACTION,
+  DEFAULT_RULE_SETS,
+  type ViolationType,
+  type ViolationSeverity,
+  type RuleSet,
+  type RuleConfig,
+  type ComplianceRuleDoc,
+  type ComplianceViolationDoc,
+  type ComplianceAuditLogDoc,
+  type ComplianceAuditAction,
+  type ComplianceReportDoc,
+  type ComplianceViolation,
+  type ComplianceRule,
+  type ComplianceAuditLog,
+  type ComplianceReport,
+  type UpdateRuleSetRequest,
+  type CheckComplianceRequest,
+  type GenerateReportRequest,
+  type AcknowledgeViolationRequest,
+  type ComplianceViolationsQueryParams,
+  type ComplianceAuditLogsQueryParams,
+  type ComplianceViolationsListResponse,
+  type ComplianceViolationDetailResponse,
+  type ComplianceRuleResponse,
+  type ComplianceReportResponse,
+  type ComplianceAuditLogsListResponse,
+  type ComplianceStatsResponse,
+  isValidViolationType,
+  isValidViolationSeverity,
+  isValidRuleSet,
+} from './work-time-compliance.js';
+
+// Time Account
+export {
+  TIME_ACCOUNT_ADJUSTMENT_SOURCE,
+  EMPLOYMENT_TYPE,
+  type TimeAccountAdjustmentSource,
+  type EmploymentType,
+  type TimeAccountAdjustment,
+  type TimeAccount,
+  type TimeAccountTarget,
+  type UpdateTimeAccountTargetRequest,
+  type AddTimeAccountAdjustmentRequest,
+  type TimeAccountResponse,
+  type TimeAccountHistoryResponse,
+  type TimeAccountTargetResponse,
+  type TimeAccountExportQueryParams,
+} from './time-account.js';

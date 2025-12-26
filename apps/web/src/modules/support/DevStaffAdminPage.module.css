@@ -275,3 +275,88 @@
   border-radius: 8px;
 }
 
+.passwordResetLinkBox {
+  padding: 1.5rem;
+  background: #e7f3ff;
+  border: 2px solid #007bff;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+}
+
+.passwordResetLinkBox h3 {
+  margin: 0 0 0.5rem 0;
+  color: #007bff;
+  font-size: 1.25rem;
+}
+
+.passwordResetLinkBox p {
+  margin: 0 0 1rem 0;
+  color: #495057;
+}
+
+.linkContainer {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.linkInput {
+  flex: 1;
+  padding: 0.75rem;
+  border: 1px solid #007bff;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: monospace;
+  background: white;
+  cursor: text;
+}
+
+.copyButton {
+  padding: 0.75rem 1.5rem;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.copyButton:hover {
+  background: #0056b3;
+}
+
+.closeButton {
+  padding: 0.5rem 1rem;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.closeButton:hover {
+  background: #5a6268;
+}
+
+.roleBadge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: #ffc107;
+  color: #000;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  margin-top: 0.25rem;
+  font-style: italic;
+}
+

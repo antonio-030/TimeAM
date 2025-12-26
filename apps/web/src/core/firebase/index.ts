@@ -19,6 +19,16 @@ export {
 // Analytics (optional)
 export { initializeAnalytics, getFirebaseAnalytics } from './analytics';
 
+// App Check (optional)
+export { initializeAppCheck, getAppCheckTokenValue, getFirebaseAppCheck } from './app-check';
+
+// reCAPTCHA (für Phone Auth)
+export {
+  createRecaptchaVerifier,
+  getRecaptchaVerifier,
+  clearRecaptchaVerifier,
+} from './recaptcha';
+
 // Config (für Debugging)
 export { firebaseConfig, validateFirebaseConfig } from './config';
 

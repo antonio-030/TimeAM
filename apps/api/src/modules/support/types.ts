@@ -15,12 +15,15 @@ import type { VerificationStatus } from '../freelancer/types.js';
  * Dev-Mitarbeiter-Dokument in Firestore.
  * Pfad: /dev-staff/{uid}
  */
+export type DevStaffRole = 'super-admin' | 'dev-staff';
+
 export interface DevStaffDoc {
   uid: string;
   email: string;
   displayName: string;
   createdAt: Timestamp;
   createdBy: string; // UID des Super-Admins
+  role: DevStaffRole; // 'super-admin' oder 'dev-staff'
   permissions: string[]; // z.B. ['verification.review', 'modules.manage']
 }
 
@@ -34,6 +37,7 @@ export interface DevStaffDoc {
 export interface CreateDevStaffRequest {
   email: string;
   displayName: string;
+  role?: DevStaffRole; // Optional, default: 'dev-staff'. Nur Super-Admins können 'super-admin' setzen
   permissions: string[];
 }
 
@@ -46,7 +50,9 @@ export interface DevStaffResponse {
   displayName: string;
   createdAt: string;
   createdBy: string;
+  role: DevStaffRole;
   permissions: string[];
+  passwordResetLink?: string; // Optional: Password-Reset-Link (nur beim Erstellen)
 }
 
 /**

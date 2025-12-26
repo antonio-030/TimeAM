@@ -21,4 +21,20 @@ export {
   getRunningEntry,
 } from './service.js';
 
+export {
+  getTimeAccount,
+  getTimeAccountHistory,
+  updateTimeAccountTarget,
+  addManualAdjustment,
+  addComplianceAdjustment,
+  calculateTimeAccount,
+  exportTimeAccountData,
+} from './time-account-service.js';
+
+export type {
+  TimeAccountDoc,
+  TimeAccountTargetDoc,
+  TimeAccountAdjustmentDoc,
+} from './time-account-types.js';
+
 

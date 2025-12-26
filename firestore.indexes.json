@@ -45,6 +45,59 @@
     {
       "_comment": "TODO: Optimized Calendar Query (denormalized read-model for production)",
       "_note": "Consider creating tenants/{tenantId}/calendarEvents collection for fast reads"
+    },
+    {
+      "_comment": "Security Audit: securityLogs by eventType and timestamp (global collection)",
+      "collectionGroup": "securityLogs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "eventType", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Security Audit: securityLogs by timestamp only (for stats - all events in date range)",
+      "collectionGroup": "securityLogs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Security Audit: securityLogs by severity and timestamp",
+      "collectionGroup": "securityLogs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "severity", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Security Audit: securityLogs by userId and timestamp",
+      "collectionGroup": "securityLogs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Security Audit: securityLogs by email and timestamp",
+      "collectionGroup": "securityLogs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "email", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "_comment": "Security Audit: securityLogs by ipAddress and timestamp",
+      "collectionGroup": "securityLogs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "ipAddress", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

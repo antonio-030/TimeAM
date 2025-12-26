@@ -5,7 +5,7 @@
  * Sendet automatisch den Firebase ID Token mit.
  */
 
-import { getIdToken } from '../firebase';
+import { getIdToken, getAppCheckTokenValue } from '../firebase';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -45,6 +45,9 @@ export async function apiRequest<T>(
 ): Promise<T> {
   // Token holen
   const token = await getIdToken();
+  
+  // App Check Token holen (optional)
+  const appCheckToken = await getAppCheckTokenValue();
 
   // Headers zusammenbauen
   // Wenn FormData verwendet wird, Content-Type nicht setzen (Browser setzt automatisch mit Boundary)
@@ -57,6 +60,11 @@ export async function apiRequest<T>(
   // Authorization Header hinzufügen wenn Token vorhanden
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  // App Check Token hinzufügen (optional, falls vorhanden)
+  if (appCheckToken) {
+    headers['X-Firebase-AppCheck'] = appCheckToken;
   }
 
   // Request ausführen

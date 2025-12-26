@@ -267,13 +267,13 @@ export async function toggleTenantModule(
     };
   }
   
+  const tenantData = tenantSnap.data();
+  const tenantName = tenantData?.name || tenantId;
+  
   // Entitlement setzen
   await setEntitlement(tenantId, entitlementKey, enabled);
   
   const action = enabled ? 'aktiviert' : 'deaktiviert';
-  const tenantName = tenantSnap.data()?.name || tenantId;
-  
-  console.log(`🔧 Super-Admin: ${mod.displayName} ${action} für ${tenantName}`);
   
   return {
     success: true,
@@ -495,7 +495,7 @@ export async function deactivateTenant(tenantId: string): Promise<{ success: boo
     deactivatedAt: FieldValue.serverTimestamp(),
   });
 
-  console.log(`🔒 Super-Admin: Tenant "${tenantName}" (${tenantId}) deaktiviert`);
+  // Tenant deactivated
 
   return {
     success: true,
@@ -536,7 +536,7 @@ export async function activateTenant(tenantId: string): Promise<{ success: boole
     deactivatedAt: FieldValue.delete(),
   });
 
-  console.log(`✅ Super-Admin: Tenant "${tenantName}" (${tenantId}) aktiviert`);
+  // Tenant activated
 
   return {
     success: true,
@@ -595,7 +595,7 @@ export async function deleteTenant(tenantId: string): Promise<{ success: boolean
     }
     
     await batch.commit();
-    console.log(`🗑️ Deleted ${snapshot.size} documents from ${collectionName}`);
+    // Deleted documents from collection
   }
 
   // Tenant-Dokument löschen
@@ -611,7 +611,7 @@ export async function deleteTenant(tenantId: string): Promise<{ success: boolean
   });
   await batch.commit();
 
-  console.log(`🗑️ Super-Admin: Tenant "${tenantName}" (${tenantId}) komplett gelöscht`);
+  // Tenant completely deleted
 
   return {
     success: true,

@@ -86,14 +86,14 @@ export async function requireMfaVerification(
             return;
           }
           // Wenn secret === null, wurde MFA zurückgesetzt (korruptes Secret) → Bypass aktivieren
-          console.log(`⚠️ SUPER_ADMIN ${user.uid} umgeht MFA-Verifizierung (MFA zurückgesetzt - Notfall-Zugang)`);
+          // SUPER_ADMIN umgeht MFA-Verifizierung (MFA zurückgesetzt - Notfall-Zugang)
           next();
           return;
         } catch (secretError) {
           // Secret ist korrupt → Bypass aktivieren (Notfall-Zugang)
           const errorMessage = secretError instanceof Error ? secretError.message : 'Unknown error';
           if (errorMessage.includes('corrupted')) {
-            console.log(`⚠️ SUPER_ADMIN ${user.uid} umgeht MFA-Verifizierung (korruptes Secret - Notfall-Zugang)`);
+            // SUPER_ADMIN umgeht MFA-Verifizierung (korruptes Secret - Notfall-Zugang)
             next();
             return;
           }

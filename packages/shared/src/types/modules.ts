@@ -150,6 +150,16 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     targetTenantType: MODULE_TARGET_TENANT.ALL,
   },
 
+  'work-time-compliance': {
+    id: 'work-time-compliance',
+    displayName: 'Arbeitszeit-Compliance',
+    description: 'Automatische Verstoß-Erkennung und Prüfungs-Exports',
+    icon: '⚖️',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.work_time_compliance',
+    targetTenantType: MODULE_TARGET_TENANT.ALL,
+  },
+
   // ===========================================================================
   // DEV-SPEZIFISCHE MODULE - Nur für Dev-Tenant
   // ===========================================================================
@@ -191,6 +201,16 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     icon: '🗄️',
     category: MODULE_CATEGORY.OPTIONAL,
     entitlementKey: 'module.dev_database',
+    targetTenantType: MODULE_TARGET_TENANT.DEV,
+  },
+
+  'security-audit': {
+    id: 'security-audit',
+    displayName: 'Security Audit',
+    description: 'Sicherheits-Logs und Audit-Trail für die gesamte Anwendung',
+    icon: '🔒',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.security_audit',
     targetTenantType: MODULE_TARGET_TENANT.DEV,
   },
 

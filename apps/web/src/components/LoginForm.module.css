@@ -111,6 +111,12 @@
   gap: var(--spacing-xs);
 }
 
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
 .label {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);

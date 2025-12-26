@@ -119,3 +119,97 @@ export function updateEntry(entryId: string, data: UpdateTimeEntryRequest): Prom
 export function deleteEntry(entryId: string): Promise<DeleteResponse> {
   return apiDelete<DeleteResponse>(`/api/time-tracking/entries/${entryId}`);
 }
+
+// =============================================================================
+// Time Account API
+// =============================================================================
+
+import type {
+  TimeAccount,
+  TimeAccountTarget,
+  TimeAccountResponse,
+  TimeAccountHistoryResponse,
+  TimeAccountTargetResponse,
+  UpdateTimeAccountTargetRequest,
+  AddTimeAccountAdjustmentRequest,
+} from '@timeam/shared/types/time-account.js';
+
+/**
+ * Holt das Zeitkonto für einen Monat.
+ */
+export function getTimeAccount(year: number, month: number): Promise<TimeAccountResponse> {
+  return apiGet<TimeAccountResponse>(`/api/time-tracking/time-account/${year}/${month}`);
+}
+
+/**
+ * Holt die Historie der Zeitkonten.
+ */
+export function getTimeAccountHistory(limit = 12): Promise<TimeAccountHistoryResponse> {
+  return apiGet<TimeAccountHistoryResponse>(`/api/time-tracking/time-account/history?limit=${limit}`);
+}
+
+/**
+ * Holt die Zielstunden für einen User.
+ */
+export function getTimeAccountTarget(userId: string): Promise<TimeAccountTargetResponse> {
+  return apiGet<TimeAccountTargetResponse>(`/api/time-tracking/time-account/target/${userId}`);
+}
+
+/**
+ * Setzt die Zielstunden für einen User.
+ */
+export function updateTimeAccountTarget(
+  userId: string,
+  monthlyTargetHours: number,
+  employmentType?: import('@timeam/shared').EmploymentType,
+  weeklyHours?: number
+): Promise<TimeAccountTargetResponse> {
+  return apiPut<TimeAccountTargetResponse>('/api/time-tracking/time-account/target', {
+    userId,
+    monthlyTargetHours,
+    employmentType,
+    weeklyHours,
+  });
+}
+
+/**
+ * Fügt eine manuelle Anpassung hinzu.
+ */
+export function addTimeAccountAdjustment(
+  year: number,
+  month: number,
+  data: AddTimeAccountAdjustmentRequest & { userId: string }
+): Promise<TimeAccountResponse> {
+  return apiPost<TimeAccountResponse>(
+    `/api/time-tracking/time-account/${year}/${month}/adjust`,
+    data
+  );
+}
+
+/**
+ * Exportiert Zeitkonto-Daten (DSGVO).
+ */
+export function exportTimeAccountData(
+  format: 'json' | 'csv' = 'json',
+  startYear?: number,
+  startMonth?: number,
+  endYear?: number,
+  endMonth?: number
+): Promise<TimeAccountHistoryResponse | Blob> {
+  const params = new URLSearchParams();
+  params.set('format', format);
+  if (startYear !== undefined) params.set('startYear', startYear.toString());
+  if (startMonth !== undefined) params.set('startMonth', startMonth.toString());
+  if (endYear !== undefined) params.set('endYear', endYear.toString());
+  if (endMonth !== undefined) params.set('endMonth', endMonth.toString());
+
+  if (format === 'csv') {
+    // CSV als Blob zurückgeben
+    return fetch(`/api/time-tracking/time-account/export?${params.toString()}`, {
+      method: 'GET',
+      credentials: 'include',
+    }).then((res) => res.blob());
+  }
+
+  return apiGet<TimeAccountHistoryResponse>(`/api/time-tracking/time-account/export?${params.toString()}`);
+}

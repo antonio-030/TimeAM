@@ -101,7 +101,39 @@ export async function clockIn(
 
   // Entry zurücklesen für genaue Timestamps
   const savedDoc = await entryRef.get();
-  return toResponse(entryRef.id, savedDoc.data() as TimeEntryDoc);
+  const response = toResponse(entryRef.id, savedDoc.data() as TimeEntryDoc);
+
+  // Compliance-Prüfung (asynchron, nicht blockierend)
+  checkComplianceAfterClockIn(tenantId, uid).catch((error) => {
+    console.error('Error in compliance check after clock-in:', error);
+  });
+
+  return response;
+}
+
+/**
+ * Prüft Compliance nach Clock-In (Ruhezeit seit letztem Clock-Out).
+ */
+async function checkComplianceAfterClockIn(
+  tenantId: string,
+  uid: string
+): Promise<void> {
+  try {
+    const { detectViolations } = await import('../work-time-compliance/service.js');
+    
+    // Prüfe letzten 7 Tage für Ruhezeit-Prüfung
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+    
+    await detectViolations(tenantId, uid, startDate, endDate);
+  } catch (error) {
+    // Ignoriere Fehler (Modul möglicherweise nicht aktiv)
+    if (error instanceof Error && error.message.includes('Missing entitlements')) {
+      return; // Modul nicht aktiv
+    }
+    throw error;
+  }
 }
 
 /**
@@ -158,7 +190,47 @@ export async function clockOut(
 
   // Entry zurücklesen
   const savedDoc = await entryRef.get();
-  return toResponse(entryRef.id, savedDoc.data() as TimeEntryDoc);
+  const response = toResponse(entryRef.id, savedDoc.data() as TimeEntryDoc);
+
+  // Compliance-Prüfung (asynchron, nicht blockierend)
+  checkComplianceAfterClockOut(tenantId, uid, clockInTime, clockOutTime).catch((error) => {
+    console.error('Error in compliance check after clock-out:', error);
+  });
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterTimeEntry(tenantId, uid, clockOutTime).catch((error) => {
+    console.error('Error in time account update after clock-out:', error);
+  });
+
+  return response;
+}
+
+/**
+ * Prüft Compliance nach Clock-Out (Schichtdauer, Pausen).
+ */
+async function checkComplianceAfterClockOut(
+  tenantId: string,
+  uid: string,
+  clockInTime: Date,
+  clockOutTime: Date
+): Promise<void> {
+  try {
+    const { detectViolations } = await import('../work-time-compliance/service.js');
+    
+    // Prüfe nur diesen Tag
+    const startDate = new Date(clockInTime);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(clockOutTime);
+    endDate.setHours(23, 59, 59, 999);
+    
+    await detectViolations(tenantId, uid, startDate, endDate);
+  } catch (error) {
+    // Ignoriere Fehler (Modul möglicherweise nicht aktiv)
+    if (error instanceof Error && error.message.includes('Missing entitlements')) {
+      return; // Modul nicht aktiv
+    }
+    throw error;
+  }
 }
 
 /**
@@ -330,7 +402,70 @@ export async function createTimeEntry(
   await entryRef.set(entryData);
 
   const savedDoc = await entryRef.get();
-  return toResponse(entryRef.id, savedDoc.data() as TimeEntryDoc);
+  const response = toResponse(entryRef.id, savedDoc.data() as TimeEntryDoc);
+
+  // Compliance-Prüfung (asynchron, nicht blockierend)
+  checkComplianceAfterCreateEntry(tenantId, uid, clockIn, clockOut).catch((error) => {
+    console.error('Error in compliance check after create entry:', error);
+  });
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterTimeEntry(tenantId, uid, clockOut).catch((error) => {
+    console.error('Error in time account update after create entry:', error);
+  });
+
+  return response;
+}
+
+/**
+ * Prüft Compliance nach manuellem TimeEntry (vollständige Prüfung).
+ */
+async function checkComplianceAfterCreateEntry(
+  tenantId: string,
+  uid: string,
+  clockIn: Date,
+  clockOut: Date
+): Promise<void> {
+  try {
+    const { detectViolations } = await import('../work-time-compliance/service.js');
+    
+    // Prüfe Zeitraum um diesen Eintrag (7 Tage vorher bis heute)
+    const startDate = new Date(clockIn);
+    startDate.setDate(startDate.getDate() - 7);
+    const endDate = new Date(clockOut);
+    endDate.setHours(23, 59, 59, 999);
+    
+    await detectViolations(tenantId, uid, startDate, endDate);
+  } catch (error) {
+    // Ignoriere Fehler (Modul möglicherweise nicht aktiv)
+    if (error instanceof Error && error.message.includes('Missing entitlements')) {
+      return; // Modul nicht aktiv
+    }
+    throw error;
+  }
+}
+
+/**
+ * Aktualisiert das Zeitkonto nach TimeEntry-Änderung.
+ */
+async function updateTimeAccountAfterTimeEntry(
+  tenantId: string,
+  userId: string,
+  entryDate: Date
+): Promise<void> {
+  try {
+    const { calculateTimeAccount } = await import('./time-account-service.js');
+    const year = entryDate.getFullYear();
+    const month = entryDate.getMonth() + 1;
+    await calculateTimeAccount(tenantId, userId, year, month);
+  } catch (error) {
+    // Ignoriere Fehler (Modul möglicherweise nicht aktiv oder andere Fehler)
+    if (error instanceof Error && error.message.includes('Missing entitlements')) {
+      return; // Modul nicht aktiv
+    }
+    // Logge Fehler, aber blockiere nicht
+    console.error('Error updating time account:', error);
+  }
 }
 
 /**
@@ -412,7 +547,14 @@ export async function updateTimeEntry(
   await entryRef.update(updateData);
 
   const savedDoc = await entryRef.get();
-  return toResponse(entryId, savedDoc.data() as TimeEntryDoc);
+  const response = toResponse(entryId, savedDoc.data() as TimeEntryDoc);
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterTimeEntry(tenantId, uid, newClockOut).catch((error) => {
+    console.error('Error in time account update after update entry:', error);
+  });
+
+  return response;
 }
 
 /**
@@ -449,7 +591,14 @@ export async function deleteTimeEntry(
     throw new Error('Laufende Einträge können nicht gelöscht werden. Bitte zuerst ausstempeln.');
   }
 
+  const clockOutTime = entryData.clockOut?.toDate() || new Date();
+
   await entryRef.delete();
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterTimeEntry(tenantId, uid, clockOutTime).catch((error) => {
+    console.error('Error in time account update after delete entry:', error);
+  });
 }
 
 /**

@@ -31,6 +31,8 @@ import { adminRouter } from './modules/admin/index.js';
 import { reportsRouter } from './modules/reports/index.js';
 import { freelancerRouter } from './modules/freelancer/index.js';
 import { supportRouter } from './modules/support/index.js';
+import { securityAuditRouter } from './modules/security-audit/index.js';
+import { workTimeComplianceRouter } from './modules/work-time-compliance/index.js';
 import { mfaRouter } from './core/mfa/routes.js';
 import { requireMfaVerification } from './core/mfa/middleware.js';
 
@@ -832,6 +834,10 @@ app.use('/api/freelancer', freelancerRouter);
 
 // Support Module (Dev-Mitarbeiter)
 app.use('/api', supportRouter);
+
+// Security Audit Module (nur für Super-Admins im Dev-Tenant)
+app.use('/api/security-audit', securityAuditRouter);
+app.use('/api/work-time-compliance', workTimeComplianceRouter);
 
 // MFA Module
 app.use('/api/mfa', mfaRouter);

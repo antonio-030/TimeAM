@@ -9,6 +9,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useTimeTrackingStatus, useTimeEntries } from './hooks';
 import type { TimeEntry, CreateTimeEntryRequest, UpdateTimeEntryRequest } from './api';
 import { formatTime, formatDate, formatDateShort } from '../../utils/dateTime';
+import { TimeAccountSection } from './TimeAccountSection';
+import { TimeAccountManagementSection } from './TimeAccountManagementSection';
+import { useTenant } from '../../core/tenant';
 import styles from './TimeTrackingPage.module.css';
 
 // =============================================================================
@@ -425,7 +428,11 @@ function TimeEntryRow({ entry, onEdit, onDelete }: TimeEntryRowProps) {
 // Main Component
 // =============================================================================
 
+type TabId = 'tracking' | 'account' | 'management';
+
 export function TimeTrackingPage() {
+  const [activeTab, setActiveTab] = useState<TabId>('tracking');
+  
   const {
     status,
     loading: statusLoading,
@@ -508,6 +515,40 @@ export function TimeTrackingPage() {
   // Einträge nach Datum gruppieren
   const groupedEntries = groupEntriesByDate(entries);
 
+  const { role } = useTenant();
+  const isAdminOrManager = role === 'admin' || role === 'manager';
+  const isFreelancer = !role; // Freelancer haben keine role
+  const canManageTargets = isAdminOrManager || isFreelancer;
+
+  // Keyboard Navigation für Tabs
+  const handleTabKeyDown = (e: React.KeyboardEvent, tabId: TabId) => {
+    const tabs: TabId[] = ['tracking', 'account', ...(canManageTargets ? ['management'] : [])];
+    const currentIndex = tabs.indexOf(activeTab);
+    let newIndex = currentIndex;
+
+    if (e.key === 'ArrowLeft') {
+      newIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
+      e.preventDefault();
+    } else if (e.key === 'ArrowRight') {
+      newIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
+      e.preventDefault();
+    } else if (e.key === 'Home') {
+      newIndex = 0;
+      e.preventDefault();
+    } else if (e.key === 'End') {
+      newIndex = tabs.length - 1;
+      e.preventDefault();
+    }
+
+    if (newIndex !== currentIndex) {
+      setActiveTab(tabs[newIndex]);
+      const newTab = document.getElementById(`${tabs[newIndex]}-tab`);
+      if (newTab) {
+        (newTab as HTMLElement).focus();
+      }
+    }
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -515,16 +556,75 @@ export function TimeTrackingPage() {
           <span className={styles.pageIcon} aria-hidden="true">⏱️</span>
           Zeiterfassung
         </h1>
-        <button
-          className={`${styles.button} ${styles.buttonPrimary}`}
-          onClick={() => setShowCreateModal(true)}
-          aria-label="Neuen Zeiteintrag manuell hinzufügen"
-        >
-          ➕ Eintrag hinzufügen
-        </button>
+        {activeTab === 'tracking' && (
+          <button
+            className={`${styles.button} ${styles.buttonPrimary}`}
+            onClick={() => setShowCreateModal(true)}
+            aria-label="Neuen Zeiteintrag manuell hinzufügen"
+          >
+            ➕ Eintrag hinzufügen
+          </button>
+        )}
       </header>
 
-      <div className={styles.content}>
+      {/* Tabs */}
+      <div className={styles.tabs} role="tablist" aria-label="Zeiterfassung Tabs">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'tracking'}
+          aria-controls="tracking-panel"
+          aria-label="Zeiterfassung"
+          id="tracking-tab"
+          className={activeTab === 'tracking' ? styles.tabActive : styles.tab}
+          onClick={() => setActiveTab('tracking')}
+          onKeyDown={(e) => handleTabKeyDown(e, 'tracking')}
+        >
+          <span className={styles.tabIcon} aria-hidden="true">⏱️</span>
+          <span>Zeiterfassung</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'account'}
+          aria-controls="account-panel"
+          aria-label="Zeitkonto"
+          id="account-tab"
+          className={activeTab === 'account' ? styles.tabActive : styles.tab}
+          onClick={() => setActiveTab('account')}
+          onKeyDown={(e) => handleTabKeyDown(e, 'account')}
+        >
+          <span className={styles.tabIcon} aria-hidden="true">📊</span>
+          <span>Zeitkonto</span>
+        </button>
+        {canManageTargets && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'management'}
+            aria-controls="management-panel"
+            aria-label="Stunden-Verwaltung"
+            id="management-tab"
+            className={activeTab === 'management' ? styles.tabActive : styles.tab}
+            onClick={() => setActiveTab('management')}
+            onKeyDown={(e) => handleTabKeyDown(e, 'management')}
+          >
+            <span className={styles.tabIcon} aria-hidden="true">⚙️</span>
+            <span>Verwaltung</span>
+          </button>
+        )}
+      </div>
+
+      {/* Tab Panels */}
+      <main className={styles.content}>
+        <div
+          role="tabpanel"
+          id="tracking-panel"
+          aria-labelledby="tracking-tab"
+          hidden={activeTab !== 'tracking'}
+        >
+          {activeTab === 'tracking' && (
+            <div className={styles.trackingContent}>
         {/* Clock Card */}
         <section className={styles.clockCard} aria-labelledby="clock-title">
           <div className={styles.clockHeader}>
@@ -671,7 +771,35 @@ export function TimeTrackingPage() {
             </div>
           )}
         </section>
-      </div>
+            </div>
+          )}
+        </div>
+
+        <div
+          role="tabpanel"
+          id="account-panel"
+          aria-labelledby="account-tab"
+          hidden={activeTab !== 'account'}
+        >
+          {activeTab === 'account' && (
+            <TimeAccountSection
+              year={new Date().getFullYear()}
+              month={new Date().getMonth() + 1}
+            />
+          )}
+        </div>
+
+        {canManageTargets && (
+          <div
+            role="tabpanel"
+            id="management-panel"
+            aria-labelledby="management-tab"
+            hidden={activeTab !== 'management'}
+          >
+            {activeTab === 'management' && <TimeAccountManagementSection />}
+          </div>
+        )}
+      </main>
 
       {/* Modals */}
       {showCreateModal && (

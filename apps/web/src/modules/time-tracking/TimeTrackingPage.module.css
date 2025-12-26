@@ -42,14 +42,87 @@
   font-size: var(--font-size-3xl);
 }
 
+/* =============================================================================
+   Tabs
+   ============================================================================= */
+
+.tabs {
+  display: flex;
+  gap: var(--spacing-xs);
+  background-color: var(--color-bg-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  padding: var(--spacing-xs);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab,
+.tabActive {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: var(--font-weight-medium);
+  min-height: 44px; /* WCAG Touch Target */
+  min-width: 44px;
+}
+
+.tabActive {
+  background: var(--color-blue);
+  color: var(--color-text-white);
+  font-weight: var(--font-weight-semibold);
+}
+
+.tab:hover:not(.tabActive) {
+  background: var(--color-bg-hover);
+  color: var(--color-blue);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.tabIcon {
+  font-size: var(--font-size-base);
+}
+
 .content {
+  min-height: 400px;
+}
+
+.content [role="tabpanel"] {
+  outline: none;
+}
+
+.content [role="tabpanel"]:focus {
+  outline: none;
+}
+
+.trackingContent {
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: var(--spacing-xl);
 }
 
 @media (max-width: 900px) {
-  .content {
+  .trackingContent {
     grid-template-columns: 1fr;
   }
 }
