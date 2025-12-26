@@ -56,13 +56,19 @@ export function MfaVerifyModal({ open, onSuccess, onCancel }: MfaVerifyModalProp
       return;
     }
 
+    // Flag setzen, um zu verhindern, dass das Modal während der Verifizierung wieder geöffnet wird
+    sessionStorage.setItem('mfa_verifying', 'true');
     setLoading(true);
     setError(null);
 
     try {
       await verifyMfa(code);
+      // Flag löschen vor onSuccess, damit das Modal nicht wieder geöffnet wird
+      sessionStorage.removeItem('mfa_verifying');
       onSuccess();
     } catch (err) {
+      // Flag löschen auch bei Fehler
+      sessionStorage.removeItem('mfa_verifying');
       const errorMessage = err instanceof Error ? err.message : 'Ungültiger Code. Bitte versuchen Sie es erneut.';
       
       // Spezielle Behandlung für korrupte Secrets

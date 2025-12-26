@@ -108,34 +108,56 @@ function AppContent() {
   const [legalPage, setLegalPage] = useState<LegalPage>(null);
   const [showMfaVerify, setShowMfaVerify] = useState(false);
 
+  // WICHTIG: Nach erfolgreichem Login von /login weg navigieren
+  useEffect(() => {
+    // Wenn User eingeloggt ist und auf /login ist, zur richtigen Route navigieren
+    if (user && location.pathname === '/login' && !tenantLoading && !mfaRequired) {
+      // Bestimme Standard-Route basierend auf User-Typ
+      let defaultRoute = '/dashboard';
+      if (isDevStaff) {
+        defaultRoute = '/support';
+      } else if (isFreelancer) {
+        defaultRoute = '/freelancer-dashboard';
+      }
+      navigate(defaultRoute, { replace: true });
+    }
+  }, [user, location.pathname, tenantLoading, mfaRequired, isDevStaff, isFreelancer, navigate]);
+
   // MFA-Verifizierung erforderlich (nur wenn MFA-Modul aktiviert ist)
   // WICHTIG: useEffect muss vor allen frühen Returns stehen!
   useEffect(() => {
     // Prüfe, ob User gerade MFA abgebrochen hat
     const mfaCanceled = sessionStorage.getItem('mfa_canceled') === 'true';
+    const mfaVerifying = sessionStorage.getItem('mfa_verifying') === 'true';
     
     // Nur Modal öffnen, wenn alle Bedingungen erfüllt sind UND Modal noch nicht geöffnet ist
-    // UND User hat MFA nicht gerade abgebrochen
+    // UND User hat MFA nicht gerade abgebrochen UND Verifizierung läuft nicht
     // WICHTIG: Prüfe auch während tenantLoading, damit das Modal sofort angezeigt wird
-    if (user && mfaRequired && mfaModuleEnabled && !showMfaVerify && !mfaCanceled) {
+    if (user && mfaRequired && mfaModuleEnabled && !showMfaVerify && !mfaCanceled && !mfaVerifying) {
       setShowMfaVerify(true);
     }
     
     // Wenn mfaRequired false wird (z.B. nach erfolgreicher Verifizierung), Modal schließen
     if (!mfaRequired && showMfaVerify) {
       setShowMfaVerify(false);
+      sessionStorage.removeItem('mfa_verifying');
     }
     
-    // Wenn User nicht mehr eingeloggt ist, Flag löschen
+    // Wenn User nicht mehr eingeloggt ist, Flags löschen
     if (!user) {
       sessionStorage.removeItem('mfa_canceled');
+      sessionStorage.removeItem('mfa_verifying');
     }
   }, [user, mfaRequired, mfaModuleEnabled, showMfaVerify]);
 
   const handleMfaVerifySuccess = async () => {
+    // Flag setzen, um zu verhindern, dass das Modal während des Refreshs wieder geöffnet wird
+    sessionStorage.setItem('mfa_verifying', 'true');
     setShowMfaVerify(false);
     // Tenant-Daten neu laden (mfaRequired sollte jetzt false sein)
     await refresh();
+    // Flag löschen nach erfolgreichem Refresh
+    sessionStorage.removeItem('mfa_verifying');
   };
 
   const handleMfaVerifyCancel = async () => {

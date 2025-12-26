@@ -245,8 +245,12 @@ export function AppLayout({ children }: AppLayoutProps) {
   const handleSignOut = async () => {
     try {
       await signOut();
-    } catch {
-      // Error handling
+      // Nach erfolgreichem Logout zur Login-Seite navigieren
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('Fehler beim Abmelden:', error);
+      // Auch bei Fehler zur Login-Seite navigieren
+      navigate('/login', { replace: true });
     }
   };
 

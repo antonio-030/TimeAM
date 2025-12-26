@@ -187,8 +187,8 @@ app.get('/api/me', requireAuth, async (req, res) => {
             // Prüfe, ob das Secret korrupt ist
             try {
               const secret = await getMfaSecret(user.uid);
-              // Wenn Secret vorhanden und nicht null, ist es korrekt → MFA erforderlich
-              if (secret !== null && !isSuper) {
+              // Wenn Secret vorhanden und nicht null, ist es korrekt → MFA erforderlich (auch für SUPER_ADMIN!)
+              if (secret !== null) {
                 const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
                 mfaRequired = !mfaSetupInProgress;
               }
@@ -386,13 +386,32 @@ app.get('/api/me', requireAuth, async (req, res) => {
     let mfaEnabled = false;
     let mfaRequired = false;
     
-    // WICHTIG: SUPER_ADMINs können MFA umgehen (Notfall-Zugang)
-    // isSuper wurde bereits oben deklariert
-    if (hasMfaEntitlement && !isSuper) {
-      const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+    // WICHTIG: SUPER_ADMINs können MFA nur umgehen, wenn das Secret korrupt ist
+    // Wenn MFA aktiviert ist und das Secret korrekt ist, muss auch der SUPER_ADMIN MFA verifizieren
+    if (hasMfaEntitlement) {
+      const { isMfaEnabled, isMfaSetupInProgress, getMfaSecret } = await import('./core/mfa/service.js');
       mfaEnabled = await isMfaEnabled(user.uid);
-      const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
-      mfaRequired = mfaEnabled && !mfaSetupInProgress;
+      
+      if (mfaEnabled) {
+        // Prüfe, ob das Secret korrupt ist
+        try {
+          const secret = await getMfaSecret(user.uid);
+          // Wenn Secret vorhanden und nicht null, ist es korrekt → MFA erforderlich
+          if (secret !== null) {
+            const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+            // Für SUPER_ADMINs: MFA nur erforderlich, wenn Secret korrekt ist
+            // Für normale User: MFA immer erforderlich, wenn aktiviert
+            mfaRequired = !mfaSetupInProgress;
+          }
+          // Wenn secret === null (zurückgesetzt wegen korruptem Secret) → mfaRequired bleibt false für SUPER_ADMIN
+        } catch (secretError) {
+          // Secret ist korrupt → für SUPER_ADMIN mfaRequired auf false (Bypass)
+          // Für normale User bleibt mfaRequired true (Login blockiert)
+          if (!isSuper) {
+            mfaRequired = true; // Normale User können nicht einloggen
+          }
+        }
+      }
     }
 
     // User ist Tenant-Mitglied

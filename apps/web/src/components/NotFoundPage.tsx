@@ -26,6 +26,9 @@ export function NotFoundPage() {
         <p className={styles.description}>
           Die angeforderte Seite existiert leider nicht oder wurde verschoben.
         </p>
+        <p className={styles.errorCodeText}>
+          Fehlercode: <strong>404 Not Found</strong>
+        </p>
         <div className={styles.actions}>
           <button 
             className={styles.buttonPrimary}
