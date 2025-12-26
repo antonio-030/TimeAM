@@ -222,7 +222,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const handleSettingsClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     console.log('🔵 handleSettingsClick aufgerufen');
     
-    // Verhindere ALLES: Default, Propagation, Immediate Propagation
+    // Verhindere ALLES: Default, Propagation
     e.preventDefault();
     e.stopPropagation();
     if (e.nativeEvent) {
@@ -701,23 +701,21 @@ export function AppLayout({ children }: AppLayoutProps) {
                           console.log('🟡 Einstellungen-Button onMouseDown');
                           e.preventDefault();
                           e.stopPropagation();
-                          e.stopImmediatePropagation();
                           if (e.nativeEvent) {
-            e.nativeEvent.preventDefault();
-            e.nativeEvent.stopPropagation();
-            e.nativeEvent.stopImmediatePropagation();
-          }
+                            e.nativeEvent.preventDefault();
+                            e.nativeEvent.stopPropagation();
+                            e.nativeEvent.stopImmediatePropagation();
+                          }
                         }}
                         onMouseUp={(e) => {
                           console.log('🟢 Einstellungen-Button onMouseUp');
                           e.preventDefault();
                           e.stopPropagation();
-                          e.stopImmediatePropagation();
                           if (e.nativeEvent) {
-            e.nativeEvent.preventDefault();
-            e.nativeEvent.stopPropagation();
-            e.nativeEvent.stopImmediatePropagation();
-          }
+                            e.nativeEvent.preventDefault();
+                            e.nativeEvent.stopPropagation();
+                            e.nativeEvent.stopImmediatePropagation();
+                          }
                         }}
                         onPointerDown={(e) => {
                           e.preventDefault();
