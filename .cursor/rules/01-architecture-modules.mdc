@@ -26,3 +26,271 @@ Jedes Modul definiert:
 ## Kalender als Core
 - Es gibt ein Core-Kalender-Modul.
 - Feature-Module liefern Events über Provider-Schnittstelle (keine harte Kopplung).
+
+---
+
+# Modul-Entwicklung: Richtlinien für Entwickler
+
+## WICHTIG: SaaS-Anwendung – Keine Breaking Changes
+
+**Diese Anwendung ist eine SaaS-Anwendung, in der Kunden testen. Module dürfen NUR erweitert werden, ohne:**
+- ✅ Bestehende Funktionalität zu beeinträchtigen
+- ✅ Datenbank-Strukturen zu ändern (außer eigene Collections)
+- ✅ API-Endpoints zu entfernen oder zu ändern
+- ✅ Frontend-Routes zu entfernen oder zu ändern
+- ✅ Shared Types zu ändern (nur erweitern)
+
+## Standard-Modulstruktur
+
+### Backend (apps/api/src/modules/<moduleId>/)
+
+Jedes Modul MUSS folgende Struktur haben:
+
+```
+modules/<moduleId>/
+├── index.ts          # Public API (exportiert Router + Types + Services)
+├── routes.ts         # Express Router mit Guards
+├── service.ts         # Business-Logik (Firestore-Operationen)
+└── types.ts           # Modul-spezifische Types (nur wenn nötig)
+```
+
+**Beispiel-Struktur:**
+
+```typescript
+// index.ts
+export { moduleRouter } from './routes.js';
+export { createItem, getItems } from './service.js';
+export type { ItemDoc, ItemResponse } from './types.js';
+
+// routes.ts
+const router = Router();
+const moduleGuard = [
+  requireAuth,
+  requireEntitlements([ENTITLEMENT_KEYS.MODULE_XXX]),
+];
+router.get('/items', ...moduleGuard, async (req, res) => { ... });
+export { router as moduleRouter };
+
+// service.ts
+export async function createItem(tenantId: string, ...) { ... }
+export async function getItems(tenantId: string, ...) { ... }
+
+// types.ts
+export interface ItemDoc { ... }
+export interface ItemResponse { ... }
+```
+
+### Frontend (apps/web/src/modules/<moduleId>/)
+
+Jedes Modul MUSS folgende Struktur haben:
+
+```
+modules/<moduleId>/
+├── index.ts              # Public API (exportiert Page + Hooks + API)
+├── <ModuleName>Page.tsx  # Haupt-Komponente
+├── <ModuleName>Page.module.css  # Styles (CSS Modules)
+├── api.ts                # API-Calls (fetch zu Backend)
+└── hooks.ts              # React Hooks (optional)
+```
+
+**Beispiel-Struktur:**
+
+```typescript
+// index.ts
+export { ModulePage } from './ModulePage';
+export { useModuleData } from './hooks';
+export * from './api';
+
+// ModulePage.tsx
+export function ModulePage() { ... }
+
+// api.ts
+export async function getItems(): Promise<ItemResponse[]> { ... }
+
+// hooks.ts
+export function useModuleData() { ... }
+```
+
+## Module-Registrierung
+
+### 1. Backend-Router registrieren
+
+In `apps/api/src/index.ts`:
+
+```typescript
+import { moduleRouter } from './modules/<moduleId>/index.js';
+app.use('/api/<moduleId>', moduleRouter);
+```
+
+### 2. Frontend-Route registrieren
+
+In `apps/web/src/App.tsx` oder Routing-Konfiguration:
+
+```typescript
+import { ModulePage } from './modules/<moduleId>';
+<Route path="/<moduleId>" element={<ModulePage />} />
+```
+
+### 3. Module-Registry erweitern
+
+In `packages/shared/src/types/modules.ts`:
+
+```typescript
+export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
+  // ... bestehende Module
+  '<moduleId>': {
+    id: '<moduleId>',
+    displayName: 'Modul-Name',
+    description: 'Beschreibung',
+    icon: '🔧',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.<module_id>',
+  },
+};
+```
+
+### 4. Entitlement-Key definieren
+
+In `packages/shared/src/types/entitlements.ts`:
+
+```typescript
+export const ENTITLEMENT_KEYS = {
+  // ... bestehende Keys
+  MODULE_XXX: 'module.<module_id>',
+} as const;
+```
+
+## Entwicklungsregeln
+
+### ✅ ERLAUBT: Module erweitern
+
+- ✅ Neue Module hinzufügen
+- ✅ Neue Endpoints in bestehenden Modulen hinzufügen
+- ✅ Neue Frontend-Routes hinzufügen
+- ✅ Neue Types in `packages/shared/src/types/` hinzufügen
+- ✅ Eigene Firestore-Collections erstellen: `/tenants/{tenantId}/<moduleId>/{itemId}`
+- ✅ Bestehende Types erweitern (nur neue optionale Felder)
+
+### ❌ VERBOTEN: Breaking Changes
+
+- ❌ Bestehende API-Endpoints entfernen oder ändern
+- ❌ Bestehende Frontend-Routes entfernen oder ändern
+- ❌ Bestehende Types ändern (nur erweitern mit optionalen Feldern)
+- ❌ Bestehende Firestore-Collections ändern (außer eigene)
+- ❌ Bestehende Entitlement-Keys ändern
+- ❌ Core-Module (dashboard, calendar-core, members, notifications) ändern
+- ❌ Core-Funktionalität (auth, tenancy, entitlements) ändern
+
+### Datenbank-Regeln
+
+**Eigene Collections:**
+- ✅ Jedes Modul darf eigene Collections erstellen: `/tenants/{tenantId}/<moduleId>/...`
+- ✅ Collections müssen IMMER tenant-scoped sein
+- ✅ Collections müssen IMMER mit `tenantId` validiert werden
+
+**Bestehende Collections NICHT ändern:**
+- ❌ `/tenants/{tenantId}/members` – NICHT ändern
+- ❌ `/tenants/{tenantId}/entitlements` – NICHT ändern
+- ❌ `/users/{uid}` – NICHT ändern
+- ❌ `/tenants/{tenantId}` – NICHT ändern
+
+### API-Endpoint-Regeln
+
+**Neue Endpoints:**
+- ✅ Müssen IMMER `requireAuth` verwenden
+- ✅ Müssen IMMER `requireEntitlements([...])` verwenden (außer Core-Module)
+- ✅ Müssen IMMER tenant-scoped sein (tenantId aus Request)
+- ✅ Müssen IMMER Input validieren (Zod-Schemas aus `@timeam/shared`)
+
+**Bestehende Endpoints:**
+- ❌ Dürfen NICHT entfernt werden
+- ❌ Dürfen NICHT geändert werden (nur Bugfixes)
+- ❌ Response-Format darf NICHT geändert werden
+
+### TypeScript-Regeln
+
+**Shared Types (`packages/shared/src/types/`):**
+- ✅ Neue Types hinzufügen
+- ✅ Bestehende Types erweitern (nur optionale Felder)
+- ❌ Bestehende Types ändern (required → optional ist Breaking Change)
+- ❌ Felder aus bestehenden Types entfernen
+
+**Beispiel – ERLAUBT:**
+```typescript
+// Vorher
+interface User {
+  name: string;
+  email: string;
+}
+
+// Nachher (ERLAUBT)
+interface User {
+  name: string;
+  email: string;
+  phone?: string; // ✅ Neues optionales Feld
+}
+```
+
+**Beispiel – VERBOTEN:**
+```typescript
+// Vorher
+interface User {
+  name: string;
+  email: string;
+}
+
+// Nachher (VERBOTEN)
+interface User {
+  name: string;
+  // ❌ email entfernt
+  phone: string; // ❌ email durch phone ersetzt
+}
+```
+
+### Frontend-Regeln
+
+**Neue Komponenten:**
+- ✅ Müssen CSS Modules verwenden (`.module.css`)
+- ✅ Müssen Error Boundaries verwenden (ModuleBoundary)
+- ✅ Müssen Entitlement-Checks haben (Route Guards)
+
+**Bestehende Komponenten:**
+- ❌ Dürfen NICHT entfernt werden
+- ❌ Props dürfen NICHT geändert werden (nur erweitern)
+- ❌ Routes dürfen NICHT geändert werden
+
+### Testing-Regeln
+
+**Vor jedem Commit:**
+- ✅ `npm run build` muss ohne Fehler laufen
+- ✅ `npm run typecheck` muss ohne Fehler laufen
+- ✅ Shared-Paket muss zuerst gebaut werden: `npm run build -w @timeam/shared`
+- ✅ Alle TypeScript-Fehler müssen behoben sein
+
+**SaaS-Umgebung:**
+- ⚠️ Module werden in einer Live-Umgebung getestet
+- ⚠️ Breaking Changes können Kunden beeinträchtigen
+- ⚠️ Immer rückwärtskompatibel bleiben
+
+## Checkliste für neue Module
+
+- [ ] Modul-Struktur erstellt (Backend + Frontend)
+- [ ] Module-Registry erweitert (`packages/shared/src/types/modules.ts`)
+- [ ] Entitlement-Key definiert (`packages/shared/src/types/entitlements.ts`)
+- [ ] Backend-Router registriert (`apps/api/src/index.ts`)
+- [ ] Frontend-Route registriert (`apps/web/src/App.tsx`)
+- [ ] Alle Guards implementiert (auth + tenant + entitlement)
+- [ ] Tenant-Scope validiert (alle DB-Operationen)
+- [ ] Input-Validierung implementiert (Zod-Schemas)
+- [ ] TypeScript-Fehler behoben
+- [ ] Build erfolgreich (`npm run build`)
+- [ ] Keine Breaking Changes zu bestehenden Modulen
+
+## Beispiel: Neues Modul erstellen
+
+Siehe bestehende Module als Referenz:
+- `apps/api/src/modules/time-tracking/` (Backend)
+- `apps/web/src/modules/time-tracking/` (Frontend)
+- `packages/shared/src/types/modules.ts` (Registry)
+
+**WICHTIG:** Kopiere die Struktur, passe sie an, aber ändere KEINE bestehenden Module!

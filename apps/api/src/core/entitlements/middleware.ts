@@ -44,7 +44,33 @@ export function requireEntitlements(requiredEntitlements: EntitlementKey[]) {
 
     try {
       // Tenant-Daten laden
-      const tenantData = await getTenantForUser(authReq.user.uid);
+      let tenantData = await getTenantForUser(authReq.user.uid);
+
+      // WICHTIG: Wenn kein Tenant gefunden und User ist Super Admin, Dev-Tenant erstellen/zuordnen
+      if (!tenantData) {
+        const { isSuperAdmin } = await import('../super-admin/index.js');
+        const isSuper = isSuperAdmin(authReq.user.uid);
+        
+        if (isSuper) {
+          console.log(`🔐 Super Admin ${authReq.user.uid}: Kein Tenant gefunden in requireEntitlements, erstelle Dev-Tenant...`);
+          const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('../../modules/support/service.js');
+          
+          const tenantId = await getOrCreateDevTenant(authReq.user.uid);
+          await assignDevStaffToTenant(authReq.user.uid, authReq.user.email || '');
+          
+          // Kurz warten, damit Firestore die Änderungen propagiert
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Nochmal versuchen
+          tenantData = await getTenantForUser(authReq.user.uid);
+          
+          if (tenantData) {
+            console.log(`✅ Super Admin ${authReq.user.uid}: Dev-Tenant erfolgreich erstellt/gefunden in requireEntitlements`);
+          } else {
+            console.error(`❌ Konnte Dev-Tenant für Super Admin ${authReq.user.uid} auch in requireEntitlements nicht erstellen`);
+          }
+        }
+      }
 
       if (!tenantData) {
         res.status(403).json({
@@ -121,7 +147,33 @@ export function requireTenantOnly() {
 
     try {
       // Tenant-Daten laden
-      const tenantData = await getTenantForUser(authReq.user.uid);
+      let tenantData = await getTenantForUser(authReq.user.uid);
+
+      // WICHTIG: Wenn kein Tenant gefunden und User ist Super Admin, Dev-Tenant erstellen/zuordnen
+      if (!tenantData) {
+        const { isSuperAdmin } = await import('../super-admin/index.js');
+        const isSuper = isSuperAdmin(authReq.user.uid);
+        
+        if (isSuper) {
+          console.log(`🔐 Super Admin ${authReq.user.uid}: Kein Tenant gefunden in requireTenantOnly, erstelle Dev-Tenant...`);
+          const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('../../modules/support/service.js');
+          
+          const tenantId = await getOrCreateDevTenant(authReq.user.uid);
+          await assignDevStaffToTenant(authReq.user.uid, authReq.user.email || '');
+          
+          // Kurz warten, damit Firestore die Änderungen propagiert
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Nochmal versuchen
+          tenantData = await getTenantForUser(authReq.user.uid);
+          
+          if (tenantData) {
+            console.log(`✅ Super Admin ${authReq.user.uid}: Dev-Tenant erfolgreich erstellt/gefunden in requireTenantOnly`);
+          } else {
+            console.error(`❌ Konnte Dev-Tenant für Super Admin ${authReq.user.uid} auch in requireTenantOnly nicht erstellen`);
+          }
+        }
+      }
 
       if (!tenantData) {
         res.status(403).json({

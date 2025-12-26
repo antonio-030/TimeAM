@@ -5,12 +5,15 @@
  */
 
 import { getAdminFirestore } from '../../core/firebase/index.js';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getEntitlements, setEntitlement, getUserDocument, getFreelancerEntitlements, setFreelancerEntitlement } from '../../core/tenancy/index.js';
 import {
   MODULE_REGISTRY,
+  MODULE_CATEGORY,
   getOptionalModules,
   getCoreModules,
   isCoreModule,
+  getModulesForTenant,
 } from '@timeam/shared';
 import type {
   TenantOverview,
@@ -75,6 +78,8 @@ export async function getAllTenants(): Promise<TenantOverview[]> {
       createdByName,
       createdByEmail,
       address: data.address || undefined, // Optional, falls später hinzugefügt
+      isActive: data.isActive !== false, // Default: true wenn nicht gesetzt
+      deactivatedAt: data.deactivatedAt?.toDate?.()?.toISOString() || undefined,
     });
   }
   
@@ -120,38 +125,45 @@ export async function getTenantDetail(tenantId: string): Promise<TenantDetail | 
   const entitlements = await getEntitlements(tenantId);
   const modules: TenantModuleStatus[] = [];
   
-  // Core-Module
-  for (const mod of getCoreModules()) {
-    modules.push({
-      id: mod.id,
-      displayName: mod.displayName,
-      description: mod.description,
-      icon: mod.icon,
-      category: 'core',
-      isActive: true,
-      canToggle: false,
-    });
-  }
+  // Bestimme Tenant-Typ (dev-tenant = Dev, sonst = Company)
+  const isDevTenant = tenantId === 'dev-tenant';
   
-  // Optionale Module
-  for (const mod of getOptionalModules()) {
-    const entitlementKey = mod.entitlementKey;
-    let isActive = false;
-    
-    if (entitlementKey) {
-      const value = entitlements[entitlementKey];
-      isActive = value === true;
+  // Alle Module für diesen Tenant-Typ laden
+  const availableModules = getModulesForTenant(tenantId);
+  
+  // Module nach Kategorie sortieren und hinzufügen
+  for (const mod of availableModules) {
+    if (mod.category === MODULE_CATEGORY.CORE) {
+      // Core-Module
+      modules.push({
+        id: mod.id,
+        displayName: mod.displayName,
+        description: mod.description,
+        icon: mod.icon,
+        category: 'core',
+        isActive: true,
+        canToggle: false,
+      });
+    } else {
+      // Optionale Module
+      const entitlementKey = mod.entitlementKey;
+      let isActive = false;
+      
+      if (entitlementKey) {
+        const value = entitlements[entitlementKey];
+        isActive = value === true;
+      }
+      
+      modules.push({
+        id: mod.id,
+        displayName: mod.displayName,
+        description: mod.description,
+        icon: mod.icon,
+        category: 'optional',
+        isActive,
+        canToggle: true, // Dev-Tenant kann auch Module aktivieren/deaktivieren
+      });
     }
-    
-    modules.push({
-      id: mod.id,
-      displayName: mod.displayName,
-      description: mod.description,
-      icon: mod.icon,
-      category: 'optional',
-      isActive,
-      canToggle: true,
-    });
   }
   
   // User-Daten des Erstellers laden
@@ -439,5 +451,170 @@ export async function toggleFreelancerModule(
   return {
     success: true,
     message: `${mod.displayName} wurde für "${freelancerName}" ${action}`,
+  };
+}
+
+/**
+ * Deaktiviert einen Tenant (setzt isActive Flag).
+ * Nur für Super-Admins.
+ */
+export async function deactivateTenant(tenantId: string): Promise<{ success: boolean; message: string }> {
+  const db = getAdminFirestore();
+  const tenantRef = db.collection('tenants').doc(tenantId);
+  const tenantSnap = await tenantRef.get();
+
+  if (!tenantSnap.exists) {
+    return {
+      success: false,
+      message: `Tenant "${tenantId}" nicht gefunden`,
+    };
+  }
+
+  const tenantData = tenantSnap.data();
+  const tenantName = tenantData?.name || tenantId;
+
+  // Prüfen ob bereits deaktiviert
+  if (tenantData?.isActive === false) {
+    return {
+      success: false,
+      message: `Tenant "${tenantName}" ist bereits deaktiviert`,
+    };
+  }
+
+  // Dev-Tenant kann nicht deaktiviert werden
+  if (tenantId === 'dev-tenant') {
+    return {
+      success: false,
+      message: 'Der Dev-Tenant kann nicht deaktiviert werden',
+    };
+  }
+
+  // Tenant als inaktiv markieren
+  await tenantRef.update({
+    isActive: false,
+    deactivatedAt: FieldValue.serverTimestamp(),
+  });
+
+  console.log(`🔒 Super-Admin: Tenant "${tenantName}" (${tenantId}) deaktiviert`);
+
+  return {
+    success: true,
+    message: `Tenant "${tenantName}" wurde deaktiviert`,
+  };
+}
+
+/**
+ * Aktiviert einen deaktivierten Tenant.
+ * Nur für Super-Admins.
+ */
+export async function activateTenant(tenantId: string): Promise<{ success: boolean; message: string }> {
+  const db = getAdminFirestore();
+  const tenantRef = db.collection('tenants').doc(tenantId);
+  const tenantSnap = await tenantRef.get();
+
+  if (!tenantSnap.exists) {
+    return {
+      success: false,
+      message: `Tenant "${tenantId}" nicht gefunden`,
+    };
+  }
+
+  const tenantData = tenantSnap.data();
+  const tenantName = tenantData?.name || tenantId;
+
+  // Prüfen ob bereits aktiviert
+  if (tenantData?.isActive !== false) {
+    return {
+      success: false,
+      message: `Tenant "${tenantName}" ist bereits aktiviert`,
+    };
+  }
+
+  // Tenant als aktiv markieren
+  await tenantRef.update({
+    isActive: true,
+    deactivatedAt: FieldValue.delete(),
+  });
+
+  console.log(`✅ Super-Admin: Tenant "${tenantName}" (${tenantId}) aktiviert`);
+
+  return {
+    success: true,
+    message: `Tenant "${tenantName}" wurde aktiviert`,
+  };
+}
+
+/**
+ * Löscht einen Tenant komplett (inkl. aller Sub-Collections).
+ * Nur für Super-Admins. Sehr gefährlich!
+ */
+export async function deleteTenant(tenantId: string): Promise<{ success: boolean; message: string }> {
+  const db = getAdminFirestore();
+  const tenantRef = db.collection('tenants').doc(tenantId);
+  const tenantSnap = await tenantRef.get();
+
+  if (!tenantSnap.exists) {
+    return {
+      success: false,
+      message: `Tenant "${tenantId}" nicht gefunden`,
+    };
+  }
+
+  const tenantData = tenantSnap.data();
+  const tenantName = tenantData?.name || tenantId;
+
+  // Dev-Tenant kann nicht gelöscht werden
+  if (tenantId === 'dev-tenant') {
+    return {
+      success: false,
+      message: 'Der Dev-Tenant kann nicht gelöscht werden',
+    };
+  }
+
+  // Alle Sub-Collections löschen
+  const collections = ['members', 'entitlements', 'shifts', 'timeEntries', 'notifications'];
+  
+  for (const collectionName of collections) {
+    const collectionRef = tenantRef.collection(collectionName);
+    const snapshot = await collectionRef.get();
+    
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    // Wenn es Sub-Collections gibt (z.B. shifts/{shiftId}/applications)
+    if (collectionName === 'shifts') {
+      for (const shiftDoc of snapshot.docs) {
+        const applicationsRef = shiftDoc.ref.collection('applications');
+        const applicationsSnap = await applicationsRef.get();
+        applicationsSnap.docs.forEach((appDoc) => {
+          batch.delete(appDoc.ref);
+        });
+      }
+    }
+    
+    await batch.commit();
+    console.log(`🗑️ Deleted ${snapshot.size} documents from ${collectionName}`);
+  }
+
+  // Tenant-Dokument löschen
+  await tenantRef.delete();
+
+  // User-Dokumente aktualisieren (defaultTenantId entfernen)
+  const usersSnap = await db.collection('users').where('defaultTenantId', '==', tenantId).get();
+  const batch = db.batch();
+  usersSnap.docs.forEach((userDoc) => {
+    batch.update(userDoc.ref, {
+      defaultTenantId: FieldValue.delete(),
+    });
+  });
+  await batch.commit();
+
+  console.log(`🗑️ Super-Admin: Tenant "${tenantName}" (${tenantId}) komplett gelöscht`);
+
+  return {
+    success: true,
+    message: `Tenant "${tenantName}" wurde komplett gelöscht`,
   };
 }

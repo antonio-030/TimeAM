@@ -110,7 +110,15 @@ export function TenantProvider({ children }: TenantProviderProps) {
       setMfaEnabled(data.mfaEnabled || false);
       setMfaRequired(data.mfaRequired || false);
 
-      if (data.isFreelancer) {
+      // WICHTIG: Dev-Staff (inkl. Super-Admins) brauchen kein Onboarding
+      // Auch wenn needsOnboarding true ist, wenn isDevStaff true ist, überschreiben wir es
+      if (data.isDevStaff) {
+        setIsFreelancer(false);
+        setNeedsOnboarding(false); // Dev-Staff braucht kein Onboarding
+        setTenant(data.tenant || null);
+        setRole(data.role || null);
+        setEntitlements(data.entitlements || {});
+      } else if (data.isFreelancer) {
         setIsFreelancer(true);
         setNeedsOnboarding(false);
         // Freelancer haben auch einen Tenant (ihre eigene Firma)

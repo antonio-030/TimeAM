@@ -70,18 +70,50 @@ export function AppLayout({ children }: AppLayoutProps) {
     return role === MEMBER_ROLES.ADMIN || role === MEMBER_ROLES.MANAGER;
   }, [role]);
 
-  // Mitglieder für Autocomplete laden (nur für Admin/Manager)
+  // Prüfen ob User ein normaler Mitarbeiter ist (nicht Admin/Manager)
+  const isEmployee = useMemo(() => {
+    return role === MEMBER_ROLES.EMPLOYEE;
+  }, [role]);
+
+  // Mitglieder für Autocomplete laden
+  // - Admin/Manager: Alle Mitglieder
+  // - Dev-Mitarbeiter: Nur eigene Mitarbeiter (aus ihrem Dev-Tenant)
+  // - Normale Mitarbeiter: Nur eigenes Profil
   useEffect(() => {
-    if (!isFreelancer && isAdminOrManager) {
-      getMembers()
-        .then((response) => {
-          setAllMembers(response.members);
-        })
-        .catch((err) => {
-          console.error('Fehler beim Laden der Mitglieder für Suche:', err);
-        });
+    if (!isFreelancer) {
+      if (isDevStaff) {
+        // Dev-Mitarbeiter: Nur eigene Mitarbeiter aus ihrem Tenant laden
+        getMembers()
+          .then((response) => {
+            setAllMembers(response.members);
+          })
+          .catch((err) => {
+            console.error('Fehler beim Laden der Mitglieder für Suche:', err);
+          });
+      } else if (isAdminOrManager || isSuperAdmin) {
+        // Admin/Manager/SuperAdmin (nicht Dev-Staff): Alle Mitglieder laden
+        getMembers()
+          .then((response) => {
+            setAllMembers(response.members);
+          })
+          .catch((err) => {
+            console.error('Fehler beim Laden der Mitglieder für Suche:', err);
+          });
+      } else if (isEmployee && user) {
+        // Normale Mitarbeiter: Nur eigenes Profil laden
+        getMemberProfile()
+          .then((response) => {
+            setAllMembers([response.member]);
+          })
+          .catch((err) => {
+            console.error('Fehler beim Laden des eigenen Profils:', err);
+            setAllMembers([]);
+          });
+      } else {
+        setAllMembers([]);
+      }
     }
-  }, [isFreelancer, isAdminOrManager]);
+  }, [isFreelancer, isAdminOrManager, isEmployee, isSuperAdmin, isDevStaff, user]);
 
   // Gefilterte Mitglieder für Autocomplete
   const filteredMembers = useMemo(() => {
@@ -232,14 +264,18 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Echte Events laden
   // Admin/Manager: Alle Schichten | Mitarbeiter: Nur eigene
+  // Dev-Mitarbeiter: Alle Module aktivieren für ihren eigenen Tenant
   const hasShiftPoolAccess = hasEntitlement('module.shift_pool');
   const hasTimeTrackingAccess = hasEntitlement('module.time_tracking');
   const hasReportsAccess = hasEntitlement('module.reports');
   
+  // Dev-Mitarbeiter haben Zugriff auf alle Module in ihrem Dev-Tenant
+  const devStaffHasAllAccess = isDevStaff;
+  
   const { events: calendarEvents, loading: calendarLoading } = useSidebarCalendar({
     role: isFreelancer ? 'freelancer' : (role ?? 'employee'),
-    includeShifts: isFreelancer ? true : hasShiftPoolAccess,
-    includeTimeEntries: hasTimeTrackingAccess,
+    includeShifts: isFreelancer ? true : (devStaffHasAllAccess || hasShiftPoolAccess),
+    includeTimeEntries: devStaffHasAllAccess || hasTimeTrackingAccess,
   });
 
   const handleSignOut = async () => {
@@ -447,6 +483,15 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: 'support', label: 'Verifizierungen', icon: '🛠️', enabled: true },
     { id: 'dev-staff-admin', label: 'Dev-Mitarbeiter', icon: '👥', enabled: isSuperAdmin },
     { id: 'dev-dashboard', label: 'Developer', icon: '🔐', enabled: isSuperAdmin },
+    // Module für Dev-Staff basierend auf Entitlements
+    { id: 'dashboard', label: 'Dashboard', icon: '📊', enabled: true },
+    { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },
+    { id: 'calendar', label: 'Kalender', icon: '📅', enabled: true },
+    { id: 'shifts', label: 'Schicht-Pool', icon: '📋', enabled: hasShiftPoolAccess },
+    { id: 'my-shifts', label: 'Meine Schichten', icon: '✅', enabled: hasShiftPoolAccess },
+    { id: 'admin-shifts', label: 'Schicht-Verwaltung', icon: '⚙️', enabled: hasShiftPoolAccess && isAdminOrManager },
+    { id: 'reports', label: 'Berichte', icon: '📈', enabled: hasReportsAccess && isAdminOrManager },
+    { id: 'members', label: 'Mitarbeiter', icon: '👥', enabled: isAdminOrManager },
   ] : isFreelancer ? [
     { id: 'freelancer-dashboard', label: 'Dashboard', icon: '📊', enabled: true },
     { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },
@@ -551,6 +596,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
     
     // Normale Mitarbeiter Quick-Filter
+    // Für normale Mitarbeiter: Nur eigene Daten
+    // Für Admin/Manager/SuperAdmin: Alle Daten
     const filters = [
       { 
         id: 'my-shifts-today', 
@@ -582,15 +629,16 @@ export function AppLayout({ children }: AppLayoutProps) {
       },
       { 
         id: 'members', 
-        label: 'Mitarbeiter', 
+        label: isEmployee ? 'Mein Profil' : 'Mitarbeiter', 
         icon: '👥',
         page: 'members',
-        enabled: isAdminOrManager,
+        // Normale Mitarbeiter können ihr Profil sehen, Admin/Manager/SuperAdmin sehen alle
+        enabled: isEmployee || isAdminOrManager || isSuperAdmin,
       },
     ];
     
     return filters.filter(f => f.enabled);
-  }, [isFreelancer, hasShiftPoolAccess, hasTimeTrackingAccess, isAdminOrManager]);
+  }, [isFreelancer, hasShiftPoolAccess, hasTimeTrackingAccess, isAdminOrManager, isEmployee, isSuperAdmin]);
 
   return (
     <div className={styles.layout}>
@@ -636,8 +684,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             />
           </div>
 
-          {/* Mitarbeiter-Suche - nur für Admin/Manager (nicht für Freelancer) */}
-          {!isFreelancer && isAdminOrManager && (
+          {/* Mitarbeiter-Suche - für Admin/Manager/SuperAdmin und normale Mitarbeiter (nicht für Freelancer) */}
+          {!isFreelancer && (isAdminOrManager || isSuperAdmin || isEmployee) && (
             <div className={styles.section}>
               <div className={styles.sectionTitle}>MITARBEITER</div>
               <div className={styles.searchContainer} ref={searchBoxRef}>
@@ -645,7 +693,7 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <span className={styles.searchIcon}>🔍</span>
                   <input
                     type="text"
-                    placeholder="Mitarbeiter suchen..."
+                    placeholder={isEmployee ? "Mein Profil suchen..." : "Mitarbeiter suchen..."}
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);

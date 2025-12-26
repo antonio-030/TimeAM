@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useAllTenants, useTenantDetail, useAllFreelancers, useFreelancerDetail } from './hooks';
+import { deleteTenant, deactivateTenant, activateTenant } from './api';
 import type { TenantOverview, TenantModuleStatus, FreelancerOverview } from './api';
 import styles from './AdminDashboard.module.css';
 
@@ -98,9 +99,21 @@ interface TenantDetailPanelProps {
 }
 
 function TenantDetailPanel({ tenantId, onModuleToggle }: TenantDetailPanelProps) {
+  // WICHTIG: Hooks müssen IMMER in der gleichen Reihenfolge aufgerufen werden
+  // Alle Hooks müssen am Anfang stehen, VOR allen frühen Returns
+  // Reihenfolge: 1. useAllTenants, 2. useTenantDetail, 3. useState Hooks, 4. useCallback Hooks
+  const { tenants, refresh: refreshTenants } = useAllTenants();
   const { tenant, loading, error, toggling, handleToggleModule, refresh } = useTenantDetail(tenantId);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isTogglingActive, setIsTogglingActive] = useState(false);
 
+  // Berechnete Werte (keine Hooks, können nach frühen Returns stehen)
+  const tenantFromList = tenantId ? tenants.find(t => t.id === tenantId) : null;
+  const isActive = tenantFromList?.isActive !== false; // Default: true
+  const isDevTenant = tenantId === 'dev-tenant';
+
+  // ALLE useCallback Hooks müssen VOR den frühen Returns stehen
   const onToggle = useCallback(async (moduleId: string, enabled: boolean) => {
     try {
       const result = await handleToggleModule(moduleId, enabled);
@@ -130,6 +143,69 @@ function TenantDetailPanel({ tenantId, onModuleToggle }: TenantDetailPanelProps)
     }
   }, [handleToggleModule, refresh, onModuleToggle]);
 
+  const handleDelete = useCallback(async () => {
+    if (!tenantId || isDevTenant || !tenant) return;
+    
+    const confirmed = window.confirm(
+      `⚠️ WARNUNG: Möchten Sie die Organisation "${tenant.name}" wirklich KOMPLETT löschen?\n\n` +
+      `Dies löscht:\n` +
+      `- Alle Mitglieder\n` +
+      `- Alle Schichten\n` +
+      `- Alle Zeiterfassungen\n` +
+      `- Alle Daten\n\n` +
+      `Diese Aktion kann NICHT rückgängig gemacht werden!`
+    );
+    
+    if (!confirmed) return;
+    
+    setIsDeleting(true);
+    try {
+      const result = await deleteTenant(tenantId);
+      setToast({ message: result.message, type: 'success' });
+      await refreshTenants();
+      if (onModuleToggle) {
+        onModuleToggle();
+      }
+      // Nach 2 Sekunden zur Liste zurückkehren
+      setTimeout(() => {
+        window.location.reload(); // Reload um Tenant aus Liste zu entfernen
+      }, 2000);
+    } catch (err) {
+      setToast({ 
+        message: err instanceof Error ? err.message : 'Fehler beim Löschen', 
+        type: 'error' 
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [tenantId, tenant?.name, isDevTenant, refreshTenants, onModuleToggle, tenant]);
+
+  const handleToggleActive = useCallback(async () => {
+    if (!tenantId || isDevTenant) return;
+    
+    setIsTogglingActive(true);
+    try {
+      const result = isActive 
+        ? await deactivateTenant(tenantId)
+        : await activateTenant(tenantId);
+      
+      setToast({ message: result.message, type: 'success' });
+      await refreshTenants();
+      await refresh();
+      if (onModuleToggle) {
+        onModuleToggle();
+      }
+    } catch (err) {
+      setToast({ 
+        message: err instanceof Error ? err.message : 'Fehler beim Ändern des Status', 
+        type: 'error' 
+      });
+    } finally {
+      setIsTogglingActive(false);
+    }
+  }, [tenantId, isActive, isDevTenant, refreshTenants, refresh, onModuleToggle]);
+
+  // JETZT kommen die frühen Returns
   if (!tenantId) {
     return (
       <div className={styles.detailSection}>
@@ -163,36 +239,82 @@ function TenantDetailPanel({ tenantId, onModuleToggle }: TenantDetailPanelProps)
     );
   }
 
+  // Ab hier können normale Berechnungen stehen
   const coreModules = tenant.modules.filter(m => m.category === 'core');
   const optionalModules = tenant.modules.filter(m => m.category === 'optional');
 
   return (
     <div className={styles.detailSection}>
       <div className={styles.detailHeader}>
-        <h2 className={styles.detailName}>🏢 {tenant.name}</h2>
-        <div className={styles.detailMeta}>
-          <p className={styles.detailId}>ID: {tenant.id}</p>
-          <div className={styles.detailInfoGrid}>
-            <div className={styles.detailInfoItem}>
-              <span className={styles.detailInfoLabel}>👥 Mitglieder:</span>
-              <span className={styles.detailInfoValue}>{tenant.members.length}</span>
-            </div>
-            {tenant.createdByFirstName || tenant.createdByLastName || tenant.createdByName ? (
-              <div className={styles.detailInfoItem}>
-                <span className={styles.detailInfoLabel}>👤 Erstellt von:</span>
-                <span className={styles.detailInfoValue}>
-                  {tenant.createdByFirstName && tenant.createdByLastName
-                    ? `${tenant.createdByFirstName} ${tenant.createdByLastName}`
-                    : tenant.createdByName || 'Unbekannt'}
-                  {tenant.createdByEmail && ` (${tenant.createdByEmail})`}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', gap: '1rem' }}>
+          <div style={{ flex: 1 }}>
+            <h2 className={styles.detailName}>
+              🏢 {tenant.name}
+              {!isActive && (
+                <span style={{ 
+                  marginLeft: '0.5rem', 
+                  fontSize: '0.875rem', 
+                  color: '#ff6b6b',
+                  fontWeight: 'normal'
+                }}>
+                  (Deaktiviert)
                 </span>
+              )}
+            </h2>
+            <div className={styles.detailMeta}>
+              <p className={styles.detailId}>ID: {tenant.id}</p>
+              <div className={styles.detailInfoGrid}>
+                <div className={styles.detailInfoItem}>
+                  <span className={styles.detailInfoLabel}>👥 Mitglieder:</span>
+                  <span className={styles.detailInfoValue}>{tenant.members.length}</span>
+                </div>
+                {tenant.createdByFirstName || tenant.createdByLastName || tenant.createdByName ? (
+                  <div className={styles.detailInfoItem}>
+                    <span className={styles.detailInfoLabel}>👤 Erstellt von:</span>
+                    <span className={styles.detailInfoValue}>
+                      {tenant.createdByFirstName && tenant.createdByLastName
+                        ? `${tenant.createdByFirstName} ${tenant.createdByLastName}`
+                        : tenant.createdByName || 'Unbekannt'}
+                      {tenant.createdByEmail && ` (${tenant.createdByEmail})`}
+                    </span>
+                  </div>
+                ) : null}
+                {tenant.address && (
+                  <div className={styles.detailInfoItem}>
+                    <span className={styles.detailInfoLabel}>📍 Adresse:</span>
+                    <span className={styles.detailInfoValue}>{tenant.address}</span>
+                  </div>
+                )}
               </div>
-            ) : null}
-            {tenant.address && (
-              <div className={styles.detailInfoItem}>
-                <span className={styles.detailInfoLabel}>📍 Adresse:</span>
-                <span className={styles.detailInfoValue}>{tenant.address}</span>
-              </div>
+            </div>
+          </div>
+          
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column', minWidth: '140px' }}>
+            {!isDevTenant && (
+              <>
+                <button
+                  onClick={handleToggleActive}
+                  disabled={isTogglingActive}
+                  className={`${styles.actionButton} ${!isActive ? styles.actionButtonActivate : styles.actionButtonDeactivate}`}
+                  title={isActive ? 'Tenant deaktivieren' : 'Tenant aktivieren'}
+                >
+                  {isTogglingActive ? '⏳' : isActive ? '🔒 Deaktivieren' : '✅ Aktivieren'}
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className={`${styles.actionButton} ${styles.actionButtonDelete}`}
+                  title="Tenant komplett löschen"
+                >
+                  {isDeleting ? '⏳' : '🗑️ Löschen'}
+                </button>
+              </>
+            )}
+            {isDevTenant && (
+              <span style={{ fontSize: '0.75rem', color: '#888', fontStyle: 'italic' }}>
+                Dev-Tenant (geschützt)
+              </span>
             )}
           </div>
         </div>
@@ -818,11 +940,31 @@ export function AdminDashboard() {
                 >
                   <span className={styles.tenantIcon}>🏢</span>
                   <div className={styles.tenantInfo}>
-                    <p className={styles.tenantName}>{tenant.name}</p>
+                    <p className={styles.tenantName}>
+                      {tenant.name}
+                      {tenant.isActive === false && (
+                        <span style={{ 
+                          marginLeft: '0.5rem', 
+                          fontSize: '0.75rem', 
+                          color: '#ff6b6b',
+                          fontWeight: 'normal'
+                        }}>
+                          (Deaktiviert)
+                        </span>
+                      )}
+                    </p>
                     <div className={styles.tenantMeta}>
                       <span>{tenant.memberCount} Mitglieder</span>
                       <span>•</span>
                       <span>{new Date(tenant.createdAt).toLocaleDateString('de-DE')}</span>
+                      {tenant.isActive === false && tenant.deactivatedAt && (
+                        <>
+                          <span>•</span>
+                          <span style={{ color: '#ff6b6b' }}>
+                            Deaktiviert: {new Date(tenant.deactivatedAt).toLocaleDateString('de-DE')}
+                          </span>
+                        </>
+                      )}
                       {tenant.createdByName && (
                         <>
                           <span>•</span>

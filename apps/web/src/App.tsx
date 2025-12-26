@@ -95,7 +95,7 @@ function ProtectedRoute({
 
 function AppContent() {
   const { user, loading: authLoading, signOut } = useAuth();
-  const { needsOnboarding, isFreelancer, loading: tenantLoading, hasEntitlement, role, mfaRequired, refresh } = useTenant();
+  const { needsOnboarding, isFreelancer, loading: tenantLoading, hasEntitlement, role, mfaRequired, refresh, tenant } = useTenant();
   
   // Prüfe ob MFA-Modul aktiviert ist
   const mfaModuleEnabled = hasEntitlement('module.mfa');
@@ -109,19 +109,23 @@ function AppContent() {
   const [showMfaVerify, setShowMfaVerify] = useState(false);
 
   // WICHTIG: Nach erfolgreichem Login von /login weg navigieren
+  // UND: Nach Logout/Login zu korrekter Route navigieren
   useEffect(() => {
-    // Wenn User eingeloggt ist und auf /login ist, zur richtigen Route navigieren
-    if (user && location.pathname === '/login' && !tenantLoading && !mfaRequired) {
-      // Bestimme Standard-Route basierend auf User-Typ
-      let defaultRoute = '/dashboard';
-      if (isDevStaff) {
-        defaultRoute = '/support';
-      } else if (isFreelancer) {
-        defaultRoute = '/freelancer-dashboard';
+    // Wenn User eingeloggt ist und Tenant-Daten geladen sind
+    if (user && !tenantLoading && !mfaRequired) {
+      // Nur von /login weiterleiten, nicht von /dashboard (damit Dev-Staff Dashboard nutzen kann)
+      if (location.pathname === '/login') {
+        // Bestimme Standard-Route basierend auf User-Typ
+        let defaultRoute = '/dashboard';
+        // Dev-Staff kommt auch auf Dashboard (nicht nur Support)
+        if (isFreelancer) {
+          defaultRoute = '/freelancer-dashboard';
+        }
+        // Super Admin kann sowohl Dashboard als auch Support nutzen, Standard ist Dashboard
+        navigate(defaultRoute, { replace: true });
       }
-      navigate(defaultRoute, { replace: true });
     }
-  }, [user, location.pathname, tenantLoading, mfaRequired, isDevStaff, isFreelancer, navigate]);
+  }, [user, location.pathname, tenantLoading, mfaRequired, isDevStaff, isFreelancer, isSuperAdmin, navigate]);
 
   // MFA-Verifizierung erforderlich (nur wenn MFA-Modul aktiviert ist)
   // WICHTIG: useEffect muss vor allen frühen Returns stehen!
@@ -304,7 +308,8 @@ function AppContent() {
   }
 
   // User braucht Onboarding → Tenant erstellen
-  if (needsOnboarding) {
+  // WICHTIG: Super Admins (Dev-Staff) brauchen kein Onboarding, sie haben bereits einen Dev-Tenant
+  if (needsOnboarding && !isSuperAdmin && !isDevStaff) {
     return (
       <>
         <CreateTenantForm />
@@ -320,13 +325,13 @@ function AppContent() {
   }
 
   // Bestimme Standard-Route basierend auf User-Typ
+  // Bestimme Standard-Route basierend auf User-Typ
   const getDefaultRoute = () => {
-    if (isDevStaff) {
-      return '/support';
-    }
+    // Dev-Staff kommt auf Dashboard (kann auch Support nutzen)
     if (isFreelancer) {
       return '/freelancer-dashboard';
     }
+    // Alle anderen (inkl. Dev-Staff) kommen auf Dashboard
     return '/dashboard';
   };
 
@@ -424,6 +429,11 @@ function AppContent() {
                   <AdminDashboard />
                 </ProtectedRoute>
               } 
+            />
+            {/* Dashboard auch für Dev-Staff verfügbar */}
+            <Route 
+              path="/dashboard" 
+              element={<DashboardPage />} 
             />
           </>
         )}

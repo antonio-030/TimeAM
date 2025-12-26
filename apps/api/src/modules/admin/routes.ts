@@ -8,7 +8,7 @@
 import { Router, type Request, type Response } from 'express';
 import { requireAuth, type AuthenticatedRequest } from '../../core/auth/index.js';
 import { requireSuperAdmin, isSuperAdmin } from '../../core/super-admin/index.js';
-import { getAllTenants, getTenantDetail, toggleTenantModule, getAllFreelancers, getFreelancerDetail, toggleFreelancerModule } from './service.js';
+import { getAllTenants, getTenantDetail, toggleTenantModule, getAllFreelancers, getFreelancerDetail, toggleFreelancerModule, deleteTenant, deactivateTenant, activateTenant } from './service.js';
 import type {
   TenantsListResponse,
   TenantDetail,
@@ -245,6 +245,114 @@ router.put(
     } catch (error) {
       console.error(`Error in PUT /api/admin/freelancers/${freelancerUid}/modules/${moduleId}:`, error);
       res.status(500).json({ error: 'Fehler beim Ändern des Moduls' });
+    }
+  }
+);
+
+/**
+ * DELETE /api/admin/tenants/:tenantId
+ *
+ * Löscht einen Tenant komplett (inkl. aller Daten).
+ * Nur für Super-Admins. Sehr gefährlich!
+ */
+router.delete(
+  '/tenants/:tenantId',
+  requireAuth,
+  requireSuperAdmin,
+  async (req: Request, res: Response): Promise<void> => {
+    const { tenantId } = req.params;
+    
+    try {
+      const result = await deleteTenant(tenantId);
+      
+      if (!result.success) {
+        res.status(400).json({
+          error: result.message,
+          code: 'DELETE_FAILED',
+        });
+        return;
+      }
+      
+      res.json({
+        success: true,
+        tenantId,
+        message: result.message,
+      });
+    } catch (error) {
+      console.error(`Error in DELETE /api/admin/tenants/${tenantId}:`, error);
+      res.status(500).json({ error: 'Fehler beim Löschen des Tenants' });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/tenants/:tenantId/deactivate
+ *
+ * Deaktiviert einen Tenant.
+ * Nur für Super-Admins.
+ */
+router.post(
+  '/tenants/:tenantId/deactivate',
+  requireAuth,
+  requireSuperAdmin,
+  async (req: Request, res: Response): Promise<void> => {
+    const { tenantId } = req.params;
+    
+    try {
+      const result = await deactivateTenant(tenantId);
+      
+      if (!result.success) {
+        res.status(400).json({
+          error: result.message,
+          code: 'DEACTIVATE_FAILED',
+        });
+        return;
+      }
+      
+      res.json({
+        success: true,
+        tenantId,
+        message: result.message,
+      });
+    } catch (error) {
+      console.error(`Error in POST /api/admin/tenants/${tenantId}/deactivate:`, error);
+      res.status(500).json({ error: 'Fehler beim Deaktivieren des Tenants' });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/tenants/:tenantId/activate
+ *
+ * Aktiviert einen deaktivierten Tenant.
+ * Nur für Super-Admins.
+ */
+router.post(
+  '/tenants/:tenantId/activate',
+  requireAuth,
+  requireSuperAdmin,
+  async (req: Request, res: Response): Promise<void> => {
+    const { tenantId } = req.params;
+    
+    try {
+      const result = await activateTenant(tenantId);
+      
+      if (!result.success) {
+        res.status(400).json({
+          error: result.message,
+          code: 'ACTIVATE_FAILED',
+        });
+        return;
+      }
+      
+      res.json({
+        success: true,
+        tenantId,
+        message: result.message,
+      });
+    } catch (error) {
+      console.error(`Error in POST /api/admin/tenants/${tenantId}/activate:`, error);
+      res.status(500).json({ error: 'Fehler beim Aktivieren des Tenants' });
     }
   }
 );

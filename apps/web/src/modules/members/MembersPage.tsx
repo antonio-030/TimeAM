@@ -8,6 +8,9 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMembers, useMemberShifts } from './hooks';
 import { useTenant } from '../../core/tenant';
+import { useAuth } from '../../core/auth';
+import { useSuperAdminCheck } from '../admin';
+import { useDevStaffCheck } from '../support';
 import {
   MEMBER_ROLES,
   MEMBER_STATUS,
@@ -1218,6 +1221,10 @@ function MemberCard({ member, isSelected, onClick }: MemberCardProps) {
 // =============================================================================
 
 export function MembersPage() {
+  const { role } = useTenant();
+  const { user } = useAuth();
+  const { isSuperAdmin } = useSuperAdminCheck();
+  const { isDevStaff } = useDevStaffCheck();
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     members,
@@ -1231,6 +1238,14 @@ export function MembersPage() {
     activateMember,
     deactivateMember,
   } = useMembers();
+  
+  // Prüfen ob User Admin oder Manager ist
+  const isAdminOrManager = role === MEMBER_ROLES.ADMIN || role === MEMBER_ROLES.MANAGER;
+  const isEmployee = role === MEMBER_ROLES.EMPLOYEE;
+  
+  // Super Admin kann alle sehen (aber nicht Dev-Staff, die sollen wie normale Mitarbeiter behandelt werden)
+  // Dev-Staff soll nur eigene Daten sehen, auch wenn sie Admin/Manager sind
+  const canSeeAllMembers = (isAdminOrManager || isSuperAdmin) && !isDevStaff;
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
@@ -1253,7 +1268,14 @@ export function MembersPage() {
   }, [urlSearchQuery]);
 
   // Filter members
+  // Für normale Mitarbeiter UND Dev-Staff: Nur eigenes Profil anzeigen
+  // Super Admin (nicht Dev-Staff) und Admin/Manager (nicht Dev-Staff) sehen alle
   const filteredMembers = members.filter((member) => {
+    // Dev-Staff und normale Mitarbeiter sehen nur sich selbst
+    if ((isDevStaff || (isEmployee && !isSuperAdmin)) && user && member.uid !== user.uid) {
+      return false;
+    }
+    
     const query = searchQuery.toLowerCase();
     const matchesSearch =
       !searchQuery ||
@@ -1320,7 +1342,7 @@ export function MembersPage() {
           <div className={styles.headerLeft}>
             <h1 className={styles.title}>
               <span className={styles.titleIcon}>👥</span>
-              Mitarbeiter
+              {isEmployee ? 'Mein Profil' : 'Mitarbeiter'}
             </h1>
             {stats && (
               <div className={styles.headerStats}>
@@ -1360,45 +1382,49 @@ export function MembersPage() {
                 ☰
               </button>
             </div>
-            <button
-              className={`${styles.button} ${styles.buttonPrimary}`}
-              onClick={() => setShowInviteModal(true)}
-            >
-              ➕ Einladen
-            </button>
+            {canSeeAllMembers && (
+              <button
+                className={`${styles.button} ${styles.buttonPrimary}`}
+                onClick={() => setShowInviteModal(true)}
+              >
+                ➕ Einladen
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Filters */}
-        <div className={styles.filtersBar}>
-          <input
-            type="text"
-            className={styles.searchInput}
-            placeholder="🔍 Name oder E-Mail suchen..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <select
-            className={styles.filterSelect}
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value as MemberRole | '')}
-          >
-            <option value="">Alle Rollen</option>
-            <option value={MEMBER_ROLES.ADMIN}>Administrator</option>
-            <option value={MEMBER_ROLES.MANAGER}>Manager</option>
-            <option value={MEMBER_ROLES.EMPLOYEE}>Mitarbeiter</option>
-          </select>
-          <select
-            className={styles.filterSelect}
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as MemberStatus | '')}
-          >
-            <option value="">Alle Status</option>
-            <option value={MEMBER_STATUS.ACTIVE}>Aktiv</option>
-            <option value={MEMBER_STATUS.INACTIVE}>Inaktiv</option>
-            <option value={MEMBER_STATUS.PENDING}>Ausstehend</option>
-          </select>
-        </div>
+        {/* Filters - nur für Admin/Manager/SuperAdmin */}
+        {canSeeAllMembers && (
+          <div className={styles.filtersBar}>
+            <input
+              type="text"
+              className={styles.searchInput}
+              placeholder="🔍 Name oder E-Mail suchen..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <select
+              className={styles.filterSelect}
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as MemberRole | '')}
+            >
+              <option value="">Alle Rollen</option>
+              <option value={MEMBER_ROLES.ADMIN}>Administrator</option>
+              <option value={MEMBER_ROLES.MANAGER}>Manager</option>
+              <option value={MEMBER_ROLES.EMPLOYEE}>Mitarbeiter</option>
+            </select>
+            <select
+              className={styles.filterSelect}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as MemberStatus | '')}
+            >
+              <option value="">Alle Status</option>
+              <option value={MEMBER_STATUS.ACTIVE}>Aktiv</option>
+              <option value={MEMBER_STATUS.INACTIVE}>Inaktiv</option>
+              <option value={MEMBER_STATUS.PENDING}>Ausstehend</option>
+            </select>
+          </div>
+        )}
 
         {error && <div className={styles.error}>⚠️ {error}</div>}
 

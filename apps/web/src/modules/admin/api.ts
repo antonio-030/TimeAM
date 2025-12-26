@@ -4,7 +4,7 @@
  * API-Funktionen für das Super-Admin / Developer Dashboard.
  */
 
-import { apiGet, apiPut } from '../../core/api';
+import { apiGet, apiPut, apiPost, apiDelete } from '../../core/api';
 
 /**
  * Super-Admin Check Response
@@ -27,6 +27,8 @@ export interface TenantOverview {
   createdByName?: string; // Display-Name des Erstellers
   createdByEmail?: string; // Email des Erstellers
   address?: string; // Adresse (optional)
+  isActive?: boolean; // Tenant aktiviert/deaktiviert
+  deactivatedAt?: string; // Wann deaktiviert wurde
 }
 
 /**
@@ -209,4 +211,25 @@ export async function toggleFreelancerModule(
     `/api/admin/freelancers/${freelancerUid}/modules/${moduleId}`,
     { enabled }
   );
+}
+
+/**
+ * Löscht einen Tenant komplett.
+ */
+export async function deleteTenant(tenantId: string): Promise<{ success: boolean; message: string }> {
+  return apiDelete<{ success: boolean; message: string }>(`/api/admin/tenants/${tenantId}`);
+}
+
+/**
+ * Deaktiviert einen Tenant.
+ */
+export async function deactivateTenant(tenantId: string): Promise<{ success: boolean; message: string }> {
+  return apiPost<{ success: boolean; message: string }>(`/api/admin/tenants/${tenantId}/deactivate`);
+}
+
+/**
+ * Aktiviert einen deaktivierten Tenant.
+ */
+export async function activateTenant(tenantId: string): Promise<{ success: boolean; message: string }> {
+  return apiPost<{ success: boolean; message: string }>(`/api/admin/tenants/${tenantId}/activate`);
 }

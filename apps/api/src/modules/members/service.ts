@@ -442,13 +442,36 @@ export async function deleteMember(
   }
 
   const memberData = memberSnap.data() || {};
+  const deletedUid = memberData.uid as string;
 
   // Verhindern, dass man sich selbst löscht
-  if (memberData.uid === actorUid) {
+  if (deletedUid === actorUid) {
     throw new Error('Cannot delete yourself');
   }
 
+  // Member-Dokument löschen
   await memberRef.delete();
+
+  // WICHTIG: defaultTenantId im User-Dokument löschen, wenn es auf diesen Tenant zeigt
+  // Sonst kann der User weiterhin auf den Tenant zugreifen, obwohl er gelöscht wurde
+  try {
+    const userRef = db.collection('users').doc(deletedUid);
+    const userDoc = await userRef.get();
+    
+    if (userDoc.exists) {
+      const userData = userDoc.data();
+      if (userData?.defaultTenantId === tenantId) {
+        // defaultTenantId löschen, damit getTenantForUser den User nicht mehr diesem Tenant zuordnet
+        await userRef.update({
+          defaultTenantId: FieldValue.delete(),
+        });
+        console.log(`🗑️ Removed defaultTenantId for user ${deletedUid} after deletion from tenant ${tenantId}`);
+      }
+    }
+  } catch (userUpdateError) {
+    // Nicht kritisch - loggen aber trotzdem
+    console.warn(`⚠️ Could not update defaultTenantId for user ${deletedUid}:`, userUpdateError);
+  }
 }
 
 /**

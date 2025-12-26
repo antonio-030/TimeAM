@@ -464,14 +464,32 @@ export async function getOrCreateDevTenant(createdByUid: string): Promise<string
     createdBy: createdByUid,
   });
 
-  // Support-Modul Entitlement setzen
-  await tenantRef.collection('entitlements').doc().set({
-    key: 'module.support',
-    value: true,
-    grantedAt: FieldValue.serverTimestamp(),
-  });
+  // WICHTIG: Alle Module für Dev-Tenant aktivieren
+  // So kann der Entwickler alle Module testen bevor sie veröffentlicht werden
+  const allModules = [
+    'module.support',
+    'module.time_tracking',
+    'module.shift_pool',
+    'module.reports',
+    'module.mfa',
+    'module.calendar_core',
+  ];
 
-  console.log(`✅ Dev-Tenant created: ${DEV_TENANT_ID}`);
+  const entitlementsRef = tenantRef.collection('entitlements');
+  const batch = db.batch();
+  
+  for (const moduleKey of allModules) {
+    const entitlementRef = entitlementsRef.doc();
+    batch.set(entitlementRef, {
+      key: moduleKey,
+      value: true,
+      grantedAt: FieldValue.serverTimestamp(),
+    });
+  }
+  
+  await batch.commit();
+
+  console.log(`✅ Dev-Tenant created: ${DEV_TENANT_ID} with all modules activated`);
 
   return DEV_TENANT_ID;
 }
@@ -496,15 +514,24 @@ export async function assignDevStaffToTenant(uid: string, email: string): Promis
       joinedAt: FieldValue.serverTimestamp(),
     });
 
-    // User-Dokument aktualisieren
-    await db.collection('users').doc(uid).set({
-      email,
-      defaultTenantId: tenantId,
-      createdAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-
     console.log(`✅ Dev-Mitarbeiter ${uid} zum Dev-Tenant hinzugefügt`);
+  } else {
+    console.log(`ℹ️ Dev-Mitarbeiter ${uid} ist bereits Mitglied des Dev-Tenants`);
   }
+
+  // WICHTIG: defaultTenantId IMMER setzen, auch wenn Member bereits existiert
+  // Das stellt sicher, dass getTenantForUser den Tenant findet
+  await db.collection('users').doc(uid).set({
+    email,
+    defaultTenantId: tenantId,
+    createdAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  console.log(`✅ defaultTenantId für Dev-Mitarbeiter ${uid} gesetzt: ${tenantId}`);
+  
+  // WICHTIG: Kurz warten, damit Firestore die Änderungen propagiert
+  // Dies hilft bei Race Conditions, wenn getTenantForUser direkt danach aufgerufen wird
+  await new Promise(resolve => setTimeout(resolve, 200));
 }
 
 // =============================================================================

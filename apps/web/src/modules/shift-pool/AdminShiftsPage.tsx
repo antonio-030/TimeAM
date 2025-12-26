@@ -15,6 +15,8 @@ import { AddressAutocomplete } from './AddressAutocomplete';
 import { openAddressInMaps } from './mapsUtils';
 import { VerificationBadge } from '../../components/VerificationBadge';
 import { getMemberFullName, getMemberInitials } from '../../utils/memberNames';
+import { useAuth } from '../../core/auth';
+import { useDevStaffCheck } from '../support';
 import styles from './ShiftPool.module.css';
 
 // =============================================================================
@@ -1725,6 +1727,8 @@ interface Filters {
 }
 
 export function AdminShiftsPage() {
+  const { user } = useAuth();
+  const { isDevStaff } = useDevStaffCheck();
   const { shifts, loading, error, refresh, createShift, updateShift, deleteShift, publishShift, closeShift, cancelShift } = useAdminShifts();
   const [view, setView] = useState<View>('list');
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -1859,6 +1863,15 @@ export function AdminShiftsPage() {
 
   // Filtern
   const filteredShifts = shifts.filter((shift) => {
+    // Dev-Staff sieht nur Schichten, die sie erstellt haben
+    // (AdminShiftsPage zeigt alle Schichten des Tenants, aber Dev-Staff soll nur eigene sehen)
+    if (isDevStaff && user) {
+      const isCreatedBy = shift.createdByUid === user.uid;
+      if (!isCreatedBy) {
+        return false;
+      }
+    }
+    
     // Status-Filter
     if (filters.status !== 'all' && shift.status !== filters.status) {
       return false;

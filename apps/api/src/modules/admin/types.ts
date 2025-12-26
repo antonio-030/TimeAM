@@ -17,6 +17,8 @@ export interface TenantOverview {
   createdByName?: string; // Display-Name des Erstellers
   createdByEmail?: string; // Email des Erstellers
   address?: string; // Adresse (optional)
+  isActive?: boolean; // Tenant aktiviert/deaktiviert
+  deactivatedAt?: string; // Wann deaktiviert wurde
 }
 
 /**

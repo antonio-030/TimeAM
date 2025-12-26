@@ -18,6 +18,17 @@ export const MODULE_CATEGORY = {
 export type ModuleCategory = (typeof MODULE_CATEGORY)[keyof typeof MODULE_CATEGORY];
 
 /**
+ * Tenant-Typ für Module
+ */
+export const MODULE_TARGET_TENANT = {
+  ALL: 'all',         // Für alle Tenants (Dev und Firmen)
+  DEV: 'dev',         // Nur für Dev-Tenant
+  COMPANY: 'company', // Nur für Firmen-Tenants
+} as const;
+
+export type ModuleTargetTenant = (typeof MODULE_TARGET_TENANT)[keyof typeof MODULE_TARGET_TENANT];
+
+/**
  * Modul-Definition
  */
 export interface ModuleDefinition {
@@ -41,6 +52,9 @@ export interface ModuleDefinition {
   
   /** Abhängigkeiten zu anderen Modulen */
   dependencies?: string[];
+  
+  /** Für welche Tenant-Typen ist dieses Modul verfügbar (default: 'all') */
+  targetTenantType?: ModuleTargetTenant;
 }
 
 /**
@@ -103,6 +117,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     icon: '⏰',
     category: MODULE_CATEGORY.OPTIONAL,
     entitlementKey: 'module.time_tracking',
+    targetTenantType: MODULE_TARGET_TENANT.ALL,
   },
   
   'shift-pool': {
@@ -112,6 +127,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     icon: '📋',
     category: MODULE_CATEGORY.OPTIONAL,
     entitlementKey: 'module.shift_pool',
+    targetTenantType: MODULE_TARGET_TENANT.ALL,
   },
   
   'reports': {
@@ -121,6 +137,7 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     icon: '📈',
     category: MODULE_CATEGORY.OPTIONAL,
     entitlementKey: 'module.reports',
+    targetTenantType: MODULE_TARGET_TENANT.ALL,
   },
 
   'mfa': {
@@ -130,6 +147,95 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     icon: '🔐',
     category: MODULE_CATEGORY.OPTIONAL,
     entitlementKey: 'module.mfa',
+    targetTenantType: MODULE_TARGET_TENANT.ALL,
+  },
+
+  // ===========================================================================
+  // DEV-SPEZIFISCHE MODULE - Nur für Dev-Tenant
+  // ===========================================================================
+
+  'dev-analytics': {
+    id: 'dev-analytics',
+    displayName: 'Dev Analytics',
+    description: 'Detaillierte Analytics und Metriken für Entwickler',
+    icon: '📊',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.dev_analytics',
+    targetTenantType: MODULE_TARGET_TENANT.DEV,
+  },
+
+  'dev-logs': {
+    id: 'dev-logs',
+    displayName: 'System Logs',
+    description: 'Zentralisierte Log-Ansicht und Fehler-Tracking',
+    icon: '📝',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.dev_logs',
+    targetTenantType: MODULE_TARGET_TENANT.DEV,
+  },
+
+  'dev-api-testing': {
+    id: 'dev-api-testing',
+    displayName: 'API Testing',
+    description: 'API-Endpunkte testen und dokumentieren',
+    icon: '🧪',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.dev_api_testing',
+    targetTenantType: MODULE_TARGET_TENANT.DEV,
+  },
+
+  'dev-database': {
+    id: 'dev-database',
+    displayName: 'Database Management',
+    description: 'Datenbank-Verwaltung und Query-Tools',
+    icon: '🗄️',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.dev_database',
+    targetTenantType: MODULE_TARGET_TENANT.DEV,
+  },
+
+  // ===========================================================================
+  // FIRMEN-SPEZIFISCHE MODULE - Nur für Firmen-Tenants
+  // ===========================================================================
+
+  'company-branding': {
+    id: 'company-branding',
+    displayName: 'Custom Branding',
+    description: 'Eigene Farben, Logo und Branding für die Firma',
+    icon: '🎨',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.company_branding',
+    targetTenantType: MODULE_TARGET_TENANT.COMPANY,
+  },
+
+  'company-integrations': {
+    id: 'company-integrations',
+    displayName: 'Integrationen',
+    description: 'Integrationen mit externen Systemen (HR, Payroll, etc.)',
+    icon: '🔌',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.company_integrations',
+    targetTenantType: MODULE_TARGET_TENANT.COMPANY,
+  },
+
+  'company-advanced-reports': {
+    id: 'company-advanced-reports',
+    displayName: 'Erweiterte Berichte',
+    description: 'Zusätzliche Report-Funktionen und Custom Exports',
+    icon: '📑',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.company_advanced_reports',
+    targetTenantType: MODULE_TARGET_TENANT.COMPANY,
+  },
+
+  'company-sso': {
+    id: 'company-sso',
+    displayName: 'Single Sign-On (SSO)',
+    description: 'SSO-Integration für Firmen-Login',
+    icon: '🔐',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.company_sso',
+    targetTenantType: MODULE_TARGET_TENANT.COMPANY,
   },
 
   // ===========================================================================
@@ -186,6 +292,28 @@ export function getCoreModules(): ModuleDefinition[] {
  */
 export function getOptionalModules(): ModuleDefinition[] {
   return Object.values(MODULE_REGISTRY).filter(m => m.category === MODULE_CATEGORY.OPTIONAL);
+}
+
+/**
+ * Gibt Module für einen bestimmten Tenant-Typ zurück.
+ * @param tenantId - Die Tenant-ID ('dev-tenant' = Dev, sonst = Company)
+ */
+export function getModulesForTenant(tenantId: string): ModuleDefinition[] {
+  const isDevTenant = tenantId === 'dev-tenant';
+  const targetType = isDevTenant ? MODULE_TARGET_TENANT.DEV : MODULE_TARGET_TENANT.COMPANY;
+  
+  return Object.values(MODULE_REGISTRY).filter(mod => {
+    // Wenn kein targetTenantType definiert ist, ist es für alle verfügbar
+    if (!mod.targetTenantType) {
+      return true;
+    }
+    // Module für 'all' sind immer verfügbar
+    if (mod.targetTenantType === MODULE_TARGET_TENANT.ALL) {
+      return true;
+    }
+    // Ansonsten nur wenn der Tenant-Typ passt
+    return mod.targetTenantType === targetType;
+  });
 }
 
 /**

@@ -19,6 +19,7 @@ export interface MeResponse {
   emailVerified: boolean;
   needsOnboarding: boolean;
   isFreelancer?: boolean;
+  isDevStaff?: boolean; // Dev-Staff (inkl. Super-Admins) brauchen kein Onboarding
   tenant?: {
     id: string;
     name: string;

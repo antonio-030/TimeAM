@@ -679,6 +679,50 @@
   color: var(--text-secondary);
 }
 
+/* Action Buttons */
+.actionButton {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.actionButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.actionButtonDeactivate {
+  background-color: #ff6b6b;
+  color: white;
+}
+
+.actionButtonDeactivate:hover:not(:disabled) {
+  background-color: #ff5252;
+}
+
+.actionButtonActivate {
+  background-color: #51cf66;
+  color: white;
+}
+
+.actionButtonActivate:hover:not(:disabled) {
+  background-color: #40c057;
+}
+
+.actionButtonDelete {
+  background-color: #c92a2a;
+  color: white;
+}
+
+.actionButtonDelete:hover:not(:disabled) {
+  background-color: #b02525;
+}
+
 .roleStats {
   margin-bottom: 1.5rem;
 }

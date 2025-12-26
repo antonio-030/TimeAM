@@ -108,8 +108,10 @@ export {
 // Modules Registry
 export {
   MODULE_CATEGORY,
+  MODULE_TARGET_TENANT,
   MODULE_REGISTRY,
   type ModuleCategory,
+  type ModuleTargetTenant,
   type ModuleDefinition,
   type ModuleStatusResponse,
   type ToggleModuleRequest,
@@ -118,6 +120,7 @@ export {
   getModuleById,
   isCoreModule,
   isModuleActive,
+  getModulesForTenant,
 } from './modules.js';
 
 // MFA

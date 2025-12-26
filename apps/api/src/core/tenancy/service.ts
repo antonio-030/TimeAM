@@ -114,6 +114,19 @@ export async function getTenantForUser(uid: string): Promise<{
   const memberSnap = await memberRef.get();
 
   if (!memberSnap.exists) {
+    // WICHTIG: Wenn Member-Dokument nicht existiert, aber defaultTenantId noch gesetzt ist,
+    // dann defaultTenantId löschen, damit der User nicht mehr diesem Tenant zugeordnet wird
+    // (z.B. wenn User aus Tenant gelöscht wurde)
+    if (userDoc?.defaultTenantId === tenantId) {
+      try {
+        await db.collection('users').doc(uid).update({
+          defaultTenantId: FieldValue.delete(),
+        });
+        console.log(`🗑️ Removed invalid defaultTenantId for user ${uid} (member not found in tenant ${tenantId})`);
+      } catch (updateError) {
+        console.warn(`⚠️ Could not remove invalid defaultTenantId for user ${uid}:`, updateError);
+      }
+    }
     return null;
   }
 

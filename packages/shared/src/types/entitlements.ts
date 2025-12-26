@@ -20,6 +20,18 @@ export const ENTITLEMENT_KEYS = {
   MODULE_FREELANCER_MY_SHIFTS: 'module.freelancer_my_shifts',
   MODULE_FREELANCER_POOL: 'module.freelancer_pool',
 
+  // Dev-spezifische Module
+  MODULE_DEV_ANALYTICS: 'module.dev_analytics',
+  MODULE_DEV_LOGS: 'module.dev_logs',
+  MODULE_DEV_API_TESTING: 'module.dev_api_testing',
+  MODULE_DEV_DATABASE: 'module.dev_database',
+
+  // Firmen-spezifische Module
+  MODULE_COMPANY_BRANDING: 'module.company_branding',
+  MODULE_COMPANY_INTEGRATIONS: 'module.company_integrations',
+  MODULE_COMPANY_ADVANCED_REPORTS: 'module.company_advanced_reports',
+  MODULE_COMPANY_SSO: 'module.company_sso',
+
   // Features
   TIME_TRACKING_APPROVALS: 'time_tracking.approvals',
   SHIFT_POOL_NOTIFICATIONS: 'shift_pool.notifications',
