@@ -623,6 +623,7 @@ export function MyShiftsPage() {
                     key={shift.id}
                     shift={shift}
                     onClick={() => setSelectedShift(shift)}
+                    members={members}
                   />
                 ))}
               </div>
