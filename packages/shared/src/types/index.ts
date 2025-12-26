@@ -119,3 +119,12 @@ export {
   isCoreModule,
   isModuleActive,
 } from './modules.js';
+
+// MFA
+export {
+  type MfaStatusResponse,
+  type MfaSetupResponse,
+  type MfaVerifyRequest,
+  type MfaVerifyResponse,
+  type MfaDisableRequest,
+} from './mfa.js';

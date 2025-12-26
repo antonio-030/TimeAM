@@ -14,6 +14,7 @@ export const ENTITLEMENT_KEYS = {
   MODULE_TIME_TRACKING: 'module.time_tracking',
   MODULE_SHIFT_POOL: 'module.shift_pool',
   MODULE_REPORTS: 'module.reports',
+  MODULE_MFA: 'module.mfa',
 
   // Freelancer Module
   MODULE_FREELANCER_MY_SHIFTS: 'module.freelancer_my_shifts',

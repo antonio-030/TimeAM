@@ -31,6 +31,8 @@ import { adminRouter } from './modules/admin/index.js';
 import { reportsRouter } from './modules/reports/index.js';
 import { freelancerRouter } from './modules/freelancer/index.js';
 import { supportRouter } from './modules/support/index.js';
+import { mfaRouter } from './core/mfa/routes.js';
+import { requireMfaVerification } from './core/mfa/middleware.js';
 
 // Firebase Admin initialisieren
 initializeFirebaseAdmin();
@@ -132,6 +134,16 @@ app.get('/api/me', requireAuth, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
 
     try {
+      // WICHTIG: Bei jedem /api/me Call prüfen, ob MFA-Verifizierung zurückgesetzt werden muss
+      // Dies wird nur gemacht, wenn MFA aktiviert ist
+      // Wir prüfen basierend auf dem Token-Issue-Datum, ob es eine neue Session ist
+      const { isMfaEnabled, checkAndResetMfaForNewSession } = await import('./core/mfa/service.js');
+      const isMfaEnabledForUser = await isMfaEnabled(user.uid);
+      if (isMfaEnabledForUser) {
+        // Token-Issue-Datum aus Request holen (wurde in requireAuth gesetzt)
+        const tokenIssuedAt = (req as any).tokenIssuedAt as number | undefined;
+        await checkAndResetMfaForNewSession(user.uid, tokenIssuedAt);
+      }
       // Prüfen ob User ein Freelancer oder Dev-Mitarbeiter ist
       const db = getAdminFirestore();
       const userDoc = await db.collection('users').doc(user.uid).get();
@@ -151,8 +163,20 @@ app.get('/api/me', requireAuth, async (req, res) => {
         const { getTenantForUser } = await import('./core/tenancy/index.js');
         const tenantData = await getTenantForUser(user.uid);
         
+        // MFA-Status nur laden wenn Modul aktiviert ist
+        const hasMfaEntitlement = tenantData?.entitlements?.['module.mfa'] === true;
+        let mfaEnabled = false;
+        let mfaRequired = false;
+        
+        if (hasMfaEntitlement) {
+          const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+          mfaEnabled = await isMfaEnabled(user.uid);
+          const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+          mfaRequired = mfaEnabled && !mfaSetupInProgress;
+        }
+        
         if (tenantData) {
-          res.json({
+          const response: any = {
             uid: user.uid,
             email: user.email,
             emailVerified: user.emailVerified,
@@ -164,7 +188,14 @@ app.get('/api/me', requireAuth, async (req, res) => {
             },
             role: tenantData.member.role,
             entitlements: tenantData.entitlements,
-          });
+          };
+          
+          if (hasMfaEntitlement) {
+            response.mfaEnabled = mfaEnabled;
+            response.mfaRequired = mfaRequired;
+          }
+          
+          res.json(response);
         } else {
           // Dev-Tenant erstellen falls nicht vorhanden
           const { getOrCreateDevTenant, assignDevStaffToTenant } = await import('./modules/support/service.js');
@@ -174,7 +205,18 @@ app.get('/api/me', requireAuth, async (req, res) => {
           // Nochmal laden
           const newTenantData = await getTenantForUser(user.uid);
           if (newTenantData) {
-            res.json({
+            const hasMfaEntitlement = newTenantData.entitlements?.['module.mfa'] === true;
+            let mfaEnabled = false;
+            let mfaRequired = false;
+            
+            if (hasMfaEntitlement) {
+              const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+              mfaEnabled = await isMfaEnabled(user.uid);
+              const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+              mfaRequired = mfaEnabled && !mfaSetupInProgress;
+            }
+            
+            const response: any = {
               uid: user.uid,
               email: user.email,
               emailVerified: user.emailVerified,
@@ -186,7 +228,14 @@ app.get('/api/me', requireAuth, async (req, res) => {
               },
               role: newTenantData.member.role,
               entitlements: newTenantData.entitlements,
-            });
+            };
+            
+            if (hasMfaEntitlement) {
+              response.mfaEnabled = mfaEnabled;
+              response.mfaRequired = mfaRequired;
+            }
+            
+            res.json(response);
           } else {
             res.json({
               uid: user.uid,
@@ -210,8 +259,20 @@ app.get('/api/me', requireAuth, async (req, res) => {
         const tenantData = await getTenantForUser(user.uid);
         const entitlements = await getFreelancerEntitlements(user.uid);
         
+        // MFA-Status nur laden wenn Modul aktiviert ist
+        const hasMfaEntitlement = entitlements?.['module.mfa'] === true;
+        let mfaEnabled = false;
+        let mfaRequired = false;
+        
+        if (hasMfaEntitlement) {
+          const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+          mfaEnabled = await isMfaEnabled(user.uid);
+          const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+          mfaRequired = mfaEnabled && !mfaSetupInProgress;
+        }
+        
         if (tenantData) {
-          res.json({
+          const response: any = {
             uid: user.uid,
             email: user.email,
             emailVerified: user.emailVerified,
@@ -223,17 +284,30 @@ app.get('/api/me', requireAuth, async (req, res) => {
             },
             role: tenantData.member.role,
             entitlements,
-          });
+          };
+          
+          if (hasMfaEntitlement) {
+            response.mfaEnabled = mfaEnabled;
+            response.mfaRequired = mfaRequired;
+          }
+          
+          res.json(response);
         } else {
-          // Kein Tenant gefunden → Onboarding nötig (für bestehende Freelancer ohne Tenant)
-          res.json({
+          const response: any = {
             uid: user.uid,
             email: user.email,
             emailVerified: user.emailVerified,
             isFreelancer: true,
-            needsOnboarding: true, // Freelancer braucht Tenant-Erstellung
+            needsOnboarding: true,
             entitlements: {},
-          });
+          };
+          
+          if (hasMfaEntitlement) {
+            response.mfaEnabled = mfaEnabled;
+            response.mfaRequired = mfaRequired;
+          }
+          
+          res.json(response);
         }
         return;
       }
@@ -253,8 +327,20 @@ app.get('/api/me', requireAuth, async (req, res) => {
       return;
     }
 
+    // MFA-Status nur laden wenn Modul aktiviert ist
+    const hasMfaEntitlement = tenantData.entitlements?.['module.mfa'] === true;
+    let mfaEnabled = false;
+    let mfaRequired = false;
+    
+    if (hasMfaEntitlement) {
+      const { isMfaEnabled, isMfaSetupInProgress } = await import('./core/mfa/service.js');
+      mfaEnabled = await isMfaEnabled(user.uid);
+      const mfaSetupInProgress = await isMfaSetupInProgress(user.uid);
+      mfaRequired = mfaEnabled && !mfaSetupInProgress;
+    }
+
     // User ist Tenant-Mitglied
-    res.json({
+    const response: any = {
       uid: user.uid,
       email: user.email,
       emailVerified: user.emailVerified,
@@ -266,7 +352,14 @@ app.get('/api/me', requireAuth, async (req, res) => {
       },
       role: tenantData.member.role,
       entitlements: tenantData.entitlements,
-    });
+    };
+    
+    if (hasMfaEntitlement) {
+      response.mfaEnabled = mfaEnabled;
+      response.mfaRequired = mfaRequired;
+    }
+    
+    res.json(response);
   } catch (error) {
     console.error('Error in GET /api/me:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -347,6 +440,14 @@ app.post('/api/onboarding/create-tenant', requireAuth, async (req, res) => {
 });
 
 // =============================================================================
+// MFA Verification Middleware
+// =============================================================================
+// Diese Middleware prüft, ob MFA verifiziert wurde, wenn MFA aktiviert ist.
+// Sie blockiert alle API-Requests (außer Ausnahmen), wenn MFA erforderlich aber nicht verifiziert wurde.
+// WICHTIG: Muss nach requireAuth, aber vor allen Feature-Routes stehen.
+app.use('/api', requireMfaVerification);
+
+// =============================================================================
 // Feature Module Routes
 // =============================================================================
 
@@ -379,6 +480,9 @@ app.use('/api/freelancer', freelancerRouter);
 
 // Support Module (Dev-Mitarbeiter)
 app.use('/api', supportRouter);
+
+// MFA Module
+app.use('/api/mfa', mfaRouter);
 
 // =============================================================================
 // 404 Handler

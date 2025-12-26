@@ -328,7 +328,7 @@ export function DashboardPage({}: DashboardPageProps) {
     loading,
     refresh,
     refreshTimeStatus,
-  } = useDashboard(isAdminOrManager);
+  } = useDashboard(isAdminOrManager, hasReports);
 
   // Navigation Handler - Mapping von Page-IDs zu URL-Pfaden
   const handleNavigate = useCallback((page: string) => {

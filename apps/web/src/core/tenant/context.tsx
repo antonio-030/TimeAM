@@ -48,6 +48,12 @@ interface TenantContextValue {
   /** Freigeschaltete Features */
   entitlements: TenantEntitlements;
 
+  /** MFA aktiviert? */
+  mfaEnabled: boolean;
+
+  /** MFA-Verifizierung erforderlich? */
+  mfaRequired: boolean;
+
   /** Prüft, ob ein Entitlement aktiv ist */
   hasEntitlement: (key: string) => boolean;
 
@@ -74,6 +80,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const [tenant, setTenant] = useState<{ id: string; name: string } | null>(null);
   const [role, setRole] = useState<MemberRole | null>(null);
   const [entitlements, setEntitlements] = useState<TenantEntitlements>({});
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   // Stabile User-ID für Dependency
   const userId = user?.uid ?? null;
@@ -87,6 +95,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
       setEntitlements({});
       setNeedsOnboarding(false);
       setIsFreelancer(false);
+      setMfaEnabled(false);
+      setMfaRequired(false);
       return;
     }
 
@@ -95,6 +105,10 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
     try {
       const data = await apiGet<MeResponse>('/api/me');
+
+      // MFA-Status setzen
+      setMfaEnabled(data.mfaEnabled || false);
+      setMfaRequired(data.mfaRequired || false);
 
       if (data.isFreelancer) {
         setIsFreelancer(true);
@@ -166,10 +180,12 @@ export function TenantProvider({ children }: TenantProviderProps) {
     tenant,
     role,
     entitlements,
+    mfaEnabled,
+    mfaRequired,
     hasEntitlement,
     createTenant,
     refresh: loadTenantData,
-  }), [loading, error, needsOnboarding, isFreelancer, tenant, role, entitlements, hasEntitlement, createTenant, loadTenantData]);
+  }), [loading, error, needsOnboarding, isFreelancer, tenant, role, entitlements, mfaEnabled, mfaRequired, hasEntitlement, createTenant, loadTenantData]);
 
   return (
     <TenantContext.Provider value={value}>

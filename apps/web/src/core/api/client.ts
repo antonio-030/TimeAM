@@ -70,6 +70,27 @@ export async function apiRequest<T>(
 
   // Fehlerbehandlung
   if (!response.ok) {
+    // Spezielle Behandlung für MFA_REQUIRED Fehler
+    if (response.status === 403 && data?.code === 'MFA_REQUIRED') {
+      throw new ApiError(
+        data?.error || 'MFA verification required',
+        response.status,
+        data?.code
+      );
+    }
+    
+    // Spezielle Behandlung für korrupte MFA-Secrets
+    if (response.status === 400 && (data?.code === 'MFA_SECRET_CORRUPTED' || data?.code === 'MFA_SECRET_NOT_FOUND')) {
+      const error = new ApiError(
+        data?.error || 'MFA secret was corrupted and has been reset. Please set up MFA again.',
+        response.status,
+        data?.code
+      );
+      // Zusätzliche Information für Frontend
+      (error as any).requiresNewSetup = data?.requiresNewSetup || true;
+      throw error;
+    }
+    
     throw new ApiError(
       data?.error || `Request failed with status ${response.status}`,
       response.status,

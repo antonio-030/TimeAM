@@ -123,6 +123,15 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
     entitlementKey: 'module.reports',
   },
 
+  'mfa': {
+    id: 'mfa',
+    displayName: 'Zwei-Faktor-Authentifizierung',
+    description: 'TOTP-basierte Multi-Factor Authentication für zusätzliche Sicherheit',
+    icon: '🔐',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.mfa',
+  },
+
   // ===========================================================================
   // FREELANCER MODULES - Für Freelancer-Accounts
   // ===========================================================================

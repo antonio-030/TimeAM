@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../core/auth';
+import { useTenant } from '../../core/tenant';
 import { 
   getFreelancer, 
   updateFreelancerProfile, 

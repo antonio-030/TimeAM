@@ -27,6 +27,7 @@ import { FreelancerLoginForm } from './modules/freelancer/FreelancerLoginForm';
 import { FreelancerRegisterForm } from './modules/freelancer/FreelancerRegisterForm';
 import { FreelancerDashboardPage } from './modules/freelancer/FreelancerDashboardPage';
 import { FreelancerMyShiftsPage } from './modules/freelancer/FreelancerMyShiftsPage';
+import { MfaVerifyModal } from './components/MfaVerifyModal';
 import styles from './App.module.css';
 
 type LegalPage = 'privacy' | 'imprint' | null;
@@ -92,8 +93,11 @@ function ProtectedRoute({
 }
 
 function AppContent() {
-  const { user, loading: authLoading } = useAuth();
-  const { needsOnboarding, isFreelancer, loading: tenantLoading, hasEntitlement, role } = useTenant();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { needsOnboarding, isFreelancer, loading: tenantLoading, hasEntitlement, role, mfaRequired, refresh } = useTenant();
+  
+  // Prüfe ob MFA-Modul aktiviert ist
+  const mfaModuleEnabled = hasEntitlement('module.mfa');
   const { isSuperAdmin } = useSuperAdminCheck();
   const { isDevStaff } = useDevStaffCheck();
   const location = useLocation();
@@ -101,6 +105,65 @@ function AppContent() {
   
   const [showLanding, setShowLanding] = useState(true);
   const [legalPage, setLegalPage] = useState<LegalPage>(null);
+  const [showMfaVerify, setShowMfaVerify] = useState(false);
+
+  // MFA-Verifizierung erforderlich (nur wenn MFA-Modul aktiviert ist)
+  // WICHTIG: useEffect muss vor allen frühen Returns stehen!
+  useEffect(() => {
+    // Prüfe, ob User gerade MFA abgebrochen hat
+    const mfaCanceled = sessionStorage.getItem('mfa_canceled') === 'true';
+    
+    // Nur Modal öffnen, wenn alle Bedingungen erfüllt sind UND Modal noch nicht geöffnet ist
+    // UND User hat MFA nicht gerade abgebrochen
+    // WICHTIG: Prüfe auch während tenantLoading, damit das Modal sofort angezeigt wird
+    if (user && mfaRequired && mfaModuleEnabled && !showMfaVerify && !mfaCanceled) {
+      setShowMfaVerify(true);
+    }
+    
+    // Wenn mfaRequired false wird (z.B. nach erfolgreicher Verifizierung), Modal schließen
+    if (!mfaRequired && showMfaVerify) {
+      setShowMfaVerify(false);
+    }
+    
+    // Wenn User nicht mehr eingeloggt ist, Flag löschen
+    if (!user) {
+      sessionStorage.removeItem('mfa_canceled');
+    }
+  }, [user, mfaRequired, mfaModuleEnabled, showMfaVerify]);
+
+  const handleMfaVerifySuccess = async () => {
+    setShowMfaVerify(false);
+    // Tenant-Daten neu laden (mfaRequired sollte jetzt false sein)
+    await refresh();
+  };
+
+  const handleMfaVerifyCancel = async () => {
+    // User ausloggen, wenn MFA-Verifizierung abgebrochen wird
+    setShowMfaVerify(false);
+    
+    // Flag setzen, um zu verhindern, dass das Modal wieder geöffnet wird
+    // während der Logout-Prozess läuft
+    sessionStorage.setItem('mfa_canceled', 'true');
+    
+    try {
+      // WICHTIG: Warten, bis signOut() abgeschlossen ist, damit die Firebase Session gelöscht wird
+      // Sonst bleibt der User eingeloggt und wird wieder zum MFA-Modal weitergeleitet
+      await signOut();
+      
+      // Flag löschen nach erfolgreichem Logout
+      sessionStorage.removeItem('mfa_canceled');
+      
+      // Nach erfolgreichem Logout zur Login-Seite navigieren
+      // Verwende navigate() statt window.location.href, da der User jetzt ausgeloggt ist
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('Fehler beim Abmelden:', error);
+      // Flag löschen auch bei Fehler
+      sessionStorage.removeItem('mfa_canceled');
+      // Fallback: Zur Login-Seite navigieren, auch wenn signOut fehlgeschlagen ist
+      navigate('/login', { replace: true });
+    }
+  };
 
   // Prüfung auf Admin oder Manager Rolle
   const isAdminOrManager = role === 'admin' || role === 'manager';
@@ -190,7 +253,22 @@ function AppContent() {
     );
   }
 
-  // Tenant-Daten werden geladen
+  // MFA-Verifizierung erforderlich → Modal anzeigen (nur wenn MFA-Modul aktiviert ist)
+  // WICHTIG: Diese Prüfung muss VOR allen anderen Checks stehen, damit der User nicht auf die App zugreifen kann
+  // Auch während tenantLoading prüfen, damit keine App-Inhalte kurz angezeigt werden
+  if (user && mfaRequired && mfaModuleEnabled) {
+    // User darf nicht auf die App zugreifen, bis MFA verifiziert wurde
+    // Zeige nur das MFA-Modal, keine Lade-Animationen oder App-Inhalte
+    return (
+      <MfaVerifyModal
+        open={showMfaVerify}
+        onSuccess={handleMfaVerifySuccess}
+        onCancel={handleMfaVerifyCancel}
+      />
+    );
+  }
+
+  // Tenant-Daten werden geladen (nur wenn MFA nicht erforderlich ist)
   if (tenantLoading) {
     return (
       <div className={styles.loading}>
@@ -204,7 +282,18 @@ function AppContent() {
 
   // User braucht Onboarding → Tenant erstellen
   if (needsOnboarding) {
-    return <CreateTenantForm />;
+    return (
+      <>
+        <CreateTenantForm />
+        {showMfaVerify && (
+          <MfaVerifyModal
+            open={showMfaVerify}
+            onSuccess={handleMfaVerifySuccess}
+            onCancel={handleMfaVerifyCancel}
+          />
+        )}
+      </>
+    );
   }
 
   // Bestimme Standard-Route basierend auf User-Typ

@@ -22,6 +22,7 @@ import { MemberProfileModal } from '../../modules/members/MemberProfileModal';
 import { getMemberProfile } from '../../modules/members/api';
 import { MEMBER_ROLES, getMemberRoleLabel, type Member } from '@timeam/shared';
 import { EditTenantNameModal } from './EditTenantNameModal';
+import { SettingsModal } from '../SettingsModal';
 import styles from './AppLayout.module.css';
 
 interface AppLayoutProps {
@@ -31,6 +32,11 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // Debug: Log Navigation-Änderungen
+  useEffect(() => {
+    console.log('🔴 AppLayout - Location geändert:', location.pathname);
+  }, [location.pathname]);
   const { isSuperAdmin } = useSuperAdminCheck();
   const { user, signOut } = useAuth();
   const { tenant, role, hasEntitlement, isFreelancer, refresh: refreshTenant } = useTenant();
@@ -48,7 +54,20 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [loadingFreelancerProfile, setLoadingFreelancerProfile] = useState(false);
   const [loadingMemberProfile, setLoadingMemberProfile] = useState(false);
   const [showEditTenantNameModal, setShowEditTenantNameModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Debug: Log State-Änderungen
+  useEffect(() => {
+    console.log('🔴 AppLayout - showSettingsModal State geändert zu:', showSettingsModal);
+  }, [showSettingsModal]);
+
+  // WICHTIG: Verhindere, dass das Modal geschlossen wird, wenn die Location sich ändert
+  // Das Modal sollte nur durch explizites Schließen geschlossen werden
+  useEffect(() => {
+    // Wenn das Modal offen ist und die Location sich ändert, NICHT schließen
+    // Das Modal bleibt offen, auch wenn die Location sich ändert
+  }, [location.pathname, showSettingsModal]);
 
   // Prüfen ob User Admin oder Manager ist
   const isAdminOrManager = useMemo(() => {
@@ -199,6 +218,33 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   };
 
+  // Handler für Settings-Button
+  const handleSettingsClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    console.log('🔵 handleSettingsClick aufgerufen');
+    
+    // Verhindere ALLES: Default, Propagation, Immediate Propagation
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.nativeEvent) {
+      e.nativeEvent.stopImmediatePropagation();
+    }
+    
+    // Verhindere auch Navigation
+    if (e.nativeEvent && e.nativeEvent.preventDefault) {
+      e.nativeEvent.preventDefault();
+    }
+    
+    // Modal sofort öffnen
+    console.log('🔵 Öffne Settings-Modal');
+    setShowSettingsModal(true);
+    
+    // Menü sofort schließen
+    setIsUserMenuOpen(false);
+    
+    // Verhindere weitere Event-Propagation
+    return false;
+  }, []);
+
   // Mapping von Page-IDs zu URL-Pfaden
   const getPagePath = (pageId: string): string => {
     const pathMap: Record<string, string> = {
@@ -272,15 +318,43 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Click außerhalb schließt das User-Menü
   useEffect(() => {
+    if (!isUserMenuOpen) return;
+    
     const handleClickOutside = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+      const target = e.target as HTMLElement;
+      
+      // Prüfe ob Menü noch offen ist (könnte sich während des Event-Handlings geändert haben)
+      if (!isUserMenuOpen) {
+        return;
+      }
+      
+      if (!target || !userMenuRef.current) {
+        return;
+      }
+      
+      // Prüfe ob Klick auf Button oder innerhalb des Dropdowns ist
+      const isButton = target.tagName === 'BUTTON' || target.closest('button');
+      const isInDropdown = userMenuRef.current.contains(target);
+      
+      // Wenn Button im Dropdown geklickt wird, NICHT schließen und NICHT navigieren
+      if (isButton && isInDropdown) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      
+      // Nur schließen wenn wirklich außerhalb
+      if (!isInDropdown) {
         setIsUserMenuOpen(false);
       }
     };
-    if (isUserMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
+    
+    // Verwende click statt mousedown, um sicherzustellen, dass Buttons zuerst reagieren können
+    // OHNE Capture-Phase, damit Buttons zuerst reagieren können
+    document.addEventListener('click', handleClickOutside, false);
+    return () => {
+      document.removeEventListener('click', handleClickOutside, false);
+    };
   }, [isUserMenuOpen]);
 
   // Handler für Notification-Links
@@ -553,8 +627,13 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <div className={styles.userMenu} ref={userMenuRef}>
                   <button 
                     className={styles.userMenuButton}
-                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsUserMenuOpen(!isUserMenuOpen);
+                    }}
                     aria-label="Benutzermenü"
+                    type="button"
                   >
                     <div className={styles.userAvatar}>
                       {userInitials}
@@ -580,11 +659,14 @@ export function AppLayout({ children }: AppLayoutProps) {
                       {isFreelancer && (
                         <>
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               setIsUserMenuOpen(false);
                               setShowProfileModal(true);
                             }} 
                             className={styles.userMenuItem}
+                            type="button"
                           >
                             <span className={styles.userMenuItemIcon}>👤</span>
                             <span>Profil bearbeiten</span>
@@ -596,11 +678,14 @@ export function AppLayout({ children }: AppLayoutProps) {
                       {!isFreelancer && (
                         <>
                           <button 
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
                               setIsUserMenuOpen(false);
                               setShowMemberProfileModal(true);
                             }} 
                             className={styles.userMenuItem}
+                            type="button"
                           >
                             <span className={styles.userMenuItemIcon}>👤</span>
                             <span>Profil bearbeiten</span>
@@ -608,12 +693,54 @@ export function AppLayout({ children }: AppLayoutProps) {
                           <div className={styles.userMenuDivider} />
                         </>
                       )}
+                      <button
+                        className={styles.userMenuItem}
+                        onClick={handleSettingsClick}
+                        type="button"
+                        onMouseDown={(e) => {
+                          console.log('🟡 Einstellungen-Button onMouseDown');
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.stopImmediatePropagation();
+                          if (e.nativeEvent) {
+            e.nativeEvent.preventDefault();
+            e.nativeEvent.stopPropagation();
+            e.nativeEvent.stopImmediatePropagation();
+          }
+                        }}
+                        onMouseUp={(e) => {
+                          console.log('🟢 Einstellungen-Button onMouseUp');
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.stopImmediatePropagation();
+                          if (e.nativeEvent) {
+            e.nativeEvent.preventDefault();
+            e.nativeEvent.stopPropagation();
+            e.nativeEvent.stopImmediatePropagation();
+          }
+                        }}
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onPointerUp={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                      >
+                        <span className={styles.userMenuItemIcon}>⚙️</span>
+                        <span>Einstellungen</span>
+                      </button>
+                      <div className={styles.userMenuDivider} />
                       <button 
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
                           handleSignOut();
                           setIsUserMenuOpen(false);
                         }} 
                         className={styles.userMenuItem}
+                        type="button"
                       >
                         <span className={styles.userMenuItemIcon}>🚪</span>
                         <span>Abmelden</span>
@@ -663,6 +790,15 @@ export function AppLayout({ children }: AppLayoutProps) {
           onSuccess={handleTenantNameUpdated}
         />
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        open={showSettingsModal}
+        onClose={() => {
+          console.log('🔴 SettingsModal onClose aufgerufen');
+          setShowSettingsModal(false);
+        }}
+      />
     </div>
   );
 }

@@ -303,6 +303,138 @@
   cursor: not-allowed;
 }
 
+/* ============= Tabs ============= */
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.tab {
+  flex: 1;
+  padding: 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab:hover {
+  color: #374151;
+  background: #f3f4f6;
+}
+
+.tabActive {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  background: white;
+}
+
+/* ============= Security Section ============= */
+
+.securitySection {
+  padding: 1.5rem 0;
+}
+
+.mfaStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.mfaStatusActive,
+.mfaStatusInactive {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.mfaStatusIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.mfaStatusActive .mfaStatusIcon {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.mfaStatusInactive .mfaStatusIcon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.mfaStatusActive strong,
+.mfaStatusInactive strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #111827;
+  font-size: 1.125rem;
+}
+
+.mfaStatusActive p,
+.mfaStatusInactive p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.enableMfaButton,
+.disableMfaButton {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.enableMfaButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.enableMfaButton:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.disableMfaButton {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.disableMfaButton:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.disableMfaButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ============= Responsive ============= */
 
 @media (max-width: 640px) {
@@ -317,6 +449,20 @@
 
   .modalActions {
     flex-direction: column;
+  }
+
+  .tabs {
+    flex-direction: column;
+  }
+
+  .tab {
+    border-bottom: none;
+    border-left: 2px solid transparent;
+  }
+
+  .tabActive {
+    border-left-color: #667eea;
+    border-bottom-color: transparent;
   }
 }
 

@@ -29,6 +29,12 @@ export interface MeResponse {
 
   /** Freigeschaltete Features */
   entitlements?: TenantEntitlements;
+
+  /** MFA aktiviert? */
+  mfaEnabled?: boolean;
+
+  /** MFA-Verifizierung erforderlich? (true wenn MFA aktiviert aber noch nicht verifiziert) */
+  mfaRequired?: boolean;
 }
 
 /**

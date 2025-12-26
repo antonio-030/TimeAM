@@ -6,6 +6,7 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import { authenticateRequest } from './middleware.js';
+import { extractTokenFromHeader, verifyIdToken } from './verify-token.js';
 import type { AuthUser } from './types.js';
 
 /**
@@ -42,6 +43,19 @@ export async function requireAuth(
 
   // User an Request hängen
   (req as AuthenticatedRequest).user = result.user;
+  
+  // Token-Issue-Datum (iat) für MFA-Session-Prüfung speichern
+  // Dies wird verwendet, um zu prüfen, ob es eine neue Session ist
+  const token = extractTokenFromHeader(req.headers.authorization);
+  if (token) {
+    try {
+      const decodedToken = await verifyIdToken(token);
+      // iat (issued at) ist in Sekunden, nicht Millisekunden
+      (req as any).tokenIssuedAt = decodedToken.iat;
+    } catch {
+      // Fehler ignorieren, Token wurde bereits verifiziert
+    }
+  }
 
   next();
 }

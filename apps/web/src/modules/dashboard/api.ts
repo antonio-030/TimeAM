@@ -137,8 +137,11 @@ export async function getDashboardWidgets(): Promise<DashboardStats> {
       openShifts: data.openShifts?.value,
     };
   } catch (error) {
-    // Reports-Modul nicht aktiviert oder Fehler
-    console.debug('Dashboard widgets not available:', error);
+    // Reports-Modul nicht aktiviert - stillschweigend behandeln
+    // Nur Fehler loggen, wenn es kein Entitlement-Fehler ist
+    if (error instanceof Error && !error.message.includes('Missing entitlements')) {
+      console.debug('Dashboard widgets not available:', error);
+    }
     return {
       todayWorkedMinutes: 0,
       weekWorkedMinutes: 0,

@@ -43,7 +43,7 @@ interface UseDashboardResult {
  * Hook für alle Dashboard-Daten.
  * Lädt Daten parallel und berechnet Zeit LIVE.
  */
-export function useDashboard(isAdminOrManager: boolean): UseDashboardResult {
+export function useDashboard(isAdminOrManager: boolean, hasReports: boolean = false): UseDashboardResult {
   const [timeStatus, setTimeStatus] = useState<TimeTrackingStatus | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [teamMembers, setTeamMembers] = useState<TeamMemberStatus[]>([]);
@@ -120,13 +120,23 @@ export function useDashboard(isAdminOrManager: boolean): UseDashboardResult {
       await Promise.allSettled([
         loadTimeStatus(),
         loadShifts(),
-        getDashboardWidgets().then(setStats).catch(() => {
-          setStats({
-            todayWorkedMinutes: 0,
-            weekWorkedMinutes: 0,
-            monthWorkedMinutes: 0,
-          });
-        }),
+        // Nur Dashboard-Widgets laden, wenn Reports-Modul aktiviert ist
+        hasReports
+          ? getDashboardWidgets().then(setStats).catch(() => {
+              setStats({
+                todayWorkedMinutes: 0,
+                weekWorkedMinutes: 0,
+                monthWorkedMinutes: 0,
+              });
+            })
+          : Promise.resolve().then(() => {
+              // Setze Default-Werte wenn Reports nicht aktiviert ist
+              setStats({
+                todayWorkedMinutes: 0,
+                weekWorkedMinutes: 0,
+                monthWorkedMinutes: 0,
+              });
+            }),
         isAdminOrManager 
           ? getTeamMembers().then(setTeamMembers).catch(() => setTeamMembers([]))
           : Promise.resolve(),
@@ -141,7 +151,7 @@ export function useDashboard(isAdminOrManager: boolean): UseDashboardResult {
     } finally {
       setLoading(false);
     }
-  }, [isAdminOrManager, loadTimeStatus, loadShifts]);
+  }, [isAdminOrManager, hasReports, loadTimeStatus, loadShifts]);
 
   // Initial laden
   useEffect(() => {

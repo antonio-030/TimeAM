@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../core/auth';
+import { useTenant } from '../../core/tenant';
 import { 
   getMemberProfile, 
   updateMemberProfile,
@@ -204,6 +205,8 @@ export function MemberProfileModal({
             ✕
           </button>
         </div>
+
+        {/* Content */}
 
         {/* Content */}
         <div className={styles.modalBody}>
