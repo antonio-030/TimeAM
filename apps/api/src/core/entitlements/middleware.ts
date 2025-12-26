@@ -110,6 +110,8 @@ export function requireEntitlements(requiredEntitlements: EntitlementKey[]) {
       };
       (req as TenantRequest).entitlements = tenantData.entitlements;
 
+      console.log(`🔐 Tenant context set for user ${authReq.user.uid}: ${tenantData.tenant.id} (${tenantData.tenant.name})`);
+
       next();
     } catch (error) {
       console.error('Error in requireEntitlements:', error);

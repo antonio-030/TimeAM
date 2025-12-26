@@ -99,14 +99,45 @@ function calculateStats(members: Member[]): MemberStats {
 }
 
 // =============================================================================
+// Security Helpers
+// =============================================================================
+
+/**
+ * Prüft, ob ein User Mitglied in einem Tenant ist.
+ * WICHTIG: Zusätzliche Sicherheitsebene zur Defense-in-Depth.
+ */
+async function validateUserTenantMembership(tenantId: string, uid: string): Promise<boolean> {
+  const db = getAdminFirestore();
+  
+  const memberRef = db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('members')
+    .doc(uid);
+  
+  const memberSnap = await memberRef.get();
+  return memberSnap.exists;
+}
+
+// =============================================================================
 // CRUD Operations
 // =============================================================================
 
 /**
  * Lädt alle Mitarbeiter eines Tenants.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
-export async function getMembers(tenantId: string): Promise<{ members: Member[]; stats: MemberStats }> {
+export async function getMembers(tenantId: string, requestingUid: string): Promise<{ members: Member[]; stats: MemberStats }> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, requestingUid);
+  if (!isMember) {
+    console.error(`🚫 SECURITY: User ${requestingUid} tried to access members of tenant ${tenantId} but is not a member`);
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
+
+  console.log(`📋 Loading members for tenant ${tenantId} (requested by ${requestingUid})`);
 
   const snapshot = await db
     .collection('tenants')
@@ -114,9 +145,17 @@ export async function getMembers(tenantId: string): Promise<{ members: Member[];
     .collection('members')
     .get();
 
-  const members = snapshot.docs.map((doc) =>
-    memberToResponse(doc.id, doc.data())
-  );
+  console.log(`✅ Found ${snapshot.docs.length} members in tenant ${tenantId}`);
+
+  const members = snapshot.docs.map((doc) => {
+    const data = doc.data();
+    // ZUSÄTZLICHE SICHERHEIT: Prüfe ob das Member-Dokument wirklich zu diesem Tenant gehört
+    // (sollte durch die Query bereits sichergestellt sein, aber Defense-in-Depth)
+    if (data.uid && doc.id !== data.uid) {
+      console.warn(`⚠️ WARNING: Member document ${doc.id} has mismatched uid ${data.uid} in tenant ${tenantId}`);
+    }
+    return memberToResponse(doc.id, data);
+  });
 
   // Sortiere nach Name/Email
   members.sort((a, b) => {
@@ -133,11 +172,19 @@ export async function getMembers(tenantId: string): Promise<{ members: Member[];
 
 /**
  * Lädt einen einzelnen Mitarbeiter.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function getMemberById(
   tenantId: string,
-  memberId: string
+  memberId: string,
+  requestingUid: string
 ): Promise<Member | null> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, requestingUid);
+  if (!isMember) {
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
 
   const memberRef = db
@@ -157,11 +204,19 @@ export async function getMemberById(
 
 /**
  * Lädt Mitarbeiter anhand der UID.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function getMemberByUid(
   tenantId: string,
-  uid: string
+  uid: string,
+  requestingUid: string
 ): Promise<Member | null> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, requestingUid);
+  if (!isMember) {
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
 
   const snapshot = await db
@@ -183,12 +238,19 @@ export async function getMemberByUid(
 /**
  * Erstellt einen neuen Mitarbeiter (Einladung).
  * Erstellt auch einen Firebase Auth User und generiert einen Password Reset Link.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function inviteMember(
   tenantId: string,
   inviterUid: string,
   data: InviteMemberRequest
 ): Promise<{ member: Member; passwordResetLink?: string }> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, inviterUid);
+  if (!isMember) {
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
   const auth = getAdminAuth();
 
@@ -333,12 +395,20 @@ export async function inviteMember(
 
 /**
  * Aktualisiert einen Mitarbeiter.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function updateMember(
   tenantId: string,
   memberId: string,
-  data: UpdateMemberRequest
+  data: UpdateMemberRequest,
+  requestingUid: string
 ): Promise<Member> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, requestingUid);
+  if (!isMember) {
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
 
   const memberRef = db
@@ -421,12 +491,19 @@ export async function updateMember(
 
 /**
  * Löscht einen Mitarbeiter.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function deleteMember(
   tenantId: string,
   memberId: string,
   actorUid: string
 ): Promise<void> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, actorUid);
+  if (!isMember) {
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
 
   const memberRef = db
@@ -476,36 +553,48 @@ export async function deleteMember(
 
 /**
  * Aktiviert einen Mitarbeiter.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function activateMember(
   tenantId: string,
-  memberId: string
+  memberId: string,
+  requestingUid: string
 ): Promise<Member> {
-  return updateMember(tenantId, memberId, { status: MEMBER_STATUS.ACTIVE });
+  return updateMember(tenantId, memberId, { status: MEMBER_STATUS.ACTIVE }, requestingUid);
 }
 
 /**
  * Deaktiviert einen Mitarbeiter.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function deactivateMember(
   tenantId: string,
-  memberId: string
+  memberId: string,
+  requestingUid: string
 ): Promise<Member> {
-  return updateMember(tenantId, memberId, { status: MEMBER_STATUS.INACTIVE });
+  return updateMember(tenantId, memberId, { status: MEMBER_STATUS.INACTIVE }, requestingUid);
 }
 
 /**
  * Generiert einen neuen Password Reset Link für einen bestehenden Mitarbeiter.
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function generatePasswordResetLink(
   tenantId: string,
-  memberId: string
+  memberId: string,
+  requestingUid: string
 ): Promise<string> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, requestingUid);
+  if (!isMember) {
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
   const auth = getAdminAuth();
 
   // Mitarbeiter laden
-  const member = await getMemberById(tenantId, memberId);
+  const member = await getMemberById(tenantId, memberId, requestingUid);
   if (!member) {
     throw new Error('Member not found');
   }
@@ -543,12 +632,20 @@ export interface MemberShift {
 
 /**
  * Lädt alle Schichten eines Mitarbeiters (zugewiesen + angenommen).
+ * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
 export async function getMemberShifts(
   tenantId: string,
   uid: string,
+  requestingUid: string,
   options: { includeCompleted?: boolean } = {}
 ): Promise<MemberShift[]> {
+  // Zusätzliche Sicherheitsebene: Prüfe ob User Mitglied im Tenant ist
+  const isMember = await validateUserTenantMembership(tenantId, requestingUid);
+  if (!isMember) {
+    throw new Error('Access denied: User is not a member of this tenant');
+  }
+
   const db = getAdminFirestore();
   const { includeCompleted = false } = options;
 

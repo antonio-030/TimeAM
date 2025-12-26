@@ -56,6 +56,7 @@ export async function getUserDocument(uid: string): Promise<UserDoc | null> {
 /**
  * Lädt Tenant-Daten für einen User.
  * Prüft zuerst defaultTenantId, dann sucht nach bestehenden Memberships.
+ * WICHTIG: Validiert, dass der User wirklich Mitglied im ermittelten Tenant ist.
  */
 export async function getTenantForUser(uid: string): Promise<{
   tenant: TenantDoc & { id: string };
@@ -69,29 +70,98 @@ export async function getTenantForUser(uid: string): Promise<{
   
   let tenantId: string | null = userDoc?.defaultTenantId || null;
 
-  // 2. Wenn kein defaultTenantId, suche nach Membership in allen Tenants
+  // 2. Wenn defaultTenantId vorhanden, VALIDIERE dass User wirklich Mitglied ist
+  if (tenantId) {
+    console.log(`🔍 User ${uid} has defaultTenantId: ${tenantId}, validating membership...`);
+    
+    const tenantRef = db.collection('tenants').doc(tenantId);
+    const memberRef = tenantRef.collection('members').doc(uid);
+    const memberSnap = await memberRef.get();
+    
+    if (!memberSnap.exists) {
+      console.warn(`⚠️ User ${uid} has defaultTenantId ${tenantId} but is NOT a member! Removing invalid defaultTenantId...`);
+      
+      // Invalid defaultTenantId entfernen
+      try {
+        await db.collection('users').doc(uid).update({
+          defaultTenantId: FieldValue.delete(),
+        });
+        console.log(`🗑️ Removed invalid defaultTenantId for user ${uid}`);
+      } catch (updateError) {
+        console.warn(`⚠️ Could not remove invalid defaultTenantId for user ${uid}:`, updateError);
+      }
+      
+      tenantId = null; // Suche nach anderen Tenants
+    } else {
+      console.log(`✅ User ${uid} is validated member of tenant ${tenantId}`);
+    }
+  }
+
+  // 3. Wenn kein defaultTenantId ODER defaultTenantId war ungültig, suche nach Membership in allen Tenants
   if (!tenantId) {
-    console.log(`🔍 No defaultTenantId for user ${uid}, searching for memberships...`);
+    console.log(`🔍 No valid defaultTenantId for user ${uid}, searching for memberships...`);
     
     // Suche nach Member-Dokument mit dieser UID (Dokument-ID = UID)
     const tenantsSnap = await db.collection('tenants').get();
+    
+    // WICHTIG: Prüfe ob User wirklich Dev-Staff ist, bevor dev-tenant verwendet wird
+    let isUserDevStaff = false;
+    try {
+      const { isDevStaff } = await import('../../modules/support/service.js');
+      isUserDevStaff = await isDevStaff(uid);
+    } catch (error) {
+      console.warn(`⚠️ Could not check if user ${uid} is dev staff:`, error);
+    }
+    
+    // Suche nach allen Tenants, in denen User Mitglied ist
+    const foundTenants: Array<{ tenantId: string; isDevTenant: boolean }> = [];
     
     for (const tenantDoc of tenantsSnap.docs) {
       const memberSnap = await tenantDoc.ref.collection('members').doc(uid).get();
       
       if (memberSnap.exists) {
-        tenantId = tenantDoc.id;
-        console.log(`✅ Found membership for user ${uid} in tenant ${tenantId}`);
-        
-        // User-Dokument aktualisieren mit defaultTenantId
-        await db.collection('users').doc(uid).set({
-          defaultTenantId: tenantId,
-          createdAt: FieldValue.serverTimestamp(),
-        }, { merge: true });
-        
-        console.log(`📝 Updated user document with defaultTenantId: ${tenantId}`);
-        break;
+        const isDevTenant = tenantDoc.id === 'dev-tenant';
+        foundTenants.push({ tenantId: tenantDoc.id, isDevTenant });
+        console.log(`✅ Found membership for user ${uid} in tenant ${tenantDoc.id} (dev-tenant: ${isDevTenant})`);
       }
+    }
+    
+    // WICHTIG: Bevorzuge normale Tenants über dev-tenant
+    // Nur wenn User wirklich Dev-Staff ist UND kein normaler Tenant gefunden wurde, verwende dev-tenant
+    const normalTenant = foundTenants.find(t => !t.isDevTenant);
+    const devTenant = foundTenants.find(t => t.isDevTenant);
+    
+    let selectedTenant: { tenantId: string; isDevTenant: boolean } | undefined;
+    
+    if (normalTenant) {
+      // Normale Tenants haben Priorität
+      selectedTenant = normalTenant;
+      console.log(`📝 User ${uid} has normal tenant ${normalTenant.tenantId}, using it instead of dev-tenant`);
+    } else if (devTenant && isUserDevStaff) {
+      // Nur wenn User wirklich Dev-Staff ist, verwende dev-tenant
+      selectedTenant = devTenant;
+      console.log(`📝 User ${uid} is Dev-Staff and has no normal tenant, using dev-tenant`);
+    } else if (devTenant && !isUserDevStaff) {
+      // User ist Mitglied im dev-tenant, aber ist kein Dev-Staff - das ist ein Fehler!
+      console.error(`🚫 SECURITY: User ${uid} is member of dev-tenant but is NOT Dev-Staff! Ignoring dev-tenant.`);
+      // Suche nach anderen Tenants (falls vorhanden)
+      selectedTenant = foundTenants[0]; // Fallback auf ersten gefundenen Tenant
+    } else {
+      // Kein Tenant gefunden
+      selectedTenant = undefined;
+    }
+    
+    if (selectedTenant) {
+      tenantId = selectedTenant.tenantId;
+      console.log(`📝 Selected tenant ${tenantId} for user ${uid} (dev-tenant: ${selectedTenant.isDevTenant})`);
+      
+      // User-Dokument aktualisieren mit defaultTenantId
+      await db.collection('users').doc(uid).set({
+        defaultTenantId: tenantId,
+        createdAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      
+      console.log(`📝 Updated user document with defaultTenantId: ${tenantId}`);
     }
   }
 
@@ -101,22 +171,24 @@ export async function getTenantForUser(uid: string): Promise<{
     return null;
   }
 
-  // 3. Tenant laden
+  // 4. Tenant laden
   const tenantRef = db.collection('tenants').doc(tenantId);
   const tenantSnap = await tenantRef.get();
 
   if (!tenantSnap.exists) {
+    console.error(`❌ Tenant ${tenantId} does not exist in Firestore`);
     return null;
   }
 
-  // 4. Membership prüfen
+  // 5. Membership nochmal prüfen (sollte existieren, aber Defense-in-Depth)
   const memberRef = tenantRef.collection('members').doc(uid);
   const memberSnap = await memberRef.get();
 
   if (!memberSnap.exists) {
+    console.error(`❌ User ${uid} is not a member of tenant ${tenantId} (member document not found)`);
+    
     // WICHTIG: Wenn Member-Dokument nicht existiert, aber defaultTenantId noch gesetzt ist,
     // dann defaultTenantId löschen, damit der User nicht mehr diesem Tenant zugeordnet wird
-    // (z.B. wenn User aus Tenant gelöscht wurde)
     if (userDoc?.defaultTenantId === tenantId) {
       try {
         await db.collection('users').doc(uid).update({

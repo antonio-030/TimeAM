@@ -39,9 +39,14 @@ const membersGuard = [requireAuth, requireEntitlements([])];
  */
 router.get('/', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
 
   try {
-    const { members, stats } = await getMembers(tenant.id);
+    console.log(`🔐 GET /api/members - User: ${user.uid}, Tenant: ${tenant.id} (${tenant.name})`);
+    
+    const { members, stats } = await getMembers(tenant.id, user.uid);
+
+    console.log(`✅ Returning ${members.length} members for tenant ${tenant.id}`);
 
     res.json({
       members,
@@ -51,6 +56,13 @@ router.get('/', ...membersGuard, async (req, res) => {
   } catch (error) {
     console.error('Error in GET /members:', error);
     const message = error instanceof Error ? error.message : 'Failed to get members';
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
+      return;
+    }
+    
     res.status(500).json({ error: message });
   }
 });
@@ -65,7 +77,7 @@ router.get('/me', ...membersGuard, async (req, res) => {
 
   try {
     const { getMemberByUid } = await import('./service.js');
-    const member = await getMemberByUid(tenant.id, user.uid);
+    const member = await getMemberByUid(tenant.id, user.uid, user.uid);
 
     if (!member) {
       res.status(404).json({ error: 'Member profile not found', code: 'NOT_FOUND' });
@@ -76,6 +88,13 @@ router.get('/me', ...membersGuard, async (req, res) => {
   } catch (error) {
     console.error('Error in GET /members/me:', error);
     const message = error instanceof Error ? error.message : 'Failed to get member profile';
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
+      return;
+    }
+    
     res.status(500).json({ error: message });
   }
 });
@@ -86,10 +105,11 @@ router.get('/me', ...membersGuard, async (req, res) => {
  */
 router.get('/:memberId', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
   const { memberId } = req.params;
 
   try {
-    const member = await getMemberById(tenant.id, memberId);
+    const member = await getMemberById(tenant.id, memberId, user.uid);
 
     if (!member) {
       res.status(404).json({ error: 'Member not found', code: 'NOT_FOUND' });
@@ -100,6 +120,13 @@ router.get('/:memberId', ...membersGuard, async (req, res) => {
   } catch (error) {
     console.error('Error in GET /members/:memberId:', error);
     const message = error instanceof Error ? error.message : 'Failed to get member';
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
+      return;
+    }
+    
     res.status(500).json({ error: message });
   }
 });
@@ -110,18 +137,19 @@ router.get('/:memberId', ...membersGuard, async (req, res) => {
  */
 router.get('/:memberId/shifts', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
   const { memberId } = req.params;
   const includeCompleted = req.query.includeCompleted === 'true';
 
   try {
-    const member = await getMemberById(tenant.id, memberId);
+    const member = await getMemberById(tenant.id, memberId, user.uid);
 
     if (!member) {
       res.status(404).json({ error: 'Member not found', code: 'NOT_FOUND' });
       return;
     }
 
-    const shifts = await getMemberShifts(tenant.id, member.uid, { includeCompleted });
+    const shifts = await getMemberShifts(tenant.id, member.uid, user.uid, { includeCompleted });
 
     res.json({
       shifts,
@@ -130,6 +158,13 @@ router.get('/:memberId/shifts', ...membersGuard, async (req, res) => {
   } catch (error) {
     console.error('Error in GET /members/:memberId/shifts:', error);
     const message = error instanceof Error ? error.message : 'Failed to get member shifts';
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
+      return;
+    }
+    
     res.status(500).json({ error: message });
   }
 });
@@ -184,7 +219,7 @@ router.patch('/me', ...membersGuard, async (req, res) => {
 
   try {
     const { getMemberByUid, updateMember } = await import('./service.js');
-    const currentMember = await getMemberByUid(tenant.id, user.uid);
+    const currentMember = await getMemberByUid(tenant.id, user.uid, user.uid);
 
     if (!currentMember) {
       res.status(404).json({ error: 'Member profile not found', code: 'NOT_FOUND' });
@@ -210,7 +245,7 @@ router.patch('/me', ...membersGuard, async (req, res) => {
       securityQualifications: body.securityQualifications,
     };
 
-    const member = await updateMember(tenant.id, currentMember.id, allowedFields);
+    const member = await updateMember(tenant.id, currentMember.id, allowedFields, user.uid);
 
     res.json({
       member,
@@ -221,6 +256,12 @@ router.patch('/me', ...membersGuard, async (req, res) => {
 
     if (message === 'Member not found') {
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
       return;
     }
 
@@ -235,11 +276,12 @@ router.patch('/me', ...membersGuard, async (req, res) => {
  */
 router.put('/:memberId', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
   const { memberId } = req.params;
   const body = req.body as UpdateMemberRequest;
 
   try {
-    const member = await updateMember(tenant.id, memberId, body);
+    const member = await updateMember(tenant.id, memberId, body, user.uid);
 
     res.json({
       member,
@@ -250,6 +292,12 @@ router.put('/:memberId', ...membersGuard, async (req, res) => {
 
     if (message === 'Member not found') {
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
       return;
     }
 
@@ -297,10 +345,11 @@ router.delete('/:memberId', ...membersGuard, async (req, res) => {
  */
 router.post('/:memberId/activate', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
   const { memberId } = req.params;
 
   try {
-    const member = await activateMember(tenant.id, memberId);
+    const member = await activateMember(tenant.id, memberId, user.uid);
 
     res.json({
       member,
@@ -311,6 +360,12 @@ router.post('/:memberId/activate', ...membersGuard, async (req, res) => {
 
     if (message === 'Member not found') {
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
       return;
     }
 
@@ -325,10 +380,11 @@ router.post('/:memberId/activate', ...membersGuard, async (req, res) => {
  */
 router.post('/:memberId/deactivate', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
   const { memberId } = req.params;
 
   try {
-    const member = await deactivateMember(tenant.id, memberId);
+    const member = await deactivateMember(tenant.id, memberId, user.uid);
 
     res.json({
       member,
@@ -339,6 +395,12 @@ router.post('/:memberId/deactivate', ...membersGuard, async (req, res) => {
 
     if (message === 'Member not found') {
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
       return;
     }
 
@@ -353,10 +415,11 @@ router.post('/:memberId/deactivate', ...membersGuard, async (req, res) => {
  */
 router.post('/:memberId/generate-invite-link', ...membersGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
+  const { user } = req as AuthenticatedRequest;
   const { memberId } = req.params;
 
   try {
-    const passwordResetLink = await generatePasswordResetLink(tenant.id, memberId);
+    const passwordResetLink = await generatePasswordResetLink(tenant.id, memberId, user.uid);
 
     res.json({
       passwordResetLink,
@@ -367,6 +430,12 @@ router.post('/:memberId/generate-invite-link', ...membersGuard, async (req, res)
 
     if (message === 'Member not found') {
       res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    
+    // Spezielle Behandlung für Access-Denied-Fehler
+    if (message.includes('Access denied')) {
+      res.status(403).json({ error: message, code: 'ACCESS_DENIED' });
       return;
     }
 

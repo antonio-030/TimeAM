@@ -206,6 +206,7 @@ function CreateShiftForm({ onSubmit, onCancel }: CreateShiftFormProps) {
         requiredCount,
         payRate: payRate ? parseFloat(payRate) : undefined,
         applyDeadline: applyDeadline ? new Date(applyDeadline).toISOString() : undefined,
+        crewLeaderUid: crewLeaderUid || undefined,
         isPublicPool,
       };
 

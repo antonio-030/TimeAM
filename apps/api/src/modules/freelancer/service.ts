@@ -121,6 +121,16 @@ export async function registerFreelancer(
   
   console.log(`✅ Created tenant ${tenantId} for freelancer ${uid} (${companyName})`);
 
+  // WICHTIG: Rolle von 'admin' auf 'freelancer' ändern
+  // createTenant erstellt automatisch einen Admin, aber Freelancer sollten die Rolle 'freelancer' haben
+  const memberRef = db.collection('tenants').doc(tenantId).collection('members').doc(uid);
+  await memberRef.update({
+    role: 'freelancer',
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  
+  console.log(`✅ Updated member role to 'freelancer' for ${uid} in tenant ${tenantId}`);
+
   // Freelancer-Dokument speichern
   const freelancerData: Record<string, unknown> = {
     uid,

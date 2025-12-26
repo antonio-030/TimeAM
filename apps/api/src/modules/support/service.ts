@@ -358,6 +358,14 @@ export async function approveVerification(
     try {
       const { tenantId } = await createTenant(freelancerUid, freelancerData.email, finalCompanyName);
       
+      // WICHTIG: Rolle von 'admin' auf 'freelancer' ändern
+      // createTenant erstellt automatisch einen Admin, aber Freelancer sollten die Rolle 'freelancer' haben
+      const memberRef = db.collection('tenants').doc(tenantId).collection('members').doc(freelancerUid);
+      await memberRef.update({
+        role: 'freelancer',
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      
       // Tenant-ID im Freelancer-Dokument speichern
       await freelancerRef.update({
         tenantId,
@@ -366,6 +374,7 @@ export async function approveVerification(
       });
 
       console.log(`✅ Created tenant ${tenantId} for verified freelancer ${freelancerUid} (${finalCompanyName})`);
+      console.log(`✅ Updated member role to 'freelancer' for ${freelancerUid} in tenant ${tenantId}`);
     } catch (tenantError) {
       console.error('Failed to create tenant for verified freelancer:', tenantError);
       // Nicht kritisch - kann später manuell erstellt werden
@@ -581,17 +590,21 @@ export async function createDeletionRequest(
     }
   }
 
-  const requestData: AccountDeletionRequestDoc = {
+  const requestData: Record<string, unknown> = {
     uid,
     email,
     displayName,
     userType,
     status: 'pending',
-    requestedAt: FieldValue.serverTimestamp() as Timestamp,
-    requestedReason: reason,
-    createdAt: FieldValue.serverTimestamp() as Timestamp,
-    updatedAt: FieldValue.serverTimestamp() as Timestamp,
+    requestedAt: FieldValue.serverTimestamp(),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
+
+  // requestedReason nur setzen, wenn reason einen Wert hat (Firestore akzeptiert keine undefined Werte)
+  if (reason && reason.trim()) {
+    requestData.requestedReason = reason.trim();
+  }
 
   await requestRef.set(requestData);
 
