@@ -1086,6 +1086,45 @@ export async function createSubscriptionFromSession(sessionId: string): Promise<
   if (existingSubscription) {
     console.log(`ℹ️ Subscription existiert bereits für Tenant ${tenantId}, Plan ${planId}`);
     console.log(`ℹ️ Subscription ID: ${existingSubscription.id}`);
+    
+    // Aktualisiere existierende Subscription mit Stripe IDs (falls noch nicht vorhanden)
+    const db = getAdminFirestore();
+    const subscriptionRef = db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('subscriptions')
+      .doc(existingSubscription.id);
+    
+    const updateData: Partial<Subscription> = {};
+    let needsUpdate = false;
+    
+    // Speichere Stripe Customer ID (falls noch nicht vorhanden)
+    if (session.customer && !existingSubscription.stripeCustomerId) {
+      const customerId = typeof session.customer === 'string' ? session.customer : session.customer.id;
+      updateData.stripeCustomerId = customerId;
+      needsUpdate = true;
+      console.log(`💳 Aktualisiere Stripe Customer ID: ${customerId}`);
+    }
+    
+    // Speichere Stripe Subscription ID (falls noch nicht vorhanden)
+    if (session.subscription && !existingSubscription.stripeSubscriptionId) {
+      const stripeSubscriptionId = typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription.id;
+      updateData.stripeSubscriptionId = stripeSubscriptionId;
+      needsUpdate = true;
+      console.log(`📦 Aktualisiere Stripe Subscription ID: ${stripeSubscriptionId}`);
+    }
+    
+    if (needsUpdate) {
+      console.log(`💾 Aktualisiere existierende Subscription mit Stripe IDs...`);
+      await subscriptionRef.update({
+        ...updateData,
+        updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+      });
+      console.log(`✅ Subscription mit Stripe IDs aktualisiert`);
+    }
+    
     // Erstelle trotzdem ein Transaktions-Log, falls noch nicht vorhanden
     const amountTotal = session.amount_total || 0;
     console.log(`💾 Erstelle Transaktions-Log für existierende Subscription...`);
@@ -1101,6 +1140,7 @@ export async function createSubscriptionFromSession(sessionId: string): Promise<
       currency: session.currency || 'eur',
       stripeSessionId: session.id,
       stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id,
+      stripeSubscriptionId: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id,
       status: 'success',
       metadata: {
         customer_email: session.customer_email || '',
@@ -1110,7 +1150,15 @@ export async function createSubscriptionFromSession(sessionId: string): Promise<
     });
     console.log(`✅ Transaktions-Log erstellt: ${transactionLog.id}`);
     console.log(`🎯 ========== SUBSCRIPTION AUS SESSION ABGESCHLOSSEN (EXISTIERT) ==========\n`);
-    return { subscription: existingSubscription, transactionLog };
+    
+    // Lade aktualisierte Subscription
+    const updatedSubscriptionDoc = await subscriptionRef.get();
+    const updatedSubscription = {
+      id: existingSubscription.id,
+      ...updatedSubscriptionDoc.data(),
+    } as Subscription;
+    
+    return { subscription: updatedSubscription, transactionLog };
   }
 
   // Speichere Customer
@@ -1134,6 +1182,44 @@ export async function createSubscriptionFromSession(sessionId: string): Promise<
     userCount,
     billingCycle,
   });
+
+  // Aktualisiere Subscription mit Stripe IDs
+  const db = getAdminFirestore();
+  const subscriptionRef = db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('subscriptions')
+    .doc(subscription.id);
+  
+  const updateData: Partial<Subscription> = {};
+  
+  // Speichere Stripe Customer ID
+  if (session.customer) {
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer.id;
+    updateData.stripeCustomerId = customerId;
+    console.log(`💳 Stripe Customer ID: ${customerId}`);
+  }
+  
+  // Speichere Stripe Subscription ID
+  if (session.subscription) {
+    const stripeSubscriptionId = typeof session.subscription === 'string'
+      ? session.subscription
+      : session.subscription.id;
+    updateData.stripeSubscriptionId = stripeSubscriptionId;
+    console.log(`📦 Stripe Subscription ID: ${stripeSubscriptionId}`);
+  }
+  
+  // Aktualisiere Subscription mit Stripe IDs
+  if (Object.keys(updateData).length > 0) {
+    console.log(`💾 Aktualisiere Subscription mit Stripe IDs...`);
+    await subscriptionRef.update({
+      ...updateData,
+      updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+    });
+    console.log(`✅ Subscription mit Stripe IDs aktualisiert`);
+  } else {
+    console.warn(`⚠️ Keine Stripe IDs in Session gefunden`);
+  }
 
   // Berechne Gesamtbetrag aus Session
   const amountTotal = session.amount_total || 0;
@@ -1166,13 +1252,22 @@ export async function createSubscriptionFromSession(sessionId: string): Promise<
   console.log(`\n🔄 Starte Module-Aktivierung...`);
   await activateModulesForSubscription(tenantId, planId, addonIds);
 
+  // Lade aktualisierte Subscription mit Stripe IDs
+  const updatedSubscriptionDoc = await subscriptionRef.get();
+  const updatedSubscription = {
+    id: subscription.id,
+    ...updatedSubscriptionDoc.data(),
+  } as Subscription;
+
   console.log(`\n✅ ========== SUBSCRIPTION AUS SESSION ERFOLGREICH ERSTELLT ==========`);
-  console.log(`✅ Subscription ID: ${subscription.id}`);
+  console.log(`✅ Subscription ID: ${updatedSubscription.id}`);
+  console.log(`✅ Stripe Subscription ID: ${updatedSubscription.stripeSubscriptionId || 'FEHLT'}`);
+  console.log(`✅ Stripe Customer ID: ${updatedSubscription.stripeCustomerId || 'FEHLT'}`);
   console.log(`✅ Transaction Log ID: ${transactionLog.id}`);
   console.log(`✅ Tenant ID: ${tenantId}`);
   console.log(`🎯 ========== SUBSCRIPTION AUS SESSION ABGESCHLOSSEN ==========\n`);
 
-  return { subscription, transactionLog };
+  return { subscription: updatedSubscription, transactionLog };
 }
 
 /**
