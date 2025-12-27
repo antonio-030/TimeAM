@@ -189,6 +189,7 @@ router.post('/', ...membersGuard, async (req, res) => {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to invite member';
+    const errorCode = (error as any).code;
 
     if (message.includes('required') || message.includes('Valid')) {
       res.status(422).json({ error: message, code: 'VALIDATION_ERROR' });
@@ -200,6 +201,15 @@ router.post('/', ...membersGuard, async (req, res) => {
     }
     if (message.includes('Failed to create user account')) {
       res.status(500).json({ error: message, code: 'AUTH_ERROR' });
+      return;
+    }
+    if (errorCode === 'SUBSCRIPTION_USER_LIMIT_REACHED') {
+      res.status(403).json({ 
+        error: message, 
+        code: 'SUBSCRIPTION_USER_LIMIT_REACHED',
+        currentCount: (error as any).currentCount,
+        maxCount: (error as any).maxCount,
+      });
       return;
     }
 

@@ -27,6 +27,7 @@ import { CompliancePage } from './modules/work-time-compliance';
 import { SupportDashboard, DevStaffAdminPage, useDevStaffCheck } from './modules/support';
 import { SecurityAuditPage } from './modules/security-audit';
 import { StripePage } from './modules/stripe';
+import { SubscriptionManagementPage } from './core/subscription-management';
 import { FreelancerPoolPage } from './modules/freelancer/FreelancerPoolPage';
 import { FreelancerDashboardPage } from './modules/freelancer/FreelancerDashboardPage';
 import { FreelancerMyShiftsPage } from './modules/freelancer/FreelancerMyShiftsPage';
@@ -635,6 +636,12 @@ function AppContent() {
                     </div>
                   )}
                 </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/subscription-management" 
+              element={
+                <SubscriptionManagementPage />
               } 
             />
           </>

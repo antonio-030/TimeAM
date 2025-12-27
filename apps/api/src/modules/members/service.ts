@@ -235,6 +235,52 @@ export async function getMemberByUid(
  * Erstellt auch einen Firebase Auth User und generiert einen Password Reset Link.
  * WICHTIG: Validiert, dass der aufrufende User Mitglied im Tenant ist.
  */
+/**
+ * Validiert ob noch Platz für neue Nutzer in der Subscription ist.
+ */
+export async function validateSubscriptionUserLimit(tenantId: string): Promise<{ canAdd: boolean; currentCount: number; maxCount: number }> {
+  console.log(`\n🔍 ========== NUTZERGRENZEN-VALIDIERUNG ==========`);
+  console.log(`🔍 Tenant ID: ${tenantId}`);
+  
+  const db = getAdminFirestore();
+  
+  // Lade aktive Subscription
+  const subscriptionsSnapshot = await db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('subscriptions')
+    .where('status', '==', 'active')
+    .limit(1)
+    .get();
+  
+  if (subscriptionsSnapshot.empty) {
+    console.log(`⚠️ Keine aktive Subscription gefunden - kein Limit`);
+    // Keine aktive Subscription = kein Limit
+    return { canAdd: true, currentCount: 0, maxCount: Infinity };
+  }
+  
+  const subscription = subscriptionsSnapshot.docs[0].data();
+  const maxCount = subscription.userCount || 0;
+  console.log(`📊 Max. Nutzeranzahl aus Subscription: ${maxCount}`);
+  
+  // Zähle aktuelle Mitglieder (ACTIVE oder PENDING - Großbuchstaben!)
+  const membersSnapshot = await db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('members')
+    .where('status', 'in', [MEMBER_STATUS.ACTIVE, MEMBER_STATUS.PENDING])
+    .get();
+  
+  const currentCount = membersSnapshot.size;
+  const canAdd = currentCount < maxCount;
+  
+  console.log(`📊 Aktuelle Mitgliederanzahl: ${currentCount}`);
+  console.log(`📊 Kann weitere Nutzer hinzufügen: ${canAdd ? '✅ JA' : '❌ NEIN'}`);
+  console.log(`🔍 ========== VALIDIERUNG ABGESCHLOSSEN ==========\n`);
+  
+  return { canAdd, currentCount, maxCount };
+}
+
 export async function inviteMember(
   tenantId: string,
   inviterUid: string,
@@ -245,6 +291,26 @@ export async function inviteMember(
   if (!isMember) {
     throw new Error('Access denied: User is not a member of this tenant');
   }
+
+  // Prüfe Nutzergrenzen
+  console.log(`\n👤 ========== MITARBEITER EINLADEN ==========`);
+  console.log(`👤 Tenant ID: ${tenantId}`);
+  console.log(`👤 E-Mail: ${data.email}`);
+  console.log(`👤 Rolle: ${data.role}`);
+  
+  const limitCheck = await validateSubscriptionUserLimit(tenantId);
+  console.log(`👤 Validierung: ${limitCheck.canAdd ? '✅ OK' : '❌ LIMIT ERREICHT'}`);
+  
+  if (!limitCheck.canAdd) {
+    const error = new Error(`Nutzergrenze erreicht. Aktuell ${limitCheck.currentCount} von ${limitCheck.maxCount} Nutzern verwendet. Bitte erweitern Sie Ihr Abo im Subscription-Management.`);
+    (error as any).code = 'SUBSCRIPTION_USER_LIMIT_REACHED';
+    (error as any).currentCount = limitCheck.currentCount;
+    (error as any).maxCount = limitCheck.maxCount;
+    console.error(`❌ Nutzergrenze erreicht! Aktuell: ${limitCheck.currentCount}, Max: ${limitCheck.maxCount}`);
+    throw error;
+  }
+  
+  console.log(`✅ Nutzergrenze OK, fahre fort mit Erstellung...`);
 
   const db = getAdminFirestore();
   const auth = getAdminAuth();

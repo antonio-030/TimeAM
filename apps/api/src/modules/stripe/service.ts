@@ -6,7 +6,7 @@
 
 import Stripe from 'stripe';
 import { getAdminFirestore } from '../../core/firebase/index.js';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { MODULE_REGISTRY } from '@timeam/shared';
 import { setEntitlement } from '../../core/tenancy/index.js';
 import type {
@@ -252,6 +252,101 @@ async function activateModulesForSubscription(
   console.log(`📊 Gesamt Module im Plan: ${(plan.includedModules?.length || 0) + addonIds.length}`);
   console.log(`✅ Module-Aktivierung abgeschlossen für Tenant ${tenantId}`);
   console.log(`🔄 ========== MODULE-AKTIVIERUNG ENDE ==========\n`);
+}
+
+/**
+ * Deaktiviert Module für eine gekündigte Subscription.
+ */
+async function deactivateModulesForSubscription(
+  tenantId: string,
+  planId: string,
+  addonIds: string[]
+): Promise<void> {
+  console.log(`\n🔄 ========== MODULE-DEAKTIVIERUNG START ==========`);
+  console.log(`🔄 Tenant ID: ${tenantId}`);
+  console.log(`🔄 Plan ID: ${planId}`);
+  console.log(`🔄 Addon IDs: ${addonIds.join(', ') || 'keine'}`);
+  
+  // Lade Plan
+  const plans = await getPricingPlans();
+  const plan = plans.find(p => p.id === planId);
+  
+  if (!plan) {
+    console.error(`❌ Plan ${planId} nicht gefunden für Tenant ${tenantId}`);
+    console.log(`🔄 ========== MODULE-DEAKTIVIERUNG FEHLGESCHLAGEN ==========\n`);
+    return;
+  }
+
+  console.log(`✅ Plan gefunden: ${plan.name} (ID: ${plan.id})`);
+  console.log(`📋 Plan Module (${plan.includedModules?.length || 0}): ${plan.includedModules?.join(', ') || 'keine'}`);
+  
+  let deactivatedCount = 0;
+  let skippedCount = 0;
+  
+  console.log(`\n📦 Deaktiviere Module aus Plan:`);
+  for (const moduleId of plan.includedModules || []) {
+    const module = MODULE_REGISTRY[moduleId];
+    const moduleName = module?.displayName || moduleId;
+    const entitlementKey = getEntitlementKeyForModule(moduleId);
+    
+    // Core-Module werden nicht deaktiviert
+    if (module && module.category === 'core') {
+      console.log(`  ℹ️ Modul ${moduleName} (${moduleId}) ist ein Core-Modul - bleibt aktiv`);
+      skippedCount++;
+      continue;
+    }
+    
+    if (entitlementKey) {
+      try {
+        console.log(`  🔄 Deaktiviere Modul: ${moduleName} (${moduleId}) mit Entitlement: ${entitlementKey}`);
+        await setEntitlement(tenantId, entitlementKey, false);
+        console.log(`  ✅ Modul ${moduleName} (${moduleId}) erfolgreich deaktiviert`);
+        deactivatedCount++;
+      } catch (err) {
+        console.error(`  ❌ Fehler beim Deaktivieren von Modul ${moduleName} (${moduleId}):`, err);
+      }
+    } else {
+      console.warn(`  ⚠️ Kein Entitlement-Key für Modul ${moduleName} (${moduleId}) gefunden`);
+      skippedCount++;
+    }
+  }
+
+  // Deaktiviere Module aus Addons
+  if (addonIds.length > 0) {
+    console.log(`\n📦 Deaktiviere Module aus Addons:`);
+    const addons = await getPricingAddons();
+    for (const addonId of addonIds) {
+      if (!addonId) continue;
+      
+      const addon = addons.find(a => a.id === addonId);
+      if (addon && addon.moduleId) {
+        const module = MODULE_REGISTRY[addon.moduleId];
+        const moduleName = module?.displayName || addon.moduleId;
+        const entitlementKey = getEntitlementKeyForModule(addon.moduleId);
+        
+        if (entitlementKey) {
+          try {
+            console.log(`  🔄 Deaktiviere Modul: ${moduleName} (${addon.moduleId}) aus Addon: ${addon.name} (${addonId})`);
+            await setEntitlement(tenantId, entitlementKey, false);
+            console.log(`  ✅ Modul ${moduleName} (${addon.moduleId}) aus Addon ${addon.name} erfolgreich deaktiviert`);
+            deactivatedCount++;
+          } catch (err) {
+            console.error(`  ❌ Fehler beim Deaktivieren von Modul ${moduleName} (${addon.moduleId}) aus Addon ${addon.name}:`, err);
+          }
+        } else {
+          console.warn(`  ⚠️ Kein Entitlement-Key für Modul ${moduleName} (${addon.moduleId}) aus Addon ${addon.name} gefunden`);
+        }
+      } else {
+        console.warn(`  ⚠️ Addon ${addonId} nicht gefunden oder hat kein moduleId`);
+      }
+    }
+  }
+
+  console.log(`\n📊 ========== MODULE-DEAKTIVIERUNG ZUSAMMENFASSUNG ==========`);
+  console.log(`📊 Module deaktiviert: ${deactivatedCount}`);
+  console.log(`📊 Übersprungene Module (Core): ${skippedCount}`);
+  console.log(`✅ Module-Deaktivierung abgeschlossen für Tenant ${tenantId}`);
+  console.log(`🔄 ========== MODULE-DEAKTIVIERUNG ENDE ==========\n`);
 }
 
 /**
@@ -629,6 +724,17 @@ export async function createSubscription(
     .doc(request.tenantId)
     .collection('subscriptions');
   
+  // Berechne Abrechnungsperioden
+  const now = new Date();
+  const periodStart = new Date(now);
+  const periodEnd = new Date(now);
+  
+  if (request.billingCycle === 'yearly') {
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  } else {
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+  }
+  
   const subscription: Omit<Subscription, 'id'> = {
     tenantId: request.tenantId,
     planId: request.planId,
@@ -636,8 +742,8 @@ export async function createSubscription(
     userCount: request.userCount,
     billingCycle: request.billingCycle,
     status: 'active',
-    currentPeriodStart: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
-    currentPeriodEnd: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+    currentPeriodStart: Timestamp.fromDate(periodStart),
+    currentPeriodEnd: Timestamp.fromDate(periodEnd),
     createdAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
     updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
   };
@@ -1083,8 +1189,16 @@ export async function handleStripeWebhook(
   
   switch (event.type) {
     case 'checkout.session.completed': {
-      console.log('🎉 Stripe Webhook: checkout.session.completed');
+      console.log('\n🎉 ========== STRIPE WEBHOOK: CHECKOUT ABGESCHLOSSEN ==========');
+      console.log(`🎉 Event Type: checkout.session.completed`);
+      console.log(`🎉 Event ID: ${event.id}`);
+      console.log(`🎉 Zeitpunkt: ${new Date().toISOString()}`);
+      
       const session = event.data.object as Stripe.Checkout.Session;
+      console.log(`🎉 Session ID: ${session.id}`);
+      console.log(`🎉 Payment Status: ${session.payment_status}`);
+      console.log(`🎉 Betrag: ${session.amount_total ? (session.amount_total / 100).toFixed(2) + ' ' + (session.currency?.toUpperCase() || 'EUR') : 'keine'}`);
+      
       const tenantId = session.metadata?.tenantId;
       const planId = session.metadata?.planId;
       const addonIdsStr = session.metadata?.addonIds || '';
@@ -1092,11 +1206,17 @@ export async function handleStripeWebhook(
       const userCount = parseInt(session.metadata?.userCount || '0', 10);
       const billingCycle = (session.metadata?.billingCycle || 'monthly') as 'monthly' | 'yearly';
       
-      console.log(`📦 Webhook Metadata: tenantId=${tenantId}, planId=${planId}, addonIds=${addonIds.join(', ') || 'keine'}, userCount=${userCount}, billingCycle=${billingCycle}`);
+      console.log(`📦 Webhook Metadata:`);
+      console.log(`  - Tenant ID: ${tenantId}`);
+      console.log(`  - Plan ID: ${planId}`);
+      console.log(`  - Addon IDs: ${addonIds.join(', ') || 'keine'}`);
+      console.log(`  - User Count: ${userCount}`);
+      console.log(`  - Billing Cycle: ${billingCycle}`);
       
       if (!tenantId || !planId) {
         console.error('❌ Fehlende Metadata in Checkout Session:', session.id);
-        console.error('Metadata:', session.metadata);
+        console.error('❌ Metadata:', session.metadata);
+        console.log('🎉 ========== WEBHOOK ABGEBROCHEN ==========\n');
         return;
       }
       
@@ -1110,6 +1230,14 @@ export async function handleStripeWebhook(
         console.log(`💳 Stripe Customer gespeichert für Tenant ${tenantId}`);
       }
       
+      // Lade Stripe Subscription ID aus Session
+      let stripeSubscriptionId: string | undefined;
+      if (session.subscription) {
+        stripeSubscriptionId = typeof session.subscription === 'string'
+          ? session.subscription
+          : session.subscription.id;
+      }
+      
       // Erstelle Subscription
       const subscription = await createSubscription({
         tenantId,
@@ -1118,6 +1246,28 @@ export async function handleStripeWebhook(
         userCount,
         billingCycle,
       });
+      
+      // Aktualisiere Subscription mit Stripe IDs
+      if (stripeSubscriptionId || session.customer) {
+        const subscriptionRef = db
+          .collection('tenants')
+          .doc(tenantId)
+          .collection('subscriptions')
+          .doc(subscription.id);
+        
+        const updateData: Partial<Subscription> = {};
+        if (stripeSubscriptionId) {
+          updateData.stripeSubscriptionId = stripeSubscriptionId;
+        }
+        if (session.customer) {
+          updateData.stripeCustomerId = typeof session.customer === 'string'
+            ? session.customer
+            : session.customer.id;
+        }
+        
+        await subscriptionRef.update(updateData);
+      }
+      
       console.log(`📝 Subscription erstellt für Tenant ${tenantId}, Plan ${planId}`);
       
       // Berechne Gesamtbetrag aus Session
@@ -1145,23 +1295,374 @@ export async function handleStripeWebhook(
       });
       
       // Module aktivieren
+      console.log(`\n🔄 Aktiviere Module für neue Subscription...`);
       await activateModulesForSubscription(tenantId, planId, addonIds);
+      console.log(`✅ Module aktiviert`);
       
-      console.log(`✅ Webhook-Verarbeitung abgeschlossen für Tenant ${tenantId}`);
+      console.log(`\n✅ ========== CHECKOUT ABGESCHLOSSEN ==========`);
+      console.log(`✅ Tenant: ${tenantId}`);
+      console.log(`✅ Plan: ${planId}`);
+      console.log(`✅ Nutzeranzahl: ${userCount}`);
+      console.log(`✅ Billing Cycle: ${billingCycle}`);
+      console.log(`✅ Subscription erstellt: ${subscription.id}`);
+      console.log(`🎉 ========== WEBHOOK ABGESCHLOSSEN ==========\n`);
+      break;
+    }
+    
+    case 'invoice.payment_succeeded': {
+      console.log('\n💳 ========== STRIPE WEBHOOK: WIEDERKEHRENDE ABRECHNUNG ==========');
+      console.log(`💳 Event Type: invoice.payment_succeeded`);
+      console.log(`💳 Event ID: ${event.id}`);
+      console.log(`💳 Zeitpunkt: ${new Date().toISOString()}`);
+      
+      const invoice = event.data.object as Stripe.Invoice;
+      console.log(`💳 Invoice ID: ${invoice.id}`);
+      console.log(`💳 Invoice Number: ${invoice.number || 'keine'}`);
+      console.log(`💳 Betrag: ${(invoice.amount_paid / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || 'EUR'}`);
+      console.log(`💳 Billing Reason: ${invoice.billing_reason || 'unbekannt'}`);
+      
+      if (!invoice.subscription) {
+        console.log('⚠️ Invoice hat keine Subscription, überspringe');
+        console.log('💳 ========== WEBHOOK ABGEBROCHEN ==========\n');
+        break;
+      }
+      
+      const stripeSubscriptionId = typeof invoice.subscription === 'string'
+        ? invoice.subscription
+        : invoice.subscription.id;
+      console.log(`💳 Stripe Subscription ID: ${stripeSubscriptionId}`);
+      
+      // Prüfe ob es eine wiederkehrende Abrechnung ist
+      const isRecurring = invoice.billing_reason === 'subscription_cycle' || invoice.billing_reason === 'subscription_create';
+      console.log(`💳 Wiederkehrende Abrechnung: ${isRecurring ? '✅ JA' : '❌ NEIN (Erstzahlung/Manuell)'}`);
+      
+      // Finde Subscription in Firestore
+      console.log(`🔍 Suche Subscription in Firestore...`);
+      const subscriptionsSnapshot = await db
+        .collectionGroup('subscriptions')
+        .where('stripeSubscriptionId', '==', stripeSubscriptionId)
+        .limit(1)
+        .get();
+      
+      if (subscriptionsSnapshot.empty) {
+        console.warn(`⚠️ Subscription ${stripeSubscriptionId} nicht in Firestore gefunden`);
+        console.log('💳 ========== WEBHOOK ABGEBROCHEN ==========\n');
+        break;
+      }
+      
+      const subscriptionDoc = subscriptionsSnapshot.docs[0];
+      const subscriptionData = subscriptionDoc.data() as Omit<Subscription, 'id'>;
+      const tenantId = subscriptionData.tenantId;
+      console.log(`✅ Subscription gefunden in Firestore`);
+      console.log(`💳 Tenant ID: ${tenantId}`);
+      console.log(`💳 Subscription ID (Firestore): ${subscriptionDoc.id}`);
+      console.log(`💳 Plan: ${subscriptionData.planId}`);
+      console.log(`💳 Nutzeranzahl: ${subscriptionData.userCount}`);
+      console.log(`💳 Billing Cycle: ${subscriptionData.billingCycle}`);
+      
+      // Aktualisiere Abrechnungsperioden
+      console.log(`\n🔄 Lade aktuelle Stripe Subscription...`);
+      const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+      const periodStart = Timestamp.fromDate(new Date(stripeSubscription.current_period_start * 1000));
+      const periodEnd = Timestamp.fromDate(new Date(stripeSubscription.current_period_end * 1000));
+      
+      console.log(`📅 Aktuelle Periode Start: ${new Date(stripeSubscription.current_period_start * 1000).toISOString()}`);
+      console.log(`📅 Aktuelle Periode Ende: ${new Date(stripeSubscription.current_period_end * 1000).toISOString()}`);
+      
+      console.log(`💾 Aktualisiere Subscription in Firestore...`);
+      await subscriptionDoc.ref.update({
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        status: 'active',
+        updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+      });
+      console.log(`✅ Subscription aktualisiert`);
+      
+      // Erstelle TransactionLog
+      console.log(`\n💾 Erstelle TransactionLog...`);
+      await logTransaction({
+        tenantId,
+        eventType: 'payment_succeeded',
+        subscriptionId: subscriptionDoc.id,
+        planId: subscriptionData.planId,
+        addonIds: subscriptionData.addonIds,
+        userCount: subscriptionData.userCount,
+        billingCycle: subscriptionData.billingCycle,
+        amount: invoice.amount_paid,
+        currency: invoice.currency,
+        stripeCustomerId: typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id,
+        stripeSubscriptionId,
+        stripeEventId: event.id,
+        status: 'success',
+        metadata: {
+          invoice_id: invoice.id,
+          invoice_number: invoice.number || '',
+          billing_reason: invoice.billing_reason || '',
+          is_recurring: isRecurring ? 'true' : 'false',
+        },
+      });
+      
+      console.log(`\n✅ ========== WIEDERKEHRENDE ABRECHNUNG ERFOLGREICH VERARBEITET ==========`);
+      console.log(`✅ Tenant: ${tenantId}`);
+      console.log(`✅ Betrag: ${(invoice.amount_paid / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || 'EUR'}`);
+      console.log(`✅ Nächste Abrechnung: ${new Date(stripeSubscription.current_period_end * 1000).toLocaleDateString('de-DE')}`);
+      console.log(`💳 ========== WEBHOOK ABGESCHLOSSEN ==========\n`);
+      break;
+    }
+    
+    case 'invoice.payment_failed': {
+      console.log('\n❌ ========== STRIPE WEBHOOK: ZAHLUNG FEHLGESCHLAGEN ==========');
+      console.log(`❌ Event Type: invoice.payment_failed`);
+      console.log(`❌ Event ID: ${event.id}`);
+      console.log(`❌ Zeitpunkt: ${new Date().toISOString()}`);
+      
+      const invoice = event.data.object as Stripe.Invoice;
+      console.log(`❌ Invoice ID: ${invoice.id}`);
+      console.log(`❌ Invoice Number: ${invoice.number || 'keine'}`);
+      console.log(`❌ Betrag: ${(invoice.amount_due / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || 'EUR'}`);
+      console.log(`❌ Versuche: ${invoice.attempt_count || 0}`);
+      
+      if (!invoice.subscription) {
+        console.log('⚠️ Invoice hat keine Subscription, überspringe');
+        console.log('❌ ========== WEBHOOK ABGEBROCHEN ==========\n');
+        break;
+      }
+      
+      const stripeSubscriptionId = typeof invoice.subscription === 'string'
+        ? invoice.subscription
+        : invoice.subscription.id;
+      console.log(`❌ Stripe Subscription ID: ${stripeSubscriptionId}`);
+      
+      // Finde Subscription in Firestore
+      console.log(`🔍 Suche Subscription in Firestore...`);
+      const subscriptionsSnapshot = await db
+        .collectionGroup('subscriptions')
+        .where('stripeSubscriptionId', '==', stripeSubscriptionId)
+        .limit(1)
+        .get();
+      
+      if (subscriptionsSnapshot.empty) {
+        console.warn(`⚠️ Subscription ${stripeSubscriptionId} nicht in Firestore gefunden`);
+        console.log('❌ ========== WEBHOOK ABGEBROCHEN ==========\n');
+        break;
+      }
+      
+      const subscriptionDoc = subscriptionsSnapshot.docs[0];
+      const subscriptionData = subscriptionDoc.data() as Omit<Subscription, 'id'>;
+      const tenantId = subscriptionData.tenantId;
+      console.log(`✅ Subscription gefunden in Firestore`);
+      console.log(`❌ Tenant ID: ${tenantId}`);
+      console.log(`❌ Subscription ID (Firestore): ${subscriptionDoc.id}`);
+      console.log(`❌ Plan: ${subscriptionData.planId}`);
+      
+      const errorMessage = invoice.last_payment_error?.message || 'Zahlung fehlgeschlagen';
+      console.log(`❌ Fehlermeldung: ${errorMessage}`);
+      
+      // Setze Status auf past_due
+      console.log(`💾 Setze Subscription-Status auf 'past_due'...`);
+      await subscriptionDoc.ref.update({
+        status: 'past_due',
+        updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+      });
+      console.log(`✅ Subscription-Status aktualisiert`);
+      
+      // Erstelle TransactionLog
+      console.log(`\n💾 Erstelle TransactionLog...`);
+      await logTransaction({
+        tenantId,
+        eventType: 'payment_failed',
+        subscriptionId: subscriptionDoc.id,
+        planId: subscriptionData.planId,
+        addonIds: subscriptionData.addonIds,
+        userCount: subscriptionData.userCount,
+        billingCycle: subscriptionData.billingCycle,
+        amount: invoice.amount_due,
+        currency: invoice.currency,
+        stripeCustomerId: typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id,
+        stripeSubscriptionId,
+        stripeEventId: event.id,
+        status: 'failed',
+        errorMessage,
+        metadata: {
+          invoice_id: invoice.id,
+          attempt_count: invoice.attempt_count?.toString() || '0',
+          error_type: invoice.last_payment_error?.type || 'unknown',
+        },
+      });
+      
+      console.log(`\n❌ ========== ZAHLUNGSFEHLER VERARBEITET ==========`);
+      console.log(`❌ Tenant: ${tenantId}`);
+      console.log(`❌ Betrag: ${(invoice.amount_due / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || 'EUR'}`);
+      console.log(`❌ Status: past_due`);
+      console.log(`❌ ========== WEBHOOK ABGESCHLOSSEN ==========\n`);
       break;
     }
     
     case 'customer.subscription.updated': {
-      const subscription = event.data.object as Stripe.Subscription;
-      // TODO: Subscription in Firestore aktualisieren
-      console.log('Subscription updated:', subscription.id);
+      console.log('\n🔄 ========== STRIPE WEBHOOK: SUBSCRIPTION AKTUALISIERT ==========');
+      console.log(`🔄 Event Type: customer.subscription.updated`);
+      console.log(`🔄 Event ID: ${event.id}`);
+      console.log(`🔄 Zeitpunkt: ${new Date().toISOString()}`);
+      
+      const stripeSubscription = event.data.object as Stripe.Subscription;
+      console.log(`🔄 Stripe Subscription ID: ${stripeSubscription.id}`);
+      console.log(`🔄 Stripe Status: ${stripeSubscription.status}`);
+      console.log(`🔄 Cancel at Period End: ${stripeSubscription.cancel_at_period_end ? '✅ JA' : '❌ NEIN'}`);
+      
+      // Finde Subscription in Firestore
+      console.log(`🔍 Suche Subscription in Firestore...`);
+      const subscriptionsSnapshot = await db
+        .collectionGroup('subscriptions')
+        .where('stripeSubscriptionId', '==', stripeSubscription.id)
+        .limit(1)
+        .get();
+      
+      if (subscriptionsSnapshot.empty) {
+        console.warn(`⚠️ Subscription ${stripeSubscription.id} nicht in Firestore gefunden`);
+        console.log('🔄 ========== WEBHOOK ABGEBROCHEN ==========\n');
+        break;
+      }
+      
+      const subscriptionDoc = subscriptionsSnapshot.docs[0];
+      const subscriptionData = subscriptionDoc.data() as Omit<Subscription, 'id'>;
+      const tenantId = subscriptionData.tenantId;
+      console.log(`✅ Subscription gefunden in Firestore`);
+      console.log(`🔄 Tenant ID: ${tenantId}`);
+      console.log(`🔄 Subscription ID (Firestore): ${subscriptionDoc.id}`);
+      console.log(`🔄 Alte Nutzeranzahl: ${subscriptionData.userCount}`);
+      console.log(`🔄 Alter Status: ${subscriptionData.status}`);
+      
+      // Aktualisiere Firestore mit Daten aus Stripe
+      const periodStart = Timestamp.fromDate(new Date(stripeSubscription.current_period_start * 1000));
+      const periodEnd = Timestamp.fromDate(new Date(stripeSubscription.current_period_end * 1000));
+      
+      const updateData: Partial<Subscription> = {
+        currentPeriodStart: periodStart,
+        currentPeriodEnd: periodEnd,
+        status: stripeSubscription.status === 'active' ? 'active' : 
+               stripeSubscription.status === 'canceled' ? 'canceled' :
+               stripeSubscription.status === 'past_due' ? 'past_due' : 'active',
+        cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end,
+        updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+      };
+      
+      // Prüfe auf Quantity-Änderungen (Nutzeranzahl)
+      const planItem = stripeSubscription.items.data[0];
+      if (planItem && planItem.quantity !== subscriptionData.userCount) {
+        updateData.userCount = planItem.quantity;
+        console.log(`📊 Nutzeranzahl geändert: ${subscriptionData.userCount} → ${planItem.quantity}`);
+      }
+      
+      if (subscriptionData.status !== updateData.status) {
+        console.log(`📊 Status geändert: ${subscriptionData.status} → ${updateData.status}`);
+      }
+      
+      console.log(`💾 Aktualisiere Subscription in Firestore...`);
+      await subscriptionDoc.ref.update(updateData);
+      console.log(`✅ Subscription aktualisiert`);
+      
+      // Erstelle TransactionLog
+      console.log(`\n💾 Erstelle TransactionLog...`);
+      await logTransaction({
+        tenantId: subscriptionData.tenantId,
+        eventType: 'subscription_updated',
+        subscriptionId: subscriptionDoc.id,
+        planId: subscriptionData.planId,
+        addonIds: subscriptionData.addonIds,
+        userCount: updateData.userCount || subscriptionData.userCount,
+        billingCycle: subscriptionData.billingCycle,
+        stripeSubscriptionId: stripeSubscription.id,
+        stripeEventId: event.id,
+        status: 'success',
+        metadata: {
+          stripe_status: stripeSubscription.status,
+          old_user_count: subscriptionData.userCount.toString(),
+          new_user_count: (updateData.userCount || subscriptionData.userCount).toString(),
+          cancel_at_period_end: stripeSubscription.cancel_at_period_end ? 'true' : 'false',
+        },
+      });
+      
+      console.log(`\n✅ ========== SUBSCRIPTION-AKTUALISIERUNG ABGESCHLOSSEN ==========`);
+      console.log(`✅ Tenant: ${tenantId}`);
+      console.log(`✅ Neuer Status: ${updateData.status}`);
+      console.log(`✅ Nutzeranzahl: ${updateData.userCount || subscriptionData.userCount}`);
+      console.log(`🔄 ========== WEBHOOK ABGESCHLOSSEN ==========\n`);
       break;
     }
     
     case 'customer.subscription.deleted': {
-      const subscription = event.data.object as Stripe.Subscription;
-      // TODO: Subscription in Firestore als canceled markieren
-      console.log('Subscription deleted:', subscription.id);
+      console.log('\n🗑️ ========== STRIPE WEBHOOK: SUBSCRIPTION GEKÜNDIGT ==========');
+      console.log(`🗑️ Event Type: customer.subscription.deleted`);
+      console.log(`🗑️ Event ID: ${event.id}`);
+      console.log(`🗑️ Zeitpunkt: ${new Date().toISOString()}`);
+      
+      const stripeSubscription = event.data.object as Stripe.Subscription;
+      console.log(`🗑️ Stripe Subscription ID: ${stripeSubscription.id}`);
+      console.log(`🗑️ Stripe Status: ${stripeSubscription.status}`);
+      
+      // Finde Subscription in Firestore
+      console.log(`🔍 Suche Subscription in Firestore...`);
+      const subscriptionsSnapshot = await db
+        .collectionGroup('subscriptions')
+        .where('stripeSubscriptionId', '==', stripeSubscription.id)
+        .limit(1)
+        .get();
+      
+      if (subscriptionsSnapshot.empty) {
+        console.warn(`⚠️ Subscription ${stripeSubscription.id} nicht in Firestore gefunden`);
+        console.log('🗑️ ========== WEBHOOK ABGEBROCHEN ==========\n');
+        break;
+      }
+      
+      const subscriptionDoc = subscriptionsSnapshot.docs[0];
+      const subscriptionData = subscriptionDoc.data() as Omit<Subscription, 'id'>;
+      const tenantId = subscriptionData.tenantId;
+      console.log(`✅ Subscription gefunden in Firestore`);
+      console.log(`🗑️ Tenant ID: ${tenantId}`);
+      console.log(`🗑️ Subscription ID (Firestore): ${subscriptionDoc.id}`);
+      console.log(`🗑️ Plan: ${subscriptionData.planId}`);
+      console.log(`🗑️ Nutzeranzahl: ${subscriptionData.userCount}`);
+      
+      // Setze Status auf canceled
+      console.log(`💾 Setze Subscription-Status auf 'canceled'...`);
+      await subscriptionDoc.ref.update({
+        status: 'canceled',
+        updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+      });
+      console.log(`✅ Subscription-Status aktualisiert`);
+      
+      // Deaktiviere Module
+      console.log(`\n🔄 Deaktiviere Module für gekündigte Subscription...`);
+      await deactivateModulesForSubscription(
+        tenantId,
+        subscriptionData.planId,
+        subscriptionData.addonIds || []
+      );
+      console.log(`✅ Module deaktiviert`);
+      
+      // Erstelle TransactionLog
+      console.log(`\n💾 Erstelle TransactionLog...`);
+      await logTransaction({
+        tenantId: subscriptionData.tenantId,
+        eventType: 'subscription_canceled',
+        subscriptionId: subscriptionDoc.id,
+        planId: subscriptionData.planId,
+        addonIds: subscriptionData.addonIds,
+        userCount: subscriptionData.userCount,
+        billingCycle: subscriptionData.billingCycle,
+        stripeSubscriptionId: stripeSubscription.id,
+        stripeEventId: event.id,
+        status: 'success',
+        metadata: {
+          canceled_at: new Date().toISOString(),
+        },
+      });
+      
+      console.log(`\n✅ ========== SUBSCRIPTION-KÜNDIGUNG ABGESCHLOSSEN ==========`);
+      console.log(`✅ Tenant: ${tenantId}`);
+      console.log(`✅ Plan: ${subscriptionData.planId}`);
+      console.log(`✅ Module wurden deaktiviert`);
+      console.log(`🗑️ ========== WEBHOOK ABGESCHLOSSEN ==========\n`);
       break;
     }
     

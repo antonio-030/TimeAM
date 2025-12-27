@@ -379,7 +379,9 @@
 }
 
 .planBadge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
   padding: 2px 8px;
   background-color: var(--color-blue, #3b82f6);
   color: white;

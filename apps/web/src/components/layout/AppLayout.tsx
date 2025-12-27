@@ -797,14 +797,27 @@ export function AppLayout({ children }: AppLayoutProps) {
                 {!isFreelancer && (
                   <button
                     className={styles.planButton}
-                    onClick={() => navigate('/pricing')}
-                    title="Plan anzeigen und ändern"
+                    onClick={() => {
+                      if (activeSubscription) {
+                        navigate('/subscription-management');
+                      } else {
+                        navigate('/pricing');
+                      }
+                    }}
+                    title={activeSubscription ? "Abonnement verwalten" : "Plan anzeigen und buchen"}
                     disabled={subscriptionsLoading || plansLoading}
                   >
                     {subscriptionsLoading || plansLoading ? (
                       <span className={styles.planLoading}>Laden...</span>
                     ) : currentPlan ? (
-                      <span className={styles.planBadge}>{currentPlan.name}</span>
+                      <span className={styles.planBadge}>
+                        {currentPlan.name}
+                        {activeSubscription && (
+                          <span className={styles.userCountBadge}>
+                            ({activeSubscription.userCount} Nutzer)
+                          </span>
+                        )}
+                      </span>
                     ) : activeSubscription ? (
                       <span className={styles.planBadge}>Plan: {activeSubscription.planId}</span>
                     ) : (

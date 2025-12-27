@@ -43,6 +43,7 @@ import { supportRouter } from './modules/support/index.js';
 import { securityAuditRouter } from './modules/security-audit/index.js';
 import { workTimeComplianceRouter } from './modules/work-time-compliance/index.js';
 import { stripeRouter } from './modules/stripe/index.js';
+import { subscriptionManagementRouter } from './core/subscription-management/index.js';
 import { mfaRouter } from './core/mfa/routes.js';
 import { requireMfaVerification } from './core/mfa/middleware.js';
 
@@ -844,6 +845,9 @@ app.use('/api/work-time-compliance', workTimeComplianceRouter);
 // Stripe Module (Webhook muss vor JSON-Parser sein)
 app.use('/api/stripe/webhooks', express.raw({ type: 'application/json' }), stripeRouter);
 app.use('/api/stripe', stripeRouter);
+
+// Subscription Management Core Module
+app.use('/api/subscription-management', subscriptionManagementRouter);
 
 // MFA Module
 app.use('/api/mfa', mfaRouter);

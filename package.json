@@ -15,7 +15,10 @@
     "build:web": "npm run build -w @timeam/web",
     "build:api": "npm run build -w @timeam/api",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "stripe:webhook:listen": "stripe listen --forward-to http://localhost:3000/api/stripe/webhooks",
+    "stripe:webhook:test": "stripe trigger checkout.session.completed",
+    "stripe:webhook:test:all": "stripe trigger checkout.session.completed && stripe trigger invoice.payment_succeeded && stripe trigger invoice.payment_failed && stripe trigger customer.subscription.updated && stripe trigger customer.subscription.deleted"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
