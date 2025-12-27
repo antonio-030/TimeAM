@@ -176,7 +176,7 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
           >
             Freelancer Pool
           </a>
-          <button onClick={handleGetStarted} className={landingStyles.navCta}>
+          <button onClick={() => handleGetStarted()} className={landingStyles.navCta}>
             Anmelden
           </button>
         </div>
@@ -288,9 +288,6 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
                 <div className={styles.addonIcon}>{addon.icon}</div>
                 <h3 className={styles.addonName}>{addon.name}</h3>
                 <p className={styles.addonDescription}>{addon.description}</p>
-                {addon.detailedDescription && (
-                  <p className={styles.addonDetailedDescription}>{addon.detailedDescription}</p>
-                )}
                 {addon.features && (
                   <ul className={styles.addonFeatures}>
                     {addon.features.map((feature, idx) => (
@@ -521,7 +518,7 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
           <p className={styles.ctaSubtitle}>
             Starte jetzt kostenlos und überzeuge dich selbst. Keine Kreditkarte erforderlich.
           </p>
-          <button onClick={handleGetStarted} className={styles.ctaButton}>
+          <button onClick={() => handleGetStarted()} className={styles.ctaButton}>
             Kostenlos starten
             <span className={styles.ctaArrow}>→</span>
           </button>
