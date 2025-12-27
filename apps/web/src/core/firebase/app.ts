@@ -5,8 +5,9 @@
  * Wird einmal beim App-Start aufgerufen.
  */
 
-// @ts-expect-error - Firebase types are namespaces, but we need them as types
-import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
+// @ts-ignore - Firebase exports types as namespaces, extract type from function return
+type FirebaseApp = ReturnType<typeof initializeApp>;
 import { firebaseConfig, validateFirebaseConfig } from './config';
 
 let app: FirebaseApp | null = null;

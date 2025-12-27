@@ -11,8 +11,9 @@ import {
   getAnalytics,
   isSupported,
   setAnalyticsCollectionEnabled,
-  type Analytics,
 } from 'firebase/analytics';
+// @ts-ignore - Firebase exports types as namespaces, extract type from function return
+type Analytics = ReturnType<typeof getAnalytics>;
 import { getFirebaseApp } from './app';
 
 let analytics: Analytics | null = null;

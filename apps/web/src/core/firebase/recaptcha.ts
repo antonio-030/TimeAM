@@ -9,7 +9,8 @@
  */
 
 import { RecaptchaVerifier } from 'firebase/auth';
-import type { RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
+// @ts-ignore - Firebase exports types as namespaces, extract type from class
+type RecaptchaVerifierType = InstanceType<typeof RecaptchaVerifier>;
 import { getFirebaseAuth } from './auth';
 import { disableAppCheck, enableAppCheck, getFirebaseAppCheck } from './app-check';
 

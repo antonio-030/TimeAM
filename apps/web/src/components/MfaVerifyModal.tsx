@@ -8,8 +8,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { verifyMfa, verifyPhoneMfa, getMfaStatus } from '../core/mfa/api';
 import { getFirebaseAuth } from '../core/firebase';
-// @ts-expect-error - Firebase types are namespaces, but we need them as types
-import { signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
+import { signInWithPhoneNumber } from 'firebase/auth';
+// @ts-ignore - Firebase exports types as namespaces, extract type from function return
+type ConfirmationResult = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
 import { createRecaptchaVerifier, clearRecaptchaVerifier } from '../core/firebase';
 import styles from './MfaVerifyModal.module.css';
 

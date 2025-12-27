@@ -13,7 +13,9 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
-import type { User } from 'firebase/auth';
+// @ts-ignore - Firebase exports types as namespaces, extract type from function return
+import { getAuth } from 'firebase/auth';
+type User = ReturnType<typeof getAuth>['currentUser'] extends infer U ? (U extends null ? null : NonNullable<U>) : never;
 import {
   onAuthStateChange,
   signOut as firebaseSignOut,
@@ -23,6 +25,9 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
 } from 'firebase/auth';
+// @ts-ignore - Firebase exports types as namespaces, extract type from function return
+import { getAuth } from 'firebase/auth';
+type User = ReturnType<typeof getAuth>['currentUser'] extends infer U ? (U extends null ? null : NonNullable<U>) : never;
 import { logAuthEvent } from '../api/auth-logging';
 
 /**

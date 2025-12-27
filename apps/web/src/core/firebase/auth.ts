@@ -9,10 +9,11 @@ import {
   getAuth,
   onAuthStateChanged,
   signOut as firebaseSignOut,
-  type Auth,
-  type User,
-  type Unsubscribe,
 } from 'firebase/auth';
+// @ts-ignore - Firebase exports types as namespaces, extract types from function returns
+type Auth = ReturnType<typeof getAuth>;
+type User = Auth['currentUser'] extends infer U ? (U extends null ? null : NonNullable<U>) : never;
+type Unsubscribe = ReturnType<typeof onAuthStateChanged>;
 import { getFirebaseApp } from './app';
 
 let auth: Auth | null = null;

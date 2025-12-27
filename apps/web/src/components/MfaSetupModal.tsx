@@ -9,8 +9,9 @@ import { setupMfa, verifySetupMfa, setupPhoneMfa, verifyPhoneMfaSetup } from '..
 import { useTenant } from '../core/tenant';
 import { ENTITLEMENT_KEYS } from '@timeam/shared';
 import { getFirebaseAuth } from '../core/firebase';
-// @ts-expect-error - Firebase types are namespaces, but we need them as types
-import { signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
+import { signInWithPhoneNumber } from 'firebase/auth';
+// @ts-ignore - Firebase exports types as namespaces, extract type from function return
+type ConfirmationResult = Awaited<ReturnType<typeof signInWithPhoneNumber>>;
 import { createRecaptchaVerifier, clearRecaptchaVerifier } from '../core/firebase';
 import type { MfaMethod } from '@timeam/shared';
 import styles from './MfaSetupModal.module.css';

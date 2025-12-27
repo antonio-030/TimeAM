@@ -8,8 +8,9 @@
 import { 
   initializeAppCheck as firebaseInitializeAppCheck, 
   ReCaptchaV3Provider,
-  type AppCheck,
 } from 'firebase/app-check';
+// @ts-ignore - Firebase exports types as namespaces, extract type from function return
+type AppCheck = ReturnType<typeof firebaseInitializeAppCheck>;
 import { getFirebaseApp } from './app';
 
 let appCheck: AppCheck | null = null;

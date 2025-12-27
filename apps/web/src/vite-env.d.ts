@@ -1,11 +1,5 @@
 /// <reference types="vite/client" />
 
-// Firebase module declarations - these modules exist and have their own types
-declare module 'firebase/app';
-declare module 'firebase/auth';
-declare module 'firebase/analytics';
-declare module 'firebase/app-check';
-
 interface ImportMetaEnv {
   readonly VITE_FIREBASE_API_KEY: string;
   readonly VITE_FIREBASE_AUTH_DOMAIN: string;
