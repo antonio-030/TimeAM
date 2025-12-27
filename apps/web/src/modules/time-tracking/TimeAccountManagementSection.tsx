@@ -323,7 +323,7 @@ function MemberTargetRow({
             </div>
 
             {/* Wochenstunden (wenn nicht Custom) */}
-            {employmentType !== EMPLOYMENT_TYPE.CUSTOM && (
+            {(employmentType as string) !== EMPLOYMENT_TYPE.CUSTOM && (
               <div className={styles.formGroup}>
                 <label htmlFor={`weekly-hours-${member.id}`} className={styles.formLabel}>
                   Wochenstunden
@@ -338,7 +338,7 @@ function MemberTargetRow({
                     value={weeklyHours}
                     onChange={(e) => handleWeeklyHoursChange(parseFloat(e.target.value) || 0)}
                     className={styles.numberInput}
-                    disabled={isSaving || employmentType !== EMPLOYMENT_TYPE.CUSTOM}
+                    disabled={isSaving || (employmentType as string) !== EMPLOYMENT_TYPE.CUSTOM}
                     aria-label="Wochenstunden"
                     aria-describedby={`weekly-hours-desc-${member.id}`}
                   />
