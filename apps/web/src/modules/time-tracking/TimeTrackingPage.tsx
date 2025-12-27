@@ -8,9 +8,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTimeTrackingStatus, useTimeEntries } from './hooks';
 import type { TimeEntry, CreateTimeEntryRequest, UpdateTimeEntryRequest } from './api';
+import { getBreakSuggestion } from './api';
 import { formatTime, formatDate, formatDateShort } from '../../utils/dateTime';
 import { TimeAccountSection } from './TimeAccountSection';
 import { TimeAccountManagementSection } from './TimeAccountManagementSection';
+import { AdminTimeTrackingSection } from './AdminTimeTrackingSection';
+import { BreakSuggestionDialog } from './BreakSuggestionDialog';
 import { useTenant } from '../../core/tenant';
 import styles from './TimeTrackingPage.module.css';
 
@@ -81,13 +84,13 @@ function calculateGroupDuration(entries: TimeEntry[]): number {
 // Entry Modal (Erstellen/Bearbeiten)
 // =============================================================================
 
-interface EntryModalProps {
+export interface EntryModalProps {
   entry?: TimeEntry;
   onSubmit: (data: CreateTimeEntryRequest | UpdateTimeEntryRequest) => Promise<void>;
   onClose: () => void;
 }
 
-function EntryModal({ entry, onSubmit, onClose }: EntryModalProps) {
+export function EntryModal({ entry, onSubmit, onClose }: EntryModalProps) {
   const isEdit = !!entry;
   const modalRef = useRef<HTMLDivElement>(null);
   
@@ -96,6 +99,9 @@ function EntryModal({ entry, onSubmit, onClose }: EntryModalProps) {
   );
   const [clockOut, setClockOut] = useState(
     entry?.clockOut ? toDateTimeLocal(entry.clockOut) : ''
+  );
+  const [entryType, setEntryType] = useState<'work' | 'break'>(
+    entry?.entryType || 'work'
   );
   const [note, setNote] = useState(entry?.note || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,12 +139,14 @@ function EntryModal({ entry, onSubmit, onClose }: EntryModalProps) {
         await onSubmit({
           clockIn: fromDateTimeLocal(clockIn),
           clockOut: fromDateTimeLocal(clockOut),
+          entryType,
           note: note.trim() || undefined,
         } as UpdateTimeEntryRequest);
       } else {
         await onSubmit({
           clockIn: fromDateTimeLocal(clockIn),
           clockOut: fromDateTimeLocal(clockOut),
+          entryType,
           note: note.trim() || undefined,
         } as CreateTimeEntryRequest);
       }
@@ -213,6 +221,26 @@ function EntryModal({ entry, onSubmit, onClose }: EntryModalProps) {
               </span>
             </div>
           )}
+
+          <div className={styles.formGroup}>
+            <label htmlFor="entryType" className={styles.formLabel}>
+              Typ *
+            </label>
+            <select
+              id="entryType"
+              className={styles.formInput}
+              value={entryType}
+              onChange={(e) => setEntryType(e.target.value as 'work' | 'break')}
+              required
+              aria-required="true"
+            >
+              <option value="work">⏱️ Arbeitszeit</option>
+              <option value="break">☕ Pause</option>
+            </select>
+            <span className={styles.formHint}>
+              Wähle, ob dies Arbeitszeit oder eine Pause ist.
+            </span>
+          </div>
 
           <div className={styles.formGroup}>
             <label htmlFor="note" className={styles.formLabel}>
@@ -366,12 +394,17 @@ interface TimeEntryRowProps {
 
 function TimeEntryRow({ entry, onEdit, onDelete }: TimeEntryRowProps) {
   const isRunning = entry.status === 'running';
+  const isBreak = entry.entryType === 'break';
 
   return (
     <div 
-      className={`${styles.entryRow} ${isRunning ? styles.entryRunning : ''}`}
+      className={`${styles.entryRow} ${isRunning ? styles.entryRunning : ''} ${isBreak ? styles.entryBreak : ''}`}
       role="listitem"
     >
+      <div className={styles.entryTypeIcon} aria-label={isBreak ? 'Pause' : 'Arbeitszeit'}>
+        {isBreak ? '☕' : '⏱️'}
+      </div>
+      
       <div className={styles.entryTimes}>
         <span className={styles.entryTime}>{formatTime(entry.clockIn)}</span>
         <span className={styles.entryArrow} aria-hidden="true">→</span>
@@ -428,7 +461,7 @@ function TimeEntryRow({ entry, onEdit, onDelete }: TimeEntryRowProps) {
 // Main Component
 // =============================================================================
 
-type TabId = 'tracking' | 'account' | 'management';
+type TabId = 'tracking' | 'account' | 'management' | 'admin';
 
 export function TimeTrackingPage() {
   const [activeTab, setActiveTab] = useState<TabId>('tracking');
@@ -457,6 +490,10 @@ export function TimeTrackingPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [deletingEntry, setDeletingEntry] = useState<TimeEntry | null>(null);
+  const [breakSuggestion, setBreakSuggestion] = useState<{
+    requiredMinutes: number;
+    reason: string;
+  } | null>(null);
 
   // Timer für laufende Zeit
   useEffect(() => {
@@ -481,6 +518,15 @@ export function TimeTrackingPage() {
     try {
       if (status?.isRunning) {
         await clockOut();
+        // Nach Clock-Out Pausen-Vorschlag prüfen
+        try {
+          const suggestion = await getBreakSuggestion();
+          if (suggestion.suggestion) {
+            setBreakSuggestion(suggestion.suggestion);
+          }
+        } catch {
+          // Fehler beim Abrufen des Vorschlags ignorieren
+        }
       } else {
         await clockIn();
       }
@@ -495,12 +541,34 @@ export function TimeTrackingPage() {
   const handleCreateEntry = async (data: CreateTimeEntryRequest) => {
     await createEntry(data);
     await refreshStatus();
+    // Nach Erstellen Pausen-Vorschlag prüfen (nur für Arbeitszeit)
+    if (data.entryType !== 'break') {
+      try {
+        const suggestion = await getBreakSuggestion();
+        if (suggestion.suggestion) {
+          setBreakSuggestion(suggestion.suggestion);
+        }
+      } catch {
+        // Fehler beim Abrufen des Vorschlags ignorieren
+      }
+    }
   };
 
   const handleUpdateEntry = async (data: UpdateTimeEntryRequest) => {
     if (!editingEntry) return;
     await updateEntry(editingEntry.id, data);
     await refreshStatus();
+    // Nach Update Pausen-Vorschlag prüfen (nur für Arbeitszeit)
+    if (data.entryType !== 'break' && editingEntry.entryType !== 'break') {
+      try {
+        const suggestion = await getBreakSuggestion();
+        if (suggestion.suggestion) {
+          setBreakSuggestion(suggestion.suggestion);
+        }
+      } catch {
+        // Fehler beim Abrufen des Vorschlags ignorieren
+      }
+    }
   };
 
   const handleDeleteEntry = async () => {
@@ -522,7 +590,12 @@ export function TimeTrackingPage() {
 
   // Keyboard Navigation für Tabs
   const handleTabKeyDown = (e: React.KeyboardEvent, tabId: TabId) => {
-    const tabs: TabId[] = ['tracking', 'account', ...(canManageTargets ? ['management'] : [])];
+    const tabs: TabId[] = [
+      'tracking',
+      'account',
+      ...(canManageTargets ? ['management'] : []),
+      ...(isAdminOrManager ? ['admin'] : []),
+    ];
     const currentIndex = tabs.indexOf(activeTab);
     let newIndex = currentIndex;
 
@@ -554,7 +627,7 @@ export function TimeTrackingPage() {
       <header className={styles.header}>
         <h1 className={styles.pageTitle}>
           <span className={styles.pageIcon} aria-hidden="true">⏱️</span>
-          Zeiterfassung
+          <span className={styles.pageTitleText}>Zeiterfassung</span>
         </h1>
         {activeTab === 'tracking' && (
           <button
@@ -562,7 +635,8 @@ export function TimeTrackingPage() {
             onClick={() => setShowCreateModal(true)}
             aria-label="Neuen Zeiteintrag manuell hinzufügen"
           >
-            ➕ Eintrag hinzufügen
+            <span className={styles.buttonIcon} aria-hidden="true">➕</span>
+            <span className={styles.buttonText}>Eintrag hinzufügen</span>
           </button>
         )}
       </header>
@@ -581,7 +655,7 @@ export function TimeTrackingPage() {
           onKeyDown={(e) => handleTabKeyDown(e, 'tracking')}
         >
           <span className={styles.tabIcon} aria-hidden="true">⏱️</span>
-          <span>Zeiterfassung</span>
+          <span className={styles.tabText}>Zeiterfassung</span>
         </button>
         <button
           type="button"
@@ -595,7 +669,7 @@ export function TimeTrackingPage() {
           onKeyDown={(e) => handleTabKeyDown(e, 'account')}
         >
           <span className={styles.tabIcon} aria-hidden="true">📊</span>
-          <span>Zeitkonto</span>
+          <span className={styles.tabText}>Zeitkonto</span>
         </button>
         {canManageTargets && (
           <button
@@ -610,7 +684,23 @@ export function TimeTrackingPage() {
             onKeyDown={(e) => handleTabKeyDown(e, 'management')}
           >
             <span className={styles.tabIcon} aria-hidden="true">⚙️</span>
-            <span>Verwaltung</span>
+            <span className={styles.tabText}>Verwaltung</span>
+          </button>
+        )}
+        {isAdminOrManager && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'admin'}
+            aria-controls="admin-panel"
+            aria-label="Zeiten-Verwaltung"
+            id="admin-tab"
+            className={activeTab === 'admin' ? styles.tabActive : styles.tab}
+            onClick={() => setActiveTab('admin')}
+            onKeyDown={(e) => handleTabKeyDown(e, 'admin')}
+          >
+            <span className={styles.tabIcon} aria-hidden="true">👥</span>
+            <span className={styles.tabText}>Zeiten-Verwaltung</span>
           </button>
         )}
       </div>
@@ -799,6 +889,17 @@ export function TimeTrackingPage() {
             {activeTab === 'management' && <TimeAccountManagementSection />}
           </div>
         )}
+
+        {isAdminOrManager && (
+          <div
+            role="tabpanel"
+            id="admin-panel"
+            aria-labelledby="admin-tab"
+            hidden={activeTab !== 'admin'}
+          >
+            {activeTab === 'admin' && <AdminTimeTrackingSection />}
+          </div>
+        )}
       </main>
 
       {/* Modals */}
@@ -826,6 +927,19 @@ export function TimeTrackingPage() {
           entry={deletingEntry}
           onConfirm={handleDeleteEntry}
           onClose={() => setDeletingEntry(null)}
+        />
+      )}
+
+      {breakSuggestion && (
+        <BreakSuggestionDialog
+          requiredMinutes={breakSuggestion.requiredMinutes}
+          reason={breakSuggestion.reason}
+          onAccept={() => {
+            setBreakSuggestion(null);
+            refreshEntries();
+            refreshStatus();
+          }}
+          onDismiss={() => setBreakSuggestion(null)}
         />
       )}
     </div>

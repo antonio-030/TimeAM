@@ -17,6 +17,12 @@ import {
   updateTimeEntry,
   deleteTimeEntry,
   getTimeEntryById,
+  calculateBreakSuggestion,
+  getTimeEntriesForUser,
+  getTimeEntryByIdForAdmin,
+  createTimeEntryForAdmin,
+  updateTimeEntryForAdmin,
+  deleteTimeEntryForAdmin,
 } from './service.js';
 import type { CreateTimeEntryRequest, UpdateTimeEntryRequest } from './types.js';
 import {
@@ -320,6 +326,39 @@ router.delete('/entries/:entryId', ...timeTrackingGuard, async (req, res) => {
 });
 
 /**
+ * GET /api/time-tracking/break-suggestion
+ *
+ * Berechnet einen Pausen-Vorschlag basierend auf ArbZG.
+ */
+router.get('/break-suggestion', ...timeTrackingGuard, async (req, res) => {
+  const { user } = req as AuthenticatedRequest;
+  const { tenant } = req as TenantRequest;
+  const dateParam = req.query.date as string | undefined;
+
+  try {
+    const date = dateParam ? new Date(dateParam) : undefined;
+    const suggestion = await calculateBreakSuggestion(tenant.id, user.uid, date);
+
+    if (suggestion) {
+      res.json({
+        suggestion: {
+          requiredMinutes: suggestion.requiredMinutes,
+          reason: suggestion.reason,
+        },
+      });
+    } else {
+      res.json({
+        suggestion: null,
+      });
+    }
+  } catch (error) {
+    console.error('Error in GET /time-tracking/break-suggestion:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Berechnen';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
  * Middleware: Prüft Admin- oder Manager-Rolle.
  */
 async function requireAdminOrManager(
@@ -369,6 +408,177 @@ const adminGuard = [
   requireEntitlements([ENTITLEMENT_KEYS.MODULE_TIME_TRACKING]),
   requireAdminOrManager,
 ];
+
+// =============================================================================
+// Admin Routes
+// =============================================================================
+
+/**
+ * GET /api/time-tracking/admin/entries
+ *
+ * Lädt TimeEntries für einen User (Admin/Manager).
+ */
+router.get('/admin/entries', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const userId = req.query.userId as string | undefined;
+
+  if (!userId) {
+    res.status(400).json({ error: 'userId Parameter erforderlich', code: 'VALIDATION_ERROR' });
+    return;
+  }
+
+  const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+
+  try {
+    const entries = await getTimeEntriesForUser(tenant.id, userId, { limit });
+
+    res.json({
+      entries,
+      count: entries.length,
+    });
+  } catch (error) {
+    console.error('Error in GET /time-tracking/admin/entries:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Laden';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/time-tracking/admin/entries/:entryId
+ *
+ * Lädt einen einzelnen TimeEntry (Admin/Manager).
+ */
+router.get('/admin/entries/:entryId', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const { entryId } = req.params;
+
+  try {
+    const entry = await getTimeEntryByIdForAdmin(tenant.id, entryId);
+
+    if (!entry) {
+      res.status(404).json({ error: 'Eintrag nicht gefunden', code: 'NOT_FOUND' });
+      return;
+    }
+
+    res.json({ entry });
+  } catch (error) {
+    console.error('Error in GET /time-tracking/admin/entries/:entryId:', error);
+    const message = error instanceof Error ? error.message : 'Fehler beim Laden';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/time-tracking/admin/entries
+ *
+ * Erstellt einen TimeEntry für einen User (Admin/Manager).
+ */
+router.post('/admin/entries', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const body = req.body as CreateTimeEntryRequest & { userId: string; email?: string };
+
+  if (!body.userId) {
+    res.status(400).json({ error: 'userId ist erforderlich', code: 'VALIDATION_ERROR' });
+    return;
+  }
+
+  if (!body.clockIn || !body.clockOut) {
+    res.status(400).json({ error: 'Start- und Endzeit sind erforderlich', code: 'VALIDATION_ERROR' });
+    return;
+  }
+
+  try {
+    const email = body.email || '';
+    const entry = await createTimeEntryForAdmin(tenant.id, body.userId, email, {
+      clockIn: body.clockIn,
+      clockOut: body.clockOut,
+      entryType: body.entryType,
+      note: body.note,
+    });
+
+    res.status(201).json({
+      message: 'Eintrag erstellt',
+      entry,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Fehler beim Erstellen';
+
+    if (message.includes('Ungültig') || message.includes('muss vor') || message.includes('Maximal')) {
+      res.status(400).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    console.error('Error in POST /time-tracking/admin/entries:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * PUT /api/time-tracking/admin/entries/:entryId
+ *
+ * Aktualisiert einen TimeEntry (Admin/Manager).
+ */
+router.put('/admin/entries/:entryId', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const { entryId } = req.params;
+  const body = req.body as UpdateTimeEntryRequest;
+
+  try {
+    const entry = await updateTimeEntryForAdmin(tenant.id, entryId, body);
+
+    res.json({
+      message: 'Eintrag aktualisiert',
+      entry,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Fehler beim Aktualisieren';
+
+    if (message === 'Eintrag nicht gefunden') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message.includes('Laufende') || message.includes('Ungültig') || message.includes('muss vor')) {
+      res.status(400).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    console.error('Error in PUT /time-tracking/admin/entries/:entryId:', error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * DELETE /api/time-tracking/admin/entries/:entryId
+ *
+ * Löscht einen TimeEntry (Admin/Manager).
+ */
+router.delete('/admin/entries/:entryId', ...adminGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  const { entryId } = req.params;
+
+  try {
+    await deleteTimeEntryForAdmin(tenant.id, entryId);
+
+    res.json({
+      success: true,
+      message: 'Eintrag gelöscht',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Fehler beim Löschen';
+
+    if (message === 'Eintrag nicht gefunden') {
+      res.status(404).json({ error: message, code: 'NOT_FOUND' });
+      return;
+    }
+    if (message.includes('Laufende')) {
+      res.status(400).json({ error: message, code: 'VALIDATION_ERROR' });
+      return;
+    }
+
+    console.error('Error in DELETE /time-tracking/admin/entries/:entryId:', error);
+    res.status(500).json({ error: message });
+  }
+});
 
 // =============================================================================
 // Time Account Routes

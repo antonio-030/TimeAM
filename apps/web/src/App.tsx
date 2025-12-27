@@ -16,6 +16,7 @@ import { DashboardPage } from './modules/dashboard';
 import { CookieBanner } from './components/CookieBanner';
 import { PrivacyPage, ImprintPage } from './components/LegalPage';
 import { NotFoundPage } from './components/NotFoundPage';
+import { PricingPage } from './components/PricingPage';
 import { TimeTrackingPage } from './modules/time-tracking';
 import { PoolPage, AdminShiftsPage, MyShiftsPage } from './modules/shift-pool';
 import { MembersPage } from './modules/members';
@@ -25,6 +26,7 @@ import { ReportsPage } from './modules/reports';
 import { CompliancePage } from './modules/work-time-compliance';
 import { SupportDashboard, DevStaffAdminPage, useDevStaffCheck } from './modules/support';
 import { SecurityAuditPage } from './modules/security-audit';
+import { StripePage } from './modules/stripe';
 import { FreelancerPoolPage } from './modules/freelancer/FreelancerPoolPage';
 import { FreelancerDashboardPage } from './modules/freelancer/FreelancerDashboardPage';
 import { FreelancerMyShiftsPage } from './modules/freelancer/FreelancerMyShiftsPage';
@@ -261,6 +263,20 @@ function AppContent() {
                 onLoginClick={() => navigate('/login')}
                 onPrivacyClick={() => setLegalPage('privacy')}
                 onImprintClick={() => setLegalPage('imprint')}
+              />
+            } 
+          />
+          <Route 
+            path="/pricing" 
+            element={
+              <PricingPage 
+                onGetStarted={() => {
+                  setShowLanding(false);
+                  navigate('/login');
+                }}
+                onPrivacyClick={() => setLegalPage('privacy')}
+                onImprintClick={() => setLegalPage('imprint')}
+                onFreelancerPoolClick={() => navigate('/freelancer-pool')}
               />
             } 
           />
@@ -550,8 +566,31 @@ function AppContent() {
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/stripe" 
+              element={
+                <ProtectedRoute requireSuperAdmin>
+                  {isDevTenant && hasEntitlement('module.stripe') ? (
+                    <ModuleBoundary moduleId="stripe" moduleName="Stripe Verwaltung">
+                      <StripePage />
+                    </ModuleBoundary>
+                  ) : (
+                    <div className={styles.noAccess}>
+                      <span>🔒</span>
+                      <p>Stripe Verwaltung ist nur im Dev-Tenant verfügbar</p>
+                    </div>
+                  )}
+                </ProtectedRoute>
+              } 
+            />
           </>
         )}
+
+        {/* Login Route - auch für eingeloggte User verfügbar (z.B. während Logout) */}
+        <Route 
+          path="/login" 
+          element={<LoginForm />} 
+        />
 
         {/* Default Route - Redirect zu passender Startseite */}
         <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />

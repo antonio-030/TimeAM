@@ -48,9 +48,9 @@ const getEncryptionKey = (): Buffer => {
     const keyHex64 = keyHex.slice(0, 64);
     ENCRYPTION_KEY = Buffer.from(keyHex64, 'hex');
     
-    // Logge Key-Hash (nicht den Key selbst!) für Debugging
-    const keyHash = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 16);
-    console.log(`✅ MFA_ENCRYPTION_KEY loaded successfully (hash: ${keyHash}...)`);
+    // Key geladen, kein Log nötig
+    // const keyHash = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest('hex').substring(0, 16);
+    // console.log(`✅ MFA_ENCRYPTION_KEY loaded successfully (hash: ${keyHash}...)`);
     
     return ENCRYPTION_KEY;
   }

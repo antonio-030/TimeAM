@@ -7,9 +7,11 @@
 import {
   MODULE_REGISTRY,
   MODULE_CATEGORY,
+  MODULE_TARGET_TENANT,
   getOptionalModules,
   getCoreModules,
   isCoreModule,
+  getModulesForTenant,
 } from '@timeam/shared';
 import { getEntitlements, setEntitlement } from '../../core/tenancy/index.js';
 import type { ModuleStatusItem } from './types.js';
@@ -22,8 +24,12 @@ export async function getModuleStatus(tenantId: string): Promise<ModuleStatusIte
   
   const modules: ModuleStatusItem[] = [];
   
+  // WICHTIG: Nur Module laden, die für diesen Tenant-Typ verfügbar sind
+  const availableModules = getModulesForTenant(tenantId);
+  
   // Core-Module sind immer aktiv
-  for (const mod of getCoreModules()) {
+  const coreModules = availableModules.filter(m => m.category === MODULE_CATEGORY.CORE);
+  for (const mod of coreModules) {
     modules.push({
       id: mod.id,
       displayName: mod.displayName,
@@ -35,8 +41,9 @@ export async function getModuleStatus(tenantId: string): Promise<ModuleStatusIte
     });
   }
   
-  // Optionale Module basierend auf Entitlements
-  for (const mod of getOptionalModules()) {
+  // Optionale Module basierend auf Entitlements (nur für diesen Tenant-Typ verfügbare)
+  const optionalModules = availableModules.filter(m => m.category === MODULE_CATEGORY.OPTIONAL);
+  for (const mod of optionalModules) {
     const entitlementKey = mod.entitlementKey;
     let isActive = false;
     

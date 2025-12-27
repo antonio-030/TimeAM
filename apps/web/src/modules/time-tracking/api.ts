@@ -13,6 +13,7 @@ export interface TimeEntry {
   clockOut: string | null;
   status: 'running' | 'completed';
   durationMinutes: number | null;
+  entryType?: 'work' | 'break';
   note?: string;
 }
 
@@ -54,6 +55,7 @@ export interface DeleteResponse {
 export interface CreateTimeEntryRequest {
   clockIn: string;
   clockOut: string;
+  entryType?: 'work' | 'break';
   note?: string;
 }
 
@@ -61,6 +63,7 @@ export interface CreateTimeEntryRequest {
 export interface UpdateTimeEntryRequest {
   clockIn?: string;
   clockOut?: string;
+  entryType?: 'work' | 'break';
   note?: string;
 }
 
@@ -118,6 +121,71 @@ export function updateEntry(entryId: string, data: UpdateTimeEntryRequest): Prom
  */
 export function deleteEntry(entryId: string): Promise<DeleteResponse> {
   return apiDelete<DeleteResponse>(`/api/time-tracking/entries/${entryId}`);
+}
+
+/**
+ * Break Suggestion Response
+ */
+export interface BreakSuggestionResponse {
+  suggestion: {
+    requiredMinutes: number;
+    reason: string;
+  } | null;
+}
+
+/**
+ * Holt einen Pausen-Vorschlag basierend auf ArbZG.
+ */
+export function getBreakSuggestion(date?: string): Promise<BreakSuggestionResponse> {
+  const params = date ? `?date=${encodeURIComponent(date)}` : '';
+  return apiGet<BreakSuggestionResponse>(`/api/time-tracking/break-suggestion${params}`);
+}
+
+// =============================================================================
+// Admin API
+// =============================================================================
+
+/**
+ * Holt TimeEntries für einen User (Admin/Manager).
+ */
+export function getAdminEntries(userId: string, limit = 50): Promise<TimeEntriesResponse> {
+  return apiGet<TimeEntriesResponse>(`/api/time-tracking/admin/entries?userId=${encodeURIComponent(userId)}&limit=${limit}`);
+}
+
+/**
+ * Holt einen TimeEntry (Admin/Manager).
+ */
+export function getAdminEntry(entryId: string): Promise<EntryResponse> {
+  return apiGet<EntryResponse>(`/api/time-tracking/admin/entries/${entryId}`);
+}
+
+/**
+ * Erstellt einen TimeEntry für einen User (Admin/Manager).
+ */
+export function createAdminEntry(
+  userId: string,
+  email: string,
+  data: CreateTimeEntryRequest
+): Promise<EntryResponse> {
+  return apiPost<EntryResponse>('/api/time-tracking/admin/entries', {
+    ...data,
+    userId,
+    email,
+  });
+}
+
+/**
+ * Aktualisiert einen TimeEntry (Admin/Manager).
+ */
+export function updateAdminEntry(entryId: string, data: UpdateTimeEntryRequest): Promise<EntryResponse> {
+  return apiPut<EntryResponse>(`/api/time-tracking/admin/entries/${entryId}`, data);
+}
+
+/**
+ * Löscht einen TimeEntry (Admin/Manager).
+ */
+export function deleteAdminEntry(entryId: string): Promise<DeleteResponse> {
+  return apiDelete<DeleteResponse>(`/api/time-tracking/admin/entries/${entryId}`);
 }
 
 // =============================================================================

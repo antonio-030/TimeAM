@@ -216,6 +216,16 @@ export function LandingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
         </div>
         <div className={styles.navLinks}>
           <a 
+            href="/pricing" 
+            className={styles.navLink}
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.href = '/pricing';
+            }}
+          >
+            Preise
+          </a>
+          <a 
             href="/freelancer-pool" 
             className={styles.navLink}
             onClick={(e) => {

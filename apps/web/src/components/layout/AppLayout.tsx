@@ -39,6 +39,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const { isDevStaff } = useDevStaffCheck();
   const isDevTenant = tenant?.id === 'dev-tenant';
   const hasSecurityAuditAccess = isSuperAdmin && isDevTenant && hasEntitlement('module.security_audit');
+  const hasStripeAccess = isSuperAdmin && isDevTenant && hasEntitlement('module.stripe');
   
   // State-Deklarationen
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -335,6 +336,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       'support': '/support',
       'dev-staff-admin': '/dev-staff-admin',
       'security-audit': '/security-audit',
+      'stripe': '/stripe',
       'work-time-compliance': '/work-time-compliance',
       'freelancer-dashboard': '/freelancer-dashboard',
       'freelancer-my-shifts': '/freelancer-my-shifts',
@@ -367,6 +369,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     if (path === '/support') return 'support';
     if (path === '/dev-staff-admin') return 'dev-staff-admin';
     if (path === '/security-audit') return 'security-audit';
+    if (path === '/stripe') return 'stripe';
     if (path === '/work-time-compliance') return 'work-time-compliance';
     if (path === '/freelancer-dashboard') return 'freelancer-dashboard';
     if (path === '/freelancer-my-shifts') return 'freelancer-my-shifts';
@@ -491,6 +494,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { id: 'dev-staff-admin', label: 'Dev-Mitarbeiter', icon: '👥', enabled: isSuperAdmin },
     { id: 'dev-dashboard', label: 'Developer', icon: '🔐', enabled: isSuperAdmin },
     { id: 'security-audit', label: 'Security Audit', icon: '🔒', enabled: hasSecurityAuditAccess },
+    { id: 'stripe', label: 'Stripe Verwaltung', icon: '💳', enabled: hasStripeAccess },
     // Module für Dev-Staff basierend auf Entitlements
     { id: 'dashboard', label: 'Dashboard', icon: '📊', enabled: true },
     { id: 'time-tracking', label: 'Zeiterfassung', icon: '⏰', enabled: hasTimeTrackingAccess },

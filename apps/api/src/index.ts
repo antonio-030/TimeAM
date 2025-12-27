@@ -33,6 +33,7 @@ import { freelancerRouter } from './modules/freelancer/index.js';
 import { supportRouter } from './modules/support/index.js';
 import { securityAuditRouter } from './modules/security-audit/index.js';
 import { workTimeComplianceRouter } from './modules/work-time-compliance/index.js';
+import { stripeRouter } from './modules/stripe/index.js';
 import { mfaRouter } from './core/mfa/routes.js';
 import { requireMfaVerification } from './core/mfa/middleware.js';
 
@@ -95,11 +96,11 @@ app.options('*', cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Request Logging (Development)
-app.use((req, _res, next) => {
-  console.log(`${req.method} ${req.path} [Origin: ${req.headers.origin || 'none'}]`);
-  next();
-});
+// Request Logging (nur für Development, auskommentiert um Log-Spam zu vermeiden)
+// app.use((req, _res, next) => {
+//   console.log(`${req.method} ${req.path} [Origin: ${req.headers.origin || 'none'}]`);
+//   next();
+// });
 
 // =============================================================================
 // Public Routes
@@ -139,9 +140,6 @@ app.get('/api', (_req, res) => {
  */
 app.get('/api/me', requireAuth, async (req, res) => {
   const { user } = req as AuthenticatedRequest;
-  
-  // DEBUG: Log jeden /api/me Aufruf (ohne sensible Daten)
-  console.log(`📞 GET /api/me`);
 
     try {
       // WICHTIG: Bei jedem /api/me Call prüfen, ob MFA-Verifizierung zurückgesetzt werden muss
@@ -163,11 +161,6 @@ app.get('/api/me', requireAuth, async (req, res) => {
       // WICHTIG: SUPER_ADMIN-Check früh durchführen, damit isSuper überall verfügbar ist
       const { isSuperAdmin } = await import('./core/super-admin/index.js');
       const isSuper = isSuperAdmin(user.uid);
-      
-      // DEBUG: Log Super-Admin-Status (ohne sensible Daten)
-      if (isSuper) {
-        console.log(`🔐 Super Admin erkannt`);
-      }
 
       // Prüfen ob User ein Dev-Mitarbeiter ist (inkl. Super-Admins)
       const { isDevStaff, ensureDevStaffForSuperAdmin } = await import('./modules/support/service.js');
@@ -839,6 +832,10 @@ app.use('/api', supportRouter);
 app.use('/api/security-audit', securityAuditRouter);
 app.use('/api/work-time-compliance', workTimeComplianceRouter);
 
+// Stripe Module (Webhook muss vor JSON-Parser sein)
+app.use('/api/stripe/webhooks', express.raw({ type: 'application/json' }), stripeRouter);
+app.use('/api/stripe', stripeRouter);
+
 // MFA Module
 app.use('/api/mfa', mfaRouter);
 
@@ -863,8 +860,9 @@ app.use('/api/*', (_req, res) => {
     const crypto = await import('crypto');
     const keyHex = process.env.MFA_ENCRYPTION_KEY?.trim().replace(/\s+/g, '') || '';
     if (keyHex.length >= 64) {
-      const keyHash = crypto.createHash('sha256').update(Buffer.from(keyHex.slice(0, 64), 'hex')).digest('hex').substring(0, 16);
-      console.log(`✅ MFA_ENCRYPTION_KEY validated on startup (hash: ${keyHash}...)`);
+      // Key validiert, kein Log nötig
+      // const keyHash = crypto.createHash('sha256').update(Buffer.from(keyHex.slice(0, 64), 'hex')).digest('hex').substring(0, 16);
+      // console.log(`✅ MFA_ENCRYPTION_KEY validated on startup (hash: ${keyHash}...)`);
     } else if (process.env.NODE_ENV !== 'production') {
       console.warn('⚠️  MFA_ENCRYPTION_KEY not set - using random key (will change on restart)');
     }

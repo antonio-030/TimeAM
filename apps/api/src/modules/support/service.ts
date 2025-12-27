@@ -494,17 +494,6 @@ export async function getOrCreateDevTenant(createdByUid: string): Promise<string
   const tenantRef = db.collection('tenants').doc(DEV_TENANT_ID);
   const tenantSnap = await tenantRef.get();
 
-  if (tenantSnap.exists) {
-    return DEV_TENANT_ID;
-  }
-
-  // Dev-Tenant erstellen
-  await tenantRef.set({
-    name: 'Dev Support',
-    createdAt: FieldValue.serverTimestamp(),
-    createdBy: createdByUid,
-  });
-
   // WICHTIG: Alle Module für Dev-Tenant aktivieren
   // So kann der Entwickler alle Module testen bevor sie veröffentlicht werden
   const allModules = [
@@ -516,23 +505,56 @@ export async function getOrCreateDevTenant(createdByUid: string): Promise<string
     'module.calendar_core',
     'module.security_audit',
     'module.work_time_compliance',
+    'module.stripe',
   ];
 
-  const entitlementsRef = tenantRef.collection('entitlements');
-  const batch = db.batch();
-  
-  for (const moduleKey of allModules) {
-    const entitlementRef = entitlementsRef.doc();
-    batch.set(entitlementRef, {
-      key: moduleKey,
-      value: true,
-      grantedAt: FieldValue.serverTimestamp(),
+  if (!tenantSnap.exists) {
+    // Dev-Tenant erstellen
+    await tenantRef.set({
+      name: 'Dev Support',
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: createdByUid,
     });
-  }
-  
-  await batch.commit();
 
-  // Dev-Tenant created with all modules activated
+    // Alle Module aktivieren
+    const entitlementsRef = tenantRef.collection('entitlements');
+    const batch = db.batch();
+    
+    for (const moduleKey of allModules) {
+      const entitlementRef = entitlementsRef.doc();
+      batch.set(entitlementRef, {
+        key: moduleKey,
+        value: true,
+        grantedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    
+    await batch.commit();
+  } else {
+    // Tenant existiert bereits - prüfe ob alle Module aktiviert sind
+    const entitlementsRef = tenantRef.collection('entitlements');
+    const existingEntitlementsSnap = await entitlementsRef.get();
+    const existingKeys = new Set(existingEntitlementsSnap.docs.map(doc => doc.data().key));
+    
+    // Fehlende Module aktivieren
+    const missingModules = allModules.filter(key => !existingKeys.has(key));
+    
+    if (missingModules.length > 0) {
+      const batch = db.batch();
+      
+      for (const moduleKey of missingModules) {
+        const entitlementRef = entitlementsRef.doc();
+        batch.set(entitlementRef, {
+          key: moduleKey,
+          value: true,
+          grantedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      
+      await batch.commit();
+      console.log(`✅ Dev-Tenant: ${missingModules.length} fehlende Module aktiviert: ${missingModules.join(', ')}`);
+    }
+  }
 
   return DEV_TENANT_ID;
 }

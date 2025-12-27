@@ -12,7 +12,11 @@
   flex-direction: column;
   gap: var(--spacing-xl);
   max-width: 1200px;
+  width: 100%;
   animation: fadeIn 0.3s ease-out;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
 @keyframes fadeIn {
@@ -26,6 +30,8 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--spacing-lg);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .pageTitle {
@@ -36,6 +42,14 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 0;
+}
+
+.pageTitleText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pageIcon {
@@ -54,9 +68,13 @@
   box-shadow: var(--shadow-md);
   padding: var(--spacing-xs);
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  width: 100%;
+  box-sizing: border-box;
+  position: relative;
 }
 
 .tabs::-webkit-scrollbar {
@@ -81,6 +99,7 @@
   font-weight: var(--font-weight-medium);
   min-height: 44px; /* WCAG Touch Target */
   min-width: 44px;
+  box-sizing: border-box;
 }
 
 .tabActive {
@@ -101,14 +120,25 @@
 
 .tabIcon {
   font-size: var(--font-size-base);
+  flex-shrink: 0;
+}
+
+.tabText {
+  flex-shrink: 0;
 }
 
 .content {
   min-height: 400px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .content [role="tabpanel"] {
   outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .content [role="tabpanel"]:focus {
@@ -119,11 +149,14 @@
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: var(--spacing-xl);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 900px) {
   .trackingContent {
     grid-template-columns: 1fr;
+    gap: var(--spacing-md);
   }
 }
 
@@ -300,6 +333,8 @@
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-md);
   overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .entriesHeader {
@@ -399,6 +434,18 @@
 .entryRow.entryRunning {
   background: linear-gradient(90deg, rgba(39, 174, 96, 0.08) 0%, rgba(39, 174, 96, 0.02) 100%);
   border-left: 3px solid var(--color-green);
+}
+
+.entryRow.entryBreak {
+  background: linear-gradient(90deg, rgba(241, 196, 15, 0.08) 0%, rgba(241, 196, 15, 0.02) 100%);
+  border-left: 3px solid rgba(241, 196, 15, 0.6);
+}
+
+.entryTypeIcon {
+  font-size: var(--font-size-lg);
+  min-width: 32px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .entryTimes {
@@ -681,6 +728,16 @@
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
   transition: all var(--transition-duration) var(--transition-timing);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.buttonIcon {
+  flex-shrink: 0;
+}
+
+.buttonText {
+  flex-shrink: 0;
 }
 
 .button:focus-visible {
@@ -817,33 +874,170 @@
 }
 
 /* =============================================================================
-   Responsive
+   Responsive - Mobile First
    ============================================================================= */
 
+/* Mobile Optimierungen */
 @media (max-width: 768px) {
   .page {
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm);
+    gap: var(--spacing-md);
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   .header {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    width: 100%;
+    box-sizing: border-box;
+    flex-wrap: nowrap;
   }
 
+  .pageTitle {
+    font-size: var(--font-size-lg);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .pageIcon {
+    font-size: var(--font-size-xl);
+    flex-shrink: 0;
+  }
+
+  .header .button {
+    flex-shrink: 0;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+  }
+
+  .buttonText {
+    display: none; /* Nur Icon auf Mobile */
+  }
+
+  .buttonIcon {
+    margin: 0;
+  }
+
+  /* Tabs - Mobile optimiert mit Scroll */
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: var(--spacing-xs);
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    box-sizing: border-box;
+    /* Sichtbarer Scroll-Indikator auf Mobile */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: block;
+    height: 4px;
+  }
+
+  .tabs::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .tabs::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 2px;
+  }
+
+  .tab,
+  .tabActive {
+    padding: var(--spacing-sm) var(--spacing-md);
+    min-height: 48px; /* Größere Touch-Targets */
+    font-size: var(--font-size-sm);
+    flex-shrink: 0;
+  }
+
+  /* Auf sehr kleinen Screens nur Icons zeigen */
+  .tabText {
+    display: none;
+  }
+
+  .tabIcon {
+    font-size: var(--font-size-lg);
+    margin: 0;
+  }
+
+  /* Auf größeren Mobile-Screens Icons + Text */
+  @media (min-width: 480px) {
+    .tabText {
+      display: inline;
+    }
+  }
+
+  /* Clock Card - Mobile optimiert */
   .clockCard {
     position: static;
+    padding: var(--spacing-lg);
   }
 
   .clockTime {
-    font-size: 40px;
+    font-size: 48px; /* Größer auf Mobile */
+  }
+
+  .clockButton {
+    width: 100%;
+    max-width: 100%;
+    padding: var(--spacing-xl) var(--spacing-2xl);
+    min-height: 60px; /* Sehr große Touch-Targets für Hauptaktion */
+    font-size: var(--font-size-xl);
   }
 
   .todayStats {
-    gap: var(--spacing-xl);
+    gap: var(--spacing-lg);
+    flex-wrap: wrap;
+  }
+
+  .stat {
+    min-width: calc(50% - var(--spacing-md));
+  }
+
+  /* Entries - Mobile optimiert */
+  .entriesCard {
+    border-radius: var(--radius-lg);
+  }
+
+  .entriesHeader {
+    padding: var(--spacing-md);
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .refreshButton {
+    min-height: 44px;
+    padding: var(--spacing-sm) var(--spacing-lg);
   }
 
   .entryRow {
     flex-wrap: wrap;
+    padding: var(--spacing-md);
+    gap: var(--spacing-sm);
+  }
+
+  .entryTypeIcon {
+    min-width: 40px;
+    font-size: var(--font-size-xl);
+  }
+
+  .entryTimes {
+    min-width: auto;
+    flex: 1 1 auto;
   }
 
   .entryActions {
@@ -851,26 +1045,156 @@
     width: 100%;
     justify-content: flex-end;
     margin-top: var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+
+  .iconButton {
+    min-width: 48px;
+    min-height: 48px;
+    font-size: var(--font-size-lg);
   }
 
   .entryNote {
     width: 100%;
     margin-top: var(--spacing-xs);
   }
+
+  /* Modal - Mobile optimiert */
+  .modalOverlay {
+    padding: var(--spacing-md);
+    align-items: flex-end; /* Bottom sheet auf Mobile */
+  }
+
+  .modal {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: var(--spacing-xl);
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+    gap: var(--spacing-md);
+  }
+
+  .formInput,
+  .formTextarea,
+  .formInput select {
+    min-height: 48px;
+    font-size: var(--font-size-base);
+    padding: var(--spacing-md);
+  }
+
+  .button {
+    min-height: 48px;
+    padding: var(--spacing-md) var(--spacing-xl);
+    font-size: var(--font-size-base);
+  }
+
+  .modalActions {
+    flex-direction: column-reverse;
+    gap: var(--spacing-md);
+  }
+
+  .modalActions .button {
+    width: 100%;
+  }
 }
 
+/* Sehr kleine Screens */
 @media (max-width: 500px) {
-  .entryTimes {
-    min-width: auto;
-    flex-wrap: wrap;
+  .page {
+    padding: var(--spacing-xs);
+    gap: var(--spacing-sm);
+  }
+
+  .header {
+    padding: var(--spacing-xs);
+    gap: var(--spacing-xs);
+  }
+
+  .pageTitle {
+    font-size: var(--font-size-base);
+  }
+
+  .pageIcon {
+    font-size: var(--font-size-lg);
+  }
+
+  .header .button {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .buttonText {
+    display: none; /* Nur Icon auf sehr kleinen Screens */
+  }
+
+  .tabs {
+    padding: 4px;
+    border-radius: var(--radius-lg);
+  }
+
+  .tab,
+  .tabActive {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    min-height: 44px;
+    min-width: 44px;
+    font-size: var(--font-size-xs);
+  }
+
+  .tabIcon {
+    font-size: var(--font-size-base);
+  }
+
+  .clockTime {
+    font-size: 36px;
+  }
+
+  .clockButton {
+    min-height: 56px;
+    font-size: var(--font-size-lg);
+    padding: var(--spacing-lg);
+  }
+
+  .entryGroupHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm);
   }
 
   .deleteEntryPreview {
     flex-direction: column;
     align-items: flex-start;
+    gap: var(--spacing-sm);
   }
 
   .deleteEntryDuration {
     margin-left: 0;
+  }
+}
+
+/* Touch-optimierte Interaktionen */
+@media (hover: none) and (pointer: coarse) {
+  /* Größere Touch-Targets für Touch-Geräte */
+  .iconButton {
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  .button {
+    min-height: 48px;
+  }
+
+  /* Entferne Hover-Effekte, die auf Touch-Geräten stören */
+  .entryRow:hover {
+    background-color: transparent;
+  }
+
+  .entryRow:active {
+    background-color: var(--color-bg-secondary);
   }
 }

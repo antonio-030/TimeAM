@@ -111,9 +111,28 @@ export function TimeAccountSection({ year, month }: TimeAccountSectionProps) {
   const balance = formatBalance(account.balanceHours);
   const monthName = getMonthName(month);
 
+  // Berechne Durchschnittswerte für Statistiken
+  const avgWeeklyHours = account.actualHours / 4.33; // Durchschnittliche Wochen pro Monat
+  const avgDailyHours = account.actualHours / 30; // Durchschnittliche Tage pro Monat
+  const completionPercentage = account.targetHours > 0
+    ? Math.min(100, (account.actualHours / account.targetHours) * 100)
+    : 0;
+
   return (
     <section className={styles.section} aria-label={`Zeitkonto ${monthName} ${year}`}>
       <h2 className={styles.title}>Zeitkonto</h2>
+      
+      {/* Info-Banner */}
+      <div className={styles.infoBanner} role="region" aria-label="Zeitkonto-Informationen">
+        <div className={styles.infoIcon} aria-hidden="true">ℹ️</div>
+        <div className={styles.infoContent}>
+          <p className={styles.infoText}>
+            Das Zeitkonto zeigt Ihre Arbeitszeit im Vergleich zu den Zielstunden. 
+            Plusstunden entstehen, wenn Sie mehr gearbeitet haben als geplant, 
+            Minusstunden, wenn Sie weniger gearbeitet haben.
+          </p>
+        </div>
+      </div>
 
       {/* Übersicht */}
       <div className={styles.overview}>
@@ -126,46 +145,100 @@ export function TimeAccountSection({ year, month }: TimeAccountSectionProps) {
           </div>
 
           <div className={styles.stats}>
-            <div className={styles.stat}>
-              <span className={styles.statLabel}>Zielstunden</span>
-              <span className={styles.statValue} aria-label={`${account.targetHours} Stunden`}>
+            <div className={styles.statCard}>
+              <div className={styles.statHeader}>
+                <span className={styles.statIcon} aria-hidden="true">🎯</span>
+                <span className={styles.statLabel} id="target-hours-label">
+                  Zielstunden
+                </span>
+                <button
+                  className={styles.statTooltipButton}
+                  aria-label="Ihre monatlichen Zielstunden basierend auf Ihrem Arbeitsvertrag"
+                  title="Ihre monatlichen Zielstunden basierend auf Ihrem Arbeitsvertrag"
+                >
+                  ℹ️
+                </button>
+              </div>
+              <span className={styles.statValue} aria-label={`${account.targetHours} Stunden`} aria-describedby="target-hours-label">
                 {formatHours(account.targetHours)}
               </span>
             </div>
 
-            <div className={styles.stat}>
-              <span className={styles.statLabel}>Ist-Stunden (Zeiterfassung)</span>
+            <div className={styles.statCard}>
+              <div className={styles.statHeader}>
+                <span className={styles.statIcon} aria-hidden="true">⏱️</span>
+                <span className={styles.statLabel} id="time-tracking-hours-label">
+                  Zeiterfassung
+                </span>
+                <button
+                  className={styles.statTooltipButton}
+                  aria-label="Stunden aus der manuellen Zeiterfassung"
+                  title="Stunden aus der manuellen Zeiterfassung"
+                >
+                  ℹ️
+                </button>
+              </div>
               <span
                 className={styles.statValue}
                 aria-label={`${account.timeTrackingHours} Stunden aus Zeiterfassung`}
+                aria-describedby="time-tracking-hours-label"
               >
                 {formatHours(account.timeTrackingHours)}
               </span>
             </div>
 
-            <div className={styles.stat}>
-              <span className={styles.statLabel}>Ist-Stunden (Schichten)</span>
+            <div className={styles.statCard}>
+              <div className={styles.statHeader}>
+                <span className={styles.statIcon} aria-hidden="true">📅</span>
+                <span className={styles.statLabel} id="shift-hours-label">
+                  Schichten
+                </span>
+                <button
+                  className={styles.statTooltipButton}
+                  aria-label="Stunden aus zugewiesenen Schichten"
+                  title="Stunden aus zugewiesenen Schichten"
+                >
+                  ℹ️
+                </button>
+              </div>
               <span
                 className={styles.statValue}
                 aria-label={`${account.shiftHours} Stunden aus Schichten`}
+                aria-describedby="shift-hours-label"
               >
                 {formatHours(account.shiftHours)}
               </span>
             </div>
 
-            <div className={styles.stat}>
-              <span className={styles.statLabel}>Gesamt Ist-Stunden</span>
+            <div className={`${styles.statCard} ${styles.statCardHighlight}`}>
+              <div className={styles.statHeader}>
+                <span className={styles.statIcon} aria-hidden="true">📊</span>
+                <span className={styles.statLabel} id="actual-hours-label">
+                  Gesamt
+                </span>
+                <button
+                  className={styles.statTooltipButton}
+                  aria-label="Summe aus Zeiterfassung und Schichten"
+                  title="Summe aus Zeiterfassung und Schichten"
+                >
+                  ℹ️
+                </button>
+              </div>
               <span
                 className={styles.statValue}
                 aria-label={`${account.actualHours} Stunden insgesamt`}
+                aria-describedby="actual-hours-label"
               >
                 {formatHours(account.actualHours)}
               </span>
             </div>
           </div>
 
-          <div className={styles.balanceContainer}>
-            <span className={styles.balanceLabel}>Saldo</span>
+          <div className={styles.balanceCard}>
+            <div className={styles.balanceHeader}>
+              <span className={styles.balanceLabel}>Saldo</span>
+              <span className={styles.balanceSubtitle}>Aktueller Stand</span>
+            </div>
             <div
               className={`${styles.balance} ${balance.className}`}
               role="status"
@@ -175,10 +248,47 @@ export function TimeAccountSection({ year, month }: TimeAccountSectionProps) {
               {balance.text}
             </div>
           </div>
+
+          {/* Zusätzliche Statistiken */}
+          <div className={styles.additionalStats}>
+            <div className={styles.additionalStatCard}>
+              <div className={styles.additionalStatIcon} aria-hidden="true">⏱️</div>
+              <div className={styles.additionalStatContent}>
+                <span className={styles.additionalStatLabel} title="Durchschnittliche Wochenstunden">
+                  Ø Wochenstunden
+                </span>
+                <span className={styles.additionalStatValue}>
+                  {formatHours(avgWeeklyHours)}
+                </span>
+              </div>
+            </div>
+            <div className={styles.additionalStatCard}>
+              <div className={styles.additionalStatIcon} aria-hidden="true">📅</div>
+              <div className={styles.additionalStatContent}>
+                <span className={styles.additionalStatLabel} title="Durchschnittliche Tagesstunden">
+                  Ø Tagesstunden
+                </span>
+                <span className={styles.additionalStatValue}>
+                  {formatHours(avgDailyHours)}
+                </span>
+              </div>
+            </div>
+            <div className={styles.additionalStatCard}>
+              <div className={styles.additionalStatIcon} aria-hidden="true">📊</div>
+              <div className={styles.additionalStatContent}>
+                <span className={styles.additionalStatLabel} title="Erfüllungsgrad der Zielstunden">
+                  Erfüllung
+                </span>
+                <span className={styles.additionalStatValue}>
+                  {Math.round(completionPercentage)}%
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Historie */}
+      {/* Historie mit Diagramm */}
       <div className={styles.history}>
         <div className={styles.historyHeader}>
           <h3 className={styles.historyTitle}>Historie</h3>
@@ -197,36 +307,103 @@ export function TimeAccountSection({ year, month }: TimeAccountSectionProps) {
         ) : history.length === 0 ? (
           <p>Keine Historie verfügbar.</p>
         ) : (
-          <table className={styles.historyTable} aria-label="Zeitkonto-Historie der letzten 6 Monate">
-            <thead>
-              <tr>
-                <th scope="col">Monat</th>
-                <th scope="col">Zielstunden</th>
-                <th scope="col">Zeiterfassung</th>
-                <th scope="col">Schichten</th>
-                <th scope="col">Gesamt</th>
-                <th scope="col">Saldo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((acc) => {
-                const histBalance = formatBalance(acc.balanceHours);
-                const histMonthName = getMonthName(acc.month);
-                return (
-                  <tr key={`${acc.year}-${acc.month}`}>
-                    <th scope="row">{`${histMonthName} ${acc.year}`}</th>
-                    <td>{formatHours(acc.targetHours)}</td>
-                    <td>{formatHours(acc.timeTrackingHours)}</td>
-                    <td>{formatHours(acc.shiftHours)}</td>
-                    <td>{formatHours(acc.actualHours)}</td>
-                    <td>
-                      <span className={histBalance.className}>{histBalance.text}</span>
-                    </td>
+          <>
+            {/* Balkendiagramm */}
+            <div className={styles.chartContainer} role="img" aria-label="Zeitkonto-Verlauf der letzten 6 Monate">
+              <svg
+                className={styles.chart}
+                viewBox={`0 0 ${Math.max(400, history.length * 80)} 200`}
+                preserveAspectRatio="xMidYMid meet"
+              >
+                {/* Y-Achse Labels */}
+                <text x="30" y="20" className={styles.chartLabel} textAnchor="middle">
+                  {Math.max(...history.map((h) => h.actualHours), account.actualHours, account.targetHours).toFixed(0)}h
+                </text>
+                <text x="30" y="100" className={styles.chartLabel} textAnchor="middle">
+                  {Math.max(...history.map((h) => h.actualHours), account.actualHours, account.targetHours) / 2}h
+                </text>
+                <text x="30" y="180" className={styles.chartLabel} textAnchor="middle">0h</text>
+                
+                {/* Balken */}
+                {history.map((acc, index) => {
+                  const maxValue = Math.max(...history.map((h) => h.actualHours), account.actualHours, account.targetHours);
+                  const barHeight = (acc.actualHours / maxValue) * 150;
+                  const targetHeight = (acc.targetHours / maxValue) * 150;
+                  const x = 60 + index * 80;
+                  const y = 180 - barHeight;
+                  const targetY = 180 - targetHeight;
+                  
+                  return (
+                    <g key={`${acc.year}-${acc.month}`}>
+                      {/* Zielstunden (gestrichelt) */}
+                      <rect
+                        x={x - 15}
+                        y={targetY}
+                        width="30"
+                        height={targetHeight}
+                        fill="rgba(52, 152, 219, 0.3)"
+                        stroke="var(--color-blue)"
+                        strokeWidth="2"
+                        strokeDasharray="4 4"
+                        aria-label={`Zielstunden ${getMonthName(acc.month)} ${acc.year}: ${formatHours(acc.targetHours)}`}
+                      />
+                      {/* Ist-Stunden */}
+                      <rect
+                        x={x - 15}
+                        y={y}
+                        width="30"
+                        height={barHeight}
+                        fill={acc.actualHours >= acc.targetHours ? "var(--color-green)" : "var(--color-red)"}
+                        aria-label={`Ist-Stunden ${getMonthName(acc.month)} ${acc.year}: ${formatHours(acc.actualHours)}`}
+                      />
+                      {/* Monatslabel */}
+                      <text
+                        x={x}
+                        y="195"
+                        className={styles.chartMonthLabel}
+                        textAnchor="middle"
+                      >
+                        {getMonthName(acc.month).slice(0, 3)}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+
+            <div className={styles.tableWrapper}>
+              <table className={styles.historyTable} aria-label="Zeitkonto-Historie der letzten 6 Monate">
+                <thead>
+                  <tr>
+                    <th scope="col">Monat</th>
+                    <th scope="col">Zielstunden</th>
+                    <th scope="col">Zeiterfassung</th>
+                    <th scope="col">Schichten</th>
+                    <th scope="col">Gesamt</th>
+                    <th scope="col">Saldo</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {history.map((acc) => {
+                    const histBalance = formatBalance(acc.balanceHours);
+                    const histMonthName = getMonthName(acc.month);
+                    return (
+                      <tr key={`${acc.year}-${acc.month}`}>
+                        <td data-label="Monat">{`${histMonthName} ${acc.year}`}</td>
+                        <td data-label="Zielstunden">{formatHours(acc.targetHours)}</td>
+                        <td data-label="Zeiterfassung">{formatHours(acc.timeTrackingHours)}</td>
+                        <td data-label="Schichten">{formatHours(acc.shiftHours)}</td>
+                        <td data-label="Gesamt">{formatHours(acc.actualHours)}</td>
+                        <td data-label="Saldo">
+                          <span className={histBalance.className}>{histBalance.text}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

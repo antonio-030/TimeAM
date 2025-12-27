@@ -33,11 +33,6 @@ router.get(
     const authReq = req as AuthenticatedRequest;
     const superAdminStatus = isSuperAdmin(authReq.user.uid);
     
-    // Debug: Log Super-Admin-Status (ohne sensible Daten)
-    if (superAdminStatus) {
-      console.log('✅ Super Admin check: true');
-    }
-    
     res.json({
       isSuperAdmin: superAdminStatus,
       uid: authReq.user.uid,

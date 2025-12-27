@@ -27,6 +27,7 @@ export const ENTITLEMENT_KEYS = {
   MODULE_DEV_API_TESTING: 'module.dev_api_testing',
   MODULE_DEV_DATABASE: 'module.dev_database',
   MODULE_SECURITY_AUDIT: 'module.security_audit',
+  MODULE_STRIPE: 'module.stripe',
 
   // Firmen-spezifische Module
   MODULE_COMPANY_BRANDING: 'module.company_branding',

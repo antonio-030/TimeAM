@@ -164,6 +164,16 @@ export const MODULE_REGISTRY: Record<string, ModuleDefinition> = {
   // DEV-SPEZIFISCHE MODULE - Nur für Dev-Tenant
   // ===========================================================================
 
+  'stripe': {
+    id: 'stripe',
+    displayName: 'Stripe Verwaltung',
+    description: 'Verwaltung von Modulen, Preisen und Abonnements',
+    icon: '💳',
+    category: MODULE_CATEGORY.OPTIONAL,
+    entitlementKey: 'module.stripe',
+    targetTenantType: MODULE_TARGET_TENANT.DEV,
+  },
+
   'dev-analytics': {
     id: 'dev-analytics',
     displayName: 'Dev Analytics',

@@ -8,6 +8,7 @@ import { getAdminFirestore } from '../../core/firebase/index.js';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import {
   TIME_ENTRY_STATUS,
+  TIME_ENTRY_TYPE,
   type TimeEntryDoc,
   type TimeEntryResponse,
   type CreateTimeEntryRequest,
@@ -26,6 +27,7 @@ function toResponse(id: string, doc: TimeEntryDoc): TimeEntryResponse {
     clockOut: doc.clockOut?.toDate().toISOString() ?? null,
     status: doc.status,
     durationMinutes: doc.durationMinutes,
+    entryType: doc.entryType || TIME_ENTRY_TYPE.WORK, // Standard: 'work'
     note: doc.note,
   };
 }
@@ -88,6 +90,7 @@ export async function clockIn(
     clockOut: null,
     status: TIME_ENTRY_STATUS.RUNNING,
     durationMinutes: null,
+    entryType: TIME_ENTRY_TYPE.WORK, // Clock-In ist immer Arbeitszeit
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };
@@ -391,6 +394,7 @@ export async function createTimeEntry(
     clockOut: Timestamp.fromDate(clockOut),
     status: TIME_ENTRY_STATUS.COMPLETED,
     durationMinutes,
+    entryType: data.entryType || TIME_ENTRY_TYPE.WORK, // Standard: 'work'
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   };
@@ -540,6 +544,10 @@ export async function updateTimeEntry(
   );
   updateData.durationMinutes = durationMinutes;
 
+  if (data.entryType !== undefined) {
+    updateData.entryType = data.entryType;
+  }
+
   if (data.note !== undefined) {
     updateData.note = data.note?.trim() || FieldValue.delete();
   }
@@ -631,4 +639,305 @@ export async function getTimeEntryById(
   }
 
   return toResponse(entryId, entryData);
+}
+
+/**
+ * Berechnet einen Pausen-Vorschlag basierend auf ArbZG.
+ * 
+ * Regeln:
+ * - > 6 Stunden: 30 Minuten Pause erforderlich
+ * - > 9 Stunden: 45 Minuten Pause erforderlich
+ * 
+ * @param tenantId Tenant ID
+ * @param uid User ID
+ * @param date Datum für das die Pause berechnet werden soll (Standard: heute)
+ * @returns Pausen-Vorschlag in Minuten oder null wenn keine Pause erforderlich
+ */
+export async function calculateBreakSuggestion(
+  tenantId: string,
+  uid: string,
+  date?: Date
+): Promise<{ requiredMinutes: number; reason: string } | null> {
+  const db = getAdminFirestore();
+  const targetDate = date || new Date();
+  
+  // Tag-Beginn und -Ende berechnen
+  const dayStart = new Date(targetDate);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(targetDate);
+  dayEnd.setHours(23, 59, 59, 999);
+
+  // Alle TimeEntries des Tages laden
+  const snapshot = await db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('timeEntries')
+    .where('uid', '==', uid)
+    .get();
+
+  // Client-seitig filtern nach Datum und nur abgeschlossene Einträge
+  const dayEntries = snapshot.docs
+    .map((doc) => ({
+      id: doc.id,
+      data: doc.data() as TimeEntryDoc,
+    }))
+    .filter((entry) => {
+      const clockIn = entry.data.clockIn.toDate();
+      return clockIn >= dayStart && clockIn <= dayEnd;
+    })
+    .filter((entry) => entry.data.status === TIME_ENTRY_STATUS.COMPLETED);
+
+  // Arbeitszeit berechnen (nur work-Einträge, keine Pausen)
+  let totalWorkMinutes = 0;
+  let totalBreakMinutes = 0;
+
+  for (const entry of dayEntries) {
+    const entryType = entry.data.entryType || TIME_ENTRY_TYPE.WORK;
+    const duration = entry.data.durationMinutes || 0;
+
+    if (entryType === TIME_ENTRY_TYPE.BREAK) {
+      totalBreakMinutes += duration;
+    } else {
+      totalWorkMinutes += duration;
+    }
+  }
+
+  const totalWorkHours = totalWorkMinutes / 60;
+
+  // Prüfe ArbZG-Regeln
+  // > 9 Stunden: 45 Minuten Pause erforderlich
+  if (totalWorkHours >= 9) {
+    const requiredMinutes = 45;
+    if (totalBreakMinutes < requiredMinutes) {
+      return {
+        requiredMinutes: requiredMinutes - totalBreakMinutes,
+        reason: `Bei mehr als 9 Stunden Arbeitszeit sind mindestens 45 Minuten Pause erforderlich (ArbZG). Bereits erfasst: ${totalBreakMinutes} Minuten.`,
+      };
+    }
+  }
+  // > 6 Stunden: 30 Minuten Pause erforderlich
+  else if (totalWorkHours >= 6) {
+    const requiredMinutes = 30;
+    if (totalBreakMinutes < requiredMinutes) {
+      return {
+        requiredMinutes: requiredMinutes - totalBreakMinutes,
+        reason: `Bei mehr als 6 Stunden Arbeitszeit sind mindestens 30 Minuten Pause erforderlich (ArbZG). Bereits erfasst: ${totalBreakMinutes} Minuten.`,
+      };
+    }
+  }
+
+  // Keine Pause erforderlich
+  return null;
+}
+
+// =============================================================================
+// Admin Functions
+// =============================================================================
+
+/**
+ * Lädt TimeEntries für einen bestimmten User (Admin/Manager).
+ */
+export async function getTimeEntriesForUser(
+  tenantId: string,
+  userId: string,
+  options: {
+    limit?: number;
+    startDate?: Date;
+    endDate?: Date;
+  } = {}
+): Promise<TimeEntryResponse[]> {
+  const db = getAdminFirestore();
+  const { limit = 50, startDate, endDate } = options;
+
+  // Einfache Query ohne orderBy (kein Composite Index nötig)
+  const snapshot = await db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('timeEntries')
+    .where('uid', '==', userId)
+    .get();
+
+  // Client-seitig filtern und sortieren
+  let entries = snapshot.docs
+    .map((doc) => ({
+      id: doc.id,
+      data: doc.data() as TimeEntryDoc,
+    }))
+    .filter((entry) => {
+      const clockIn = entry.data.clockIn.toDate();
+      if (startDate && clockIn < startDate) return false;
+      if (endDate && clockIn > endDate) return false;
+      return true;
+    })
+    // Nach clockIn DESC sortieren
+    .sort((a, b) => b.data.clockIn.toMillis() - a.data.clockIn.toMillis())
+    // Limit anwenden
+    .slice(0, limit);
+
+  return entries.map((entry) => toResponse(entry.id, entry.data));
+}
+
+/**
+ * Lädt einen TimeEntry für Admin (auch fremde Einträge).
+ */
+export async function getTimeEntryByIdForAdmin(
+  tenantId: string,
+  entryId: string
+): Promise<TimeEntryResponse | null> {
+  const db = getAdminFirestore();
+
+  const entryRef = db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('timeEntries')
+    .doc(entryId);
+
+  const entrySnap = await entryRef.get();
+
+  if (!entrySnap.exists) {
+    return null;
+  }
+
+  const entryData = entrySnap.data() as TimeEntryDoc;
+  return toResponse(entryId, entryData);
+}
+
+/**
+ * Erstellt einen TimeEntry für einen User (Admin/Manager).
+ */
+export async function createTimeEntryForAdmin(
+  tenantId: string,
+  userId: string,
+  email: string,
+  data: CreateTimeEntryRequest
+): Promise<TimeEntryResponse> {
+  // Verwende die normale createTimeEntry Funktion, aber mit userId
+  return createTimeEntry(tenantId, userId, email, data);
+}
+
+/**
+ * Aktualisiert einen TimeEntry für Admin (auch fremde Einträge).
+ */
+export async function updateTimeEntryForAdmin(
+  tenantId: string,
+  entryId: string,
+  data: UpdateTimeEntryRequest
+): Promise<TimeEntryResponse> {
+  const db = getAdminFirestore();
+
+  const entryRef = db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('timeEntries')
+    .doc(entryId);
+
+  const entrySnap = await entryRef.get();
+
+  if (!entrySnap.exists) {
+    throw new Error('Eintrag nicht gefunden');
+  }
+
+  const entryData = entrySnap.data() as TimeEntryDoc;
+  const userId = entryData.uid;
+
+  // Laufende Einträge können nicht bearbeitet werden
+  if (entryData.status === TIME_ENTRY_STATUS.RUNNING) {
+    throw new Error('Laufende Einträge können nicht bearbeitet werden');
+  }
+
+  // Update-Daten zusammenstellen
+  const updateData: Record<string, unknown> = {
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  let newClockIn = entryData.clockIn.toDate();
+  let newClockOut = entryData.clockOut?.toDate() || new Date();
+
+  if (data.clockIn !== undefined) {
+    const parsed = new Date(data.clockIn);
+    if (isNaN(parsed.getTime())) {
+      throw new Error('Ungültige Startzeit');
+    }
+    newClockIn = parsed;
+    updateData.clockIn = Timestamp.fromDate(parsed);
+  }
+
+  if (data.clockOut !== undefined) {
+    const parsed = new Date(data.clockOut);
+    if (isNaN(parsed.getTime())) {
+      throw new Error('Ungültige Endzeit');
+    }
+    newClockOut = parsed;
+    updateData.clockOut = Timestamp.fromDate(parsed);
+  }
+
+  // Validierung
+  if (newClockIn >= newClockOut) {
+    throw new Error('Startzeit muss vor Endzeit liegen');
+  }
+
+  // Dauer neu berechnen
+  const durationMinutes = Math.round(
+    (newClockOut.getTime() - newClockIn.getTime()) / (1000 * 60)
+  );
+  updateData.durationMinutes = durationMinutes;
+
+  if (data.entryType !== undefined) {
+    updateData.entryType = data.entryType;
+  }
+
+  if (data.note !== undefined) {
+    updateData.note = data.note?.trim() || FieldValue.delete();
+  }
+
+  await entryRef.update(updateData);
+
+  const savedDoc = await entryRef.get();
+  const response = toResponse(entryId, savedDoc.data() as TimeEntryDoc);
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterTimeEntry(tenantId, userId, newClockOut).catch((error) => {
+    console.error('Error in time account update after admin update entry:', error);
+  });
+
+  return response;
+}
+
+/**
+ * Löscht einen TimeEntry für Admin (auch fremde Einträge).
+ */
+export async function deleteTimeEntryForAdmin(
+  tenantId: string,
+  entryId: string
+): Promise<void> {
+  const db = getAdminFirestore();
+
+  const entryRef = db
+    .collection('tenants')
+    .doc(tenantId)
+    .collection('timeEntries')
+    .doc(entryId);
+
+  const entrySnap = await entryRef.get();
+
+  if (!entrySnap.exists) {
+    throw new Error('Eintrag nicht gefunden');
+  }
+
+  const entryData = entrySnap.data() as TimeEntryDoc;
+  const userId = entryData.uid;
+
+  // Laufende Einträge können nicht gelöscht werden
+  if (entryData.status === TIME_ENTRY_STATUS.RUNNING) {
+    throw new Error('Laufende Einträge können nicht gelöscht werden. Bitte zuerst ausstempeln.');
+  }
+
+  const clockOutTime = entryData.clockOut?.toDate() || new Date();
+
+  await entryRef.delete();
+
+  // Zeitkonto aktualisieren (asynchron, nicht blockierend)
+  updateTimeAccountAfterTimeEntry(tenantId, userId, clockOutTime).catch((error) => {
+    console.error('Error in time account update after admin delete entry:', error);
+  });
 }

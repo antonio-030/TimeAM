@@ -158,6 +158,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     try {
       const currentUser = getFirebaseAuth().currentUser;
+      
+      // User-State sofort auf null setzen (onAuthStateChanged könnte verzögert sein)
+      // Dies verhindert, dass die App kurz noch den eingeloggten Bereich rendert
+      setUser(null);
+      
       await firebaseSignOut();
       
       // Logout loggen
@@ -171,6 +176,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (err) {
       const message = getAuthErrorMessage(err);
       setError(message);
+      // Bei Fehler User-State trotzdem auf null setzen, damit die App nicht hängen bleibt
+      setUser(null);
       throw new Error(message);
     }
   }, []);

@@ -15,6 +15,16 @@ export const TIME_ENTRY_STATUS = {
 export type TimeEntryStatus = (typeof TIME_ENTRY_STATUS)[keyof typeof TIME_ENTRY_STATUS];
 
 /**
+ * Typ eines TimeEntry (Arbeitszeit oder Pause).
+ */
+export const TIME_ENTRY_TYPE = {
+  WORK: 'work',
+  BREAK: 'break',
+} as const;
+
+export type TimeEntryType = (typeof TIME_ENTRY_TYPE)[keyof typeof TIME_ENTRY_TYPE];
+
+/**
  * TimeEntry Dokument in Firestore.
  * Pfad: /tenants/{tenantId}/timeEntries/{entryId}
  */
@@ -37,6 +47,9 @@ export interface TimeEntryDoc {
   /** Dauer in Minuten (berechnet bei clock-out) */
   durationMinutes: number | null;
   
+  /** Typ des Eintrags (Arbeitszeit oder Pause) */
+  entryType?: TimeEntryType; // Optional für Rückwärtskompatibilität, Standard: 'work'
+  
   /** Optionale Notiz */
   note?: string;
   
@@ -58,6 +71,7 @@ export interface TimeEntryResponse {
   clockOut: string | null;
   status: TimeEntryStatus;
   durationMinutes: number | null;
+  entryType?: TimeEntryType;
   note?: string;
 }
 
@@ -81,6 +95,7 @@ export interface ClockOutRequest {
 export interface CreateTimeEntryRequest {
   clockIn: string; // ISO string
   clockOut: string; // ISO string
+  entryType?: TimeEntryType; // Optional, Standard: 'work'
   note?: string;
 }
 
@@ -90,6 +105,7 @@ export interface CreateTimeEntryRequest {
 export interface UpdateTimeEntryRequest {
   clockIn?: string; // ISO string
   clockOut?: string; // ISO string
+  entryType?: TimeEntryType;
   note?: string;
 }
 
