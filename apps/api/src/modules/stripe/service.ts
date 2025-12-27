@@ -25,7 +25,7 @@ if (!stripeSecretKey) {
 }
 
 const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2025-12-15.clover',
 }) : null;
 
 const DEV_TENANT_ID = 'dev-tenant';
@@ -409,6 +409,7 @@ export async function createCheckoutSession(
   }
   
   // Erstelle Checkout Session
+  const interval: 'month' | 'year' = billingCycle === 'monthly' ? 'month' : 'year';
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: 'subscription',
@@ -423,7 +424,7 @@ export async function createCheckoutSession(
           },
           unit_amount: Math.round(planPricePerUser * 100), // In Cent
           recurring: {
-            interval: billingCycle === 'monthly' ? 'month' : 'year',
+            interval,
           },
         },
         quantity: userCount,
@@ -437,7 +438,7 @@ export async function createCheckoutSession(
           },
           unit_amount: Math.round((isYearly && addon.pricePerUserYearly ? addon.pricePerUserYearly : addon.pricePerUser) * 100),
           recurring: {
-            interval: billingCycle === 'monthly' ? 'month' : 'year',
+            interval,
           },
         },
         quantity: userCount,

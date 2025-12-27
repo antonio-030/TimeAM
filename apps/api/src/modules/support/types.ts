@@ -91,7 +91,8 @@ export interface RejectVerificationRequest {
  * Request: Dev-Mitarbeiter-Rechte aktualisieren.
  */
 export interface UpdateDevStaffPermissionsRequest {
-  permissions: string[];
+  permissions?: string[];
+  role?: DevStaffRole;
 }
 
 // =============================================================================

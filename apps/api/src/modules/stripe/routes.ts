@@ -4,7 +4,7 @@
  * API-Endpunkte für die Stripe-Integration (Preise, Abonnements).
  */
 
-import { Router, express } from 'express';
+import { Router } from 'express';
 import { requireAuth } from '../../core/auth/express-middleware.js';
 import { requireEntitlements } from '../../core/entitlements/middleware.js';
 import { ENTITLEMENT_KEYS } from '@timeam/shared';
@@ -45,7 +45,8 @@ const stripeGuard = [
  * GET /api/stripe/pricing/plans
  * Lädt alle Pricing Plans.
  */
-router.get('/pricing/plans', ...stripeGuard, async (req: TenantRequest, res) => {
+router.get('/pricing/plans', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const plans = await getPricingPlans();
     res.json({ plans });
@@ -60,7 +61,8 @@ router.get('/pricing/plans', ...stripeGuard, async (req: TenantRequest, res) => 
  * POST /api/stripe/pricing/plans
  * Erstellt oder aktualisiert einen Pricing Plan.
  */
-router.post('/pricing/plans', ...stripeGuard, async (req: TenantRequest, res) => {
+router.post('/pricing/plans', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const request = req.body as UpsertPricingPlanRequest;
     
@@ -86,7 +88,8 @@ router.post('/pricing/plans', ...stripeGuard, async (req: TenantRequest, res) =>
  * GET /api/stripe/pricing/addons
  * Lädt alle Pricing Addons.
  */
-router.get('/pricing/addons', ...stripeGuard, async (req: TenantRequest, res) => {
+router.get('/pricing/addons', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const addons = await getPricingAddons();
     res.json({ addons });
@@ -101,7 +104,8 @@ router.get('/pricing/addons', ...stripeGuard, async (req: TenantRequest, res) =>
  * POST /api/stripe/pricing/addons
  * Erstellt oder aktualisiert ein Pricing Addon.
  */
-router.post('/pricing/addons', ...stripeGuard, async (req: TenantRequest, res) => {
+router.post('/pricing/addons', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const request = req.body as UpsertPricingAddonRequest;
     
@@ -127,7 +131,8 @@ router.post('/pricing/addons', ...stripeGuard, async (req: TenantRequest, res) =
  * GET /api/stripe/subscriptions/:tenantId
  * Lädt alle Subscriptions für einen Tenant.
  */
-router.get('/subscriptions/:tenantId', ...stripeGuard, async (req: TenantRequest, res) => {
+router.get('/subscriptions/:tenantId', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const { tenantId } = req.params;
     
@@ -149,7 +154,8 @@ router.get('/subscriptions/:tenantId', ...stripeGuard, async (req: TenantRequest
  * POST /api/stripe/subscriptions
  * Erstellt eine neue Subscription.
  */
-router.post('/subscriptions', ...stripeGuard, async (req: TenantRequest, res) => {
+router.post('/subscriptions', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const request = req.body as CreateSubscriptionRequest;
     
@@ -171,7 +177,8 @@ router.post('/subscriptions', ...stripeGuard, async (req: TenantRequest, res) =>
  * PATCH /api/stripe/subscriptions/:tenantId/:subscriptionId
  * Aktualisiert eine Subscription.
  */
-router.patch('/subscriptions/:tenantId/:subscriptionId', ...stripeGuard, async (req: TenantRequest, res) => {
+router.patch('/subscriptions/:tenantId/:subscriptionId', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const { tenantId, subscriptionId } = req.params;
     const request = req.body as UpdateSubscriptionRequest;
@@ -194,7 +201,8 @@ router.patch('/subscriptions/:tenantId/:subscriptionId', ...stripeGuard, async (
  * POST /api/stripe/subscriptions/:tenantId/:subscriptionId/cancel
  * Kündigt eine Subscription.
  */
-router.post('/subscriptions/:tenantId/:subscriptionId/cancel', ...stripeGuard, async (req: TenantRequest, res) => {
+router.post('/subscriptions/:tenantId/:subscriptionId/cancel', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const { tenantId, subscriptionId } = req.params;
     
@@ -220,7 +228,8 @@ router.post('/subscriptions/:tenantId/:subscriptionId/cancel', ...stripeGuard, a
  * POST /api/stripe/checkout/create
  * Erstellt eine Stripe Checkout Session.
  */
-router.post('/checkout/create', ...stripeGuard, async (req: TenantRequest, res) => {
+router.post('/checkout/create', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
   try {
     const { tenantId, planId, addonIds, userCount, billingCycle, successUrl, cancelUrl } = req.body;
     
@@ -265,7 +274,7 @@ router.post('/webhooks', async (req, res) => {
   }
   
   const stripe = new Stripe(stripeSecretKey, {
-    apiVersion: '2024-11-20.acacia',
+    apiVersion: '2025-12-15.clover',
   });
   
   const sig = req.headers['stripe-signature'];
