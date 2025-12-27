@@ -4,10 +4,10 @@
  * Verwaltung von Modulen, Preisen und Abonnements für Dev-Tenant.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { usePricingPlans, usePricingAddons, useTenantSubscriptions } from './hooks';
 import { useAllTenants } from '../admin/hooks';
-import { getStripeConfig, updateStripeConfig, validateStripeConfig, type StripeConfig, upsertPricingPlan, deletePricingPlan, upsertPricingAddon, type PricingPlan, type PricingAddon, type UpsertPricingPlanRequest, type UpsertPricingAddonRequest, getModuleStatus, type ModuleStatusItem } from './api';
+import { getStripeConfig, updateStripeConfig, validateStripeConfig, type StripeConfig, upsertPricingPlan, deletePricingPlan, upsertPricingAddon, type PricingPlan, type PricingAddon, type UpsertPricingPlanRequest, type UpsertPricingAddonRequest, getModuleStatus, type ModuleStatusItem, getTenantSubscriptions, getTransactionLogs } from './api';
 import { MODULE_REGISTRY, MODULE_CATEGORY, getCoreModules } from '../../core/modules';
 import styles from './StripePage.module.css';
 
@@ -16,7 +16,16 @@ export function StripePage() {
   const { addons, loading: addonsLoading, refresh: refreshAddons } = usePricingAddons();
   const { tenants } = useAllTenants();
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
-  const { subscriptions, loading: subscriptionsLoading, refresh: refreshSubscriptions } = useTenantSubscriptions(selectedTenantId);
+  const { subscriptions, loading: subscriptionsLoading, error: subscriptionsError, refresh: refreshSubscriptions } = useTenantSubscriptions(selectedTenantId);
+  
+  // Filter: Nur Tenants mit Subscriptions anzeigen
+  const [filterTenantsWithSubscriptions, setFilterTenantsWithSubscriptions] = useState(false);
+  const [tenantsWithSubscriptions, setTenantsWithSubscriptions] = useState<Set<string>>(new Set());
+  const [loadingTenantsWithSubscriptions, setLoadingTenantsWithSubscriptions] = useState(false);
+  
+  // Transaction Logs
+  const [transactionLogs, setTransactionLogs] = useState<TransactionLog[]>([]);
+  const [transactionLogsLoading, setTransactionLogsLoading] = useState(false);
   
   // Stripe Config State
   const [config, setConfig] = useState<StripeConfig | null>(null);
@@ -49,6 +58,74 @@ export function StripePage() {
       }
     }
     loadConfig();
+  }, []);
+
+  // Lade Tenants mit Subscriptions, wenn Filter aktiviert ist
+  useEffect(() => {
+    if (!filterTenantsWithSubscriptions || tenants.length === 0) {
+      setTenantsWithSubscriptions(new Set());
+      return;
+    }
+
+    async function loadTenantsWithSubscriptions() {
+      setLoadingTenantsWithSubscriptions(true);
+      const tenantsWithSubs = new Set<string>();
+      
+      try {
+        // Lade für alle Tenants parallel die Subscriptions
+        const subscriptionPromises = tenants.map(async (tenant) => {
+          try {
+            const subs = await getTenantSubscriptions(tenant.id);
+            if (subs.length > 0) {
+              return tenant.id;
+            }
+            return null;
+          } catch (err) {
+            console.error(`Error loading subscriptions for tenant ${tenant.id}:`, err);
+            return null;
+          }
+        });
+
+        const results = await Promise.all(subscriptionPromises);
+        results.forEach((tenantId) => {
+          if (tenantId) {
+            tenantsWithSubs.add(tenantId);
+          }
+        });
+        
+        setTenantsWithSubscriptions(tenantsWithSubs);
+      } catch (err) {
+        console.error('Error loading tenants with subscriptions:', err);
+      } finally {
+        setLoadingTenantsWithSubscriptions(false);
+      }
+    }
+
+    loadTenantsWithSubscriptions();
+  }, [filterTenantsWithSubscriptions, tenants]);
+
+  // Gefilterte Tenants basierend auf Filter-Status
+  const filteredTenants = useMemo(() => {
+    if (!filterTenantsWithSubscriptions) {
+      return tenants;
+    }
+    return tenants.filter(tenant => tenantsWithSubscriptions.has(tenant.id));
+  }, [tenants, filterTenantsWithSubscriptions, tenantsWithSubscriptions]);
+
+  // Lade Transaktions-Logs
+  useEffect(() => {
+    async function loadTransactionLogs() {
+      setTransactionLogsLoading(true);
+      try {
+        const logs = await getTransactionLogs();
+        setTransactionLogs(logs);
+      } catch (err) {
+        console.error('Error loading transaction logs:', err);
+      } finally {
+        setTransactionLogsLoading(false);
+      }
+    }
+    loadTransactionLogs();
   }, []);
 
   const handleSaveConfig = async () => {
@@ -652,7 +729,21 @@ export function StripePage() {
 
         {/* Subscriptions */}
         <section className={styles.section}>
-          <h2 className={styles.sectionTitle}>Subscriptions</h2>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionTitle}>Subscriptions</h2>
+            <div className={styles.filterContainer}>
+              <label className={styles.filterLabel}>
+                <input
+                  type="checkbox"
+                  checked={filterTenantsWithSubscriptions}
+                  onChange={(e) => setFilterTenantsWithSubscriptions(e.target.checked)}
+                  disabled={loadingTenantsWithSubscriptions}
+                />
+                <span>Nur Tenants mit Abo anzeigen</span>
+                {loadingTenantsWithSubscriptions && <span className={styles.loadingText}> (Laden...)</span>}
+              </label>
+            </div>
+          </div>
           <div className={styles.tenantSelector}>
             <label>Tenant auswählen:</label>
             <select
@@ -660,34 +751,128 @@ export function StripePage() {
               onChange={(e) => setSelectedTenantId(e.target.value || null)}
             >
               <option value="">-- Bitte wählen --</option>
-              {tenants.map((tenant) => (
+              {filteredTenants.map((tenant) => (
                 <option key={tenant.id} value={tenant.id}>
                   {tenant.name} ({tenant.id})
+                  {filterTenantsWithSubscriptions && tenantsWithSubscriptions.has(tenant.id) && ' ✓'}
                 </option>
               ))}
             </select>
+            {filterTenantsWithSubscriptions && filteredTenants.length === 0 && !loadingTenantsWithSubscriptions && (
+              <p className={styles.infoText}>Keine Tenants mit Subscriptions gefunden.</p>
+            )}
           </div>
 
           {selectedTenantId && (
             <>
               {subscriptionsLoading ? (
                 <p>Laden...</p>
+              ) : subscriptionsError ? (
+                <div>
+                  <p className={styles.errorText}>Fehler beim Laden: {subscriptionsError}</p>
+                  <button onClick={() => refreshSubscriptions()} className={styles.button}>
+                    Erneut versuchen
+                  </button>
+                </div>
               ) : subscriptions.length === 0 ? (
-                <p>Keine Subscriptions für diesen Tenant gefunden.</p>
+                <div>
+                  <p>Keine Subscriptions für diesen Tenant gefunden.</p>
+                  <p className={styles.infoText}>
+                    Tenant ID: {selectedTenantId}
+                  </p>
+                </div>
               ) : (
                 <div className={styles.subscriptionsList}>
-                  {subscriptions.map((subscription) => (
-                    <div key={subscription.id} className={styles.subscriptionCard}>
-                      <h3>Plan: {subscription.planId}</h3>
-                      <p>Status: {subscription.status}</p>
-                      <p>Nutzer: {subscription.userCount}</p>
-                      <p>Billing: {subscription.billingCycle}</p>
-                      <p>Addons: {subscription.addonIds.join(', ') || 'Keine'}</p>
-                    </div>
-                  ))}
+                  {subscriptions.map((subscription) => {
+                    // Finde Plan-Name
+                    const plan = plans.find(p => p.id === subscription.planId);
+                    const planName = plan?.name || subscription.planId;
+                    
+                    // Finde Addon-Namen
+                    const addonNames = subscription.addonIds
+                      .map(addonId => {
+                        const addon = addons.find(a => a.id === addonId);
+                        return addon?.name || addonId;
+                      })
+                      .join(', ');
+
+                    return (
+                      <div key={subscription.id} className={styles.subscriptionCard}>
+                        <div className={styles.subscriptionHeader}>
+                          <h3>Plan: {planName}</h3>
+                          <span className={`${styles.statusBadge} ${styles[`status${subscription.status}`]}`}>
+                            {subscription.status}
+                          </span>
+                        </div>
+                        <div className={styles.subscriptionDetails}>
+                          <p><strong>Nutzer:</strong> {subscription.userCount}</p>
+                          <p><strong>Billing:</strong> {subscription.billingCycle === 'monthly' ? 'Monatlich' : 'Jährlich'}</p>
+                          {plan && plan.includedModules && plan.includedModules.length > 0 && (
+                            <p><strong>Module im Plan:</strong> {plan.includedModules.map(modId => MODULE_REGISTRY[modId]?.displayName || modId).join(', ')}</p>
+                          )}
+                          {subscription.addonIds && subscription.addonIds.length > 0 && (
+                            <p><strong>Addons:</strong> {addonNames || subscription.addonIds.join(', ')}</p>
+                          )}
+                          {(!subscription.addonIds || subscription.addonIds.length === 0) && (
+                            <p><strong>Addons:</strong> Keine</p>
+                          )}
+                          {subscription.currentPeriodStart && (
+                            <p><strong>Periode:</strong> {new Date(subscription.currentPeriodStart).toLocaleDateString('de-DE')} - {new Date(subscription.currentPeriodEnd).toLocaleDateString('de-DE')}</p>
+                          )}
+                          {subscription.cancelAtPeriodEnd && (
+                            <p className={styles.warningText}><strong>⚠️ Wird am Periodenende gekündigt</strong></p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </>
+          )}
+        </section>
+
+        {/* Transaction Logs */}
+        <section className={styles.section}>
+          <h2 className={styles.sectionTitle}>Transaktions-Log</h2>
+          {transactionLogsLoading ? (
+            <p>Laden...</p>
+          ) : transactionLogs.length === 0 ? (
+            <p>Keine Transaktionen gefunden.</p>
+          ) : (
+            <div className={styles.transactionLogsList}>
+              {transactionLogs.map((log) => {
+                const tenant = tenants.find(t => t.id === log.tenantId);
+                const tenantName = tenant?.name || log.tenantId;
+                const plan = plans.find(p => p.id === log.planId);
+                const planName = plan?.name || log.planId;
+                const amount = log.amount ? (log.amount / 100).toFixed(2) : null;
+                
+                return (
+                  <div key={log.id} className={styles.transactionLogCard}>
+                    <div className={styles.transactionLogHeader}>
+                      <div>
+                        <h3>{log.eventType}</h3>
+                        <p className={styles.transactionLogTenant}>Tenant: {tenantName}</p>
+                      </div>
+                      <span className={`${styles.statusBadge} ${styles[`status${log.status || 'pending'}`]}`}>
+                        {log.status || 'pending'}
+                      </span>
+                    </div>
+                    <div className={styles.transactionLogDetails}>
+                      {log.planId && <p><strong>Plan:</strong> {planName}</p>}
+                      {log.userCount && <p><strong>Nutzer:</strong> {log.userCount}</p>}
+                      {log.billingCycle && <p><strong>Billing:</strong> {log.billingCycle === 'monthly' ? 'Monatlich' : 'Jährlich'}</p>}
+                      {amount && <p><strong>Betrag:</strong> {amount} {log.currency?.toUpperCase() || 'EUR'}</p>}
+                      {log.stripeSessionId && <p><strong>Stripe Session:</strong> {log.stripeSessionId}</p>}
+                      {log.stripeEventId && <p><strong>Stripe Event:</strong> {log.stripeEventId}</p>}
+                      {log.errorMessage && <p className={styles.errorText}><strong>Fehler:</strong> {log.errorMessage}</p>}
+                      <p><strong>Datum:</strong> {new Date(log.createdAt).toLocaleString('de-DE')}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </section>
       </div>

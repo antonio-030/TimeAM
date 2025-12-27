@@ -24,6 +24,8 @@ import { MEMBER_ROLES, getMemberRoleLabel, type Member } from '@timeam/shared';
 import { getMemberFullName, getMemberInitials } from '../../utils/memberNames';
 import { EditTenantNameModal } from './EditTenantNameModal';
 import { SettingsModal } from '../SettingsModal';
+import { useTenantSubscriptions } from '../../modules/stripe/hooks';
+import { usePricingPlans } from '../../modules/stripe/hooks';
 import styles from './AppLayout.module.css';
 
 interface AppLayoutProps {
@@ -40,6 +42,16 @@ export function AppLayout({ children }: AppLayoutProps) {
   const isDevTenant = tenant?.id === 'dev-tenant';
   const hasSecurityAuditAccess = isSuperAdmin && isDevTenant && hasEntitlement('module.security_audit');
   const hasStripeAccess = isSuperAdmin && isDevTenant && hasEntitlement('module.stripe');
+  
+  // Lade aktuelle Subscription und Plans
+  const { subscriptions, loading: subscriptionsLoading } = useTenantSubscriptions(tenant?.id || null);
+  const { plans, loading: plansLoading } = usePricingPlans();
+  
+  // Finde aktiven Plan
+  const activeSubscription = subscriptions.find(sub => sub.status === 'active');
+  const currentPlan = activeSubscription 
+    ? plans.find(p => p.id === activeSubscription.planId)
+    : null;
   
   // State-Deklarationen
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -782,6 +794,24 @@ export function AppLayout({ children }: AppLayoutProps) {
                   <span className={styles.tenantName}>{displayCompanyName}</span>
                 )}
                 {displayRole && <span className={styles.tenantRole}>{displayRole}</span>}
+                {!isFreelancer && (
+                  <button
+                    className={styles.planButton}
+                    onClick={() => navigate('/pricing')}
+                    title="Plan anzeigen und ändern"
+                    disabled={subscriptionsLoading || plansLoading}
+                  >
+                    {subscriptionsLoading || plansLoading ? (
+                      <span className={styles.planLoading}>Laden...</span>
+                    ) : currentPlan ? (
+                      <span className={styles.planBadge}>{currentPlan.name}</span>
+                    ) : activeSubscription ? (
+                      <span className={styles.planBadge}>Plan: {activeSubscription.planId}</span>
+                    ) : (
+                      <span className={styles.planBadge}>Kein Plan</span>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           ) : null}

@@ -3,10 +3,12 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTenant } from '../../core/tenant';
 import {
   getPricingPlans,
   getPricingAddons,
   getTenantSubscriptions,
+  getMySubscription,
   createSubscription,
   updateSubscription,
   cancelSubscription,
@@ -69,6 +71,7 @@ export function usePricingAddons() {
 }
 
 export function useTenantSubscriptions(tenantId: string | null) {
+  const { tenant, hasEntitlement } = useTenant();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,14 +86,30 @@ export function useTenantSubscriptions(tenantId: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const data = await getTenantSubscriptions(tenantId);
-      setSubscriptions(data);
+      // Prüfe ob User Stripe-Entitlement hat
+      const hasStripeEntitlement = hasEntitlement('module.stripe');
+      // Prüfe ob der angeforderte Tenant der aktuelle Tenant ist
+      const isCurrentTenant = tenant?.id === tenantId;
+
+      if (hasStripeEntitlement) {
+        // User hat Stripe-Entitlement → Admin-Endpoint verwenden
+        const data = await getTenantSubscriptions(tenantId);
+        setSubscriptions(data);
+      } else if (isCurrentTenant) {
+        // User hat kein Stripe-Entitlement, aber es ist der aktuelle Tenant → öffentlichen Endpoint verwenden
+        const data = await getMySubscription();
+        setSubscriptions(data);
+      } else {
+        // User hat kein Stripe-Entitlement und es ist nicht der aktuelle Tenant → Fehler
+        throw new Error('Zugriff verweigert: Stripe-Modul-Entitlement erforderlich. Bitte wende dich an einen Administrator.');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Fehler beim Laden');
+      console.error('Error loading subscriptions:', err);
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, tenant?.id, hasEntitlement]);
 
   useEffect(() => {
     refresh();

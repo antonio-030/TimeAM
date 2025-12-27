@@ -52,11 +52,35 @@ export interface Subscription {
   status: 'active' | 'canceled' | 'past_due' | 'trialing';
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
-  currentPeriodStart: FirebaseFirestore.Timestamp;
-  currentPeriodEnd: FirebaseFirestore.Timestamp;
+  currentPeriodStart: FirebaseFirestore.Timestamp | string; // Timestamp im Backend, String im Frontend
+  currentPeriodEnd: FirebaseFirestore.Timestamp | string; // Timestamp im Backend, String im Frontend
   cancelAtPeriodEnd?: boolean;
+  createdAt: FirebaseFirestore.Timestamp | string; // Timestamp im Backend, String im Frontend
+  updatedAt: FirebaseFirestore.Timestamp | string; // Timestamp im Backend, String im Frontend
+}
+
+/**
+ * Transaction Log (Transaktions-Log für Abos)
+ */
+export interface TransactionLog {
+  id: string;
+  tenantId: string;
+  eventType: 'subscription_created' | 'subscription_updated' | 'subscription_canceled' | 'payment_succeeded' | 'payment_failed' | 'checkout_completed';
+  subscriptionId?: string;
+  planId?: string;
+  addonIds?: string[];
+  userCount?: number;
+  billingCycle?: 'monthly' | 'yearly';
+  amount?: number; // in Cent
+  currency?: string;
+  stripeSessionId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripeEventId?: string;
+  status?: 'success' | 'failed' | 'pending';
+  errorMessage?: string;
+  metadata?: Record<string, string>;
   createdAt: FirebaseFirestore.Timestamp;
-  updatedAt: FirebaseFirestore.Timestamp;
 }
 
 /**

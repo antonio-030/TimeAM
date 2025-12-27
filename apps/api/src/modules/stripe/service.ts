@@ -20,6 +20,7 @@ import type {
   CreateSubscriptionRequest,
   UpdateSubscriptionRequest,
   UpdateStripeConfigRequest,
+  TransactionLog,
 } from './types.js';
 
 // Stripe Client initialisieren
@@ -51,7 +52,6 @@ export async function seedDefaultPlans(): Promise<void> {
   if (plansDoc.exists) {
     const data = plansDoc.data();
     if (data && Object.keys(data).length > 0) {
-      console.log('✅ Standard-Plans bereits vorhanden');
       return;
     }
   }
@@ -141,70 +141,117 @@ async function activateModulesForSubscription(
   planId: string,
   addonIds: string[]
 ): Promise<void> {
-  console.log(`🔄 Starte Module-Aktivierung für Tenant ${tenantId}, Plan ${planId}, Addons: ${addonIds.join(', ') || 'keine'}`);
+  console.log(`\n🔄 ========== MODULE-AKTIVIERUNG START ==========`);
+  console.log(`🔄 Tenant ID: ${tenantId}`);
+  console.log(`🔄 Plan ID: ${planId}`);
+  console.log(`🔄 Addon IDs: ${addonIds.join(', ') || 'keine'}`);
   
   // Lade Plan
   const plans = await getPricingPlans();
+  console.log(`📋 Verfügbare Plans in DB: ${plans.length}`);
+  plans.forEach(p => {
+    console.log(`  - Plan ID: ${p.id}, Name: ${p.name}, Module: ${p.includedModules?.join(', ') || 'keine'} (${p.includedModules?.length || 0})`);
+  });
+  
   const plan = plans.find(p => p.id === planId);
   
   if (!plan) {
     console.error(`❌ Plan ${planId} nicht gefunden für Tenant ${tenantId}`);
-    console.log(`Verfügbare Plans: ${plans.map(p => p.id).join(', ')}`);
+    console.log(`❌ Verfügbare Plans: ${plans.map(p => `${p.id} (${p.name})`).join(', ')}`);
+    console.log(`🔄 ========== MODULE-AKTIVIERUNG FEHLGESCHLAGEN ==========\n`);
     return;
   }
 
-  console.log(`📋 Plan gefunden: ${plan.name}, includedModules: ${plan.includedModules?.join(', ') || 'keine'}`);
+  console.log(`✅ Plan gefunden: ${plan.name} (ID: ${plan.id})`);
+  console.log(`📋 Plan Beschreibung: ${plan.description || 'keine'}`);
+  console.log(`📋 Plan Module (${plan.includedModules?.length || 0}): ${plan.includedModules?.join(', ') || 'keine'}`);
+  
+  // Zeige Details für jedes Modul im Plan
+  if (plan.includedModules && plan.includedModules.length > 0) {
+    console.log(`\n📦 Module-Details im Plan:`);
+    plan.includedModules.forEach((moduleId, index) => {
+      const module = MODULE_REGISTRY[moduleId];
+      const moduleName = module?.displayName || moduleId;
+      const moduleCategory = module?.category || 'unbekannt';
+      const entitlementKey = getEntitlementKeyForModule(moduleId);
+      console.log(`  ${index + 1}. ${moduleName} (${moduleId})`);
+      console.log(`     - Kategorie: ${moduleCategory}`);
+      console.log(`     - Entitlement Key: ${entitlementKey || 'kein (Core-Modul)'}`);
+    });
+  }
 
   // Aktiviere Module aus Plan
   // WICHTIG: Core-Module haben kein entitlementKey und sind immer aktiv
   // Nur optionale Module mit entitlementKey werden aktiviert
   let activatedCount = 0;
+  let coreModulesCount = 0;
+  let skippedCount = 0;
+  
+  console.log(`\n📦 Aktiviere Module aus Plan:`);
   for (const moduleId of plan.includedModules || []) {
+    const module = MODULE_REGISTRY[moduleId];
+    const moduleName = module?.displayName || moduleId;
     const entitlementKey = getEntitlementKeyForModule(moduleId);
+    
     if (entitlementKey) {
       try {
+        console.log(`  🔄 Aktiviere Modul: ${moduleName} (${moduleId}) mit Entitlement: ${entitlementKey}`);
         await setEntitlement(tenantId, entitlementKey, true);
-        console.log(`✅ Modul ${moduleId} (${entitlementKey}) für Tenant ${tenantId} aktiviert`);
+        console.log(`  ✅ Modul ${moduleName} (${moduleId}) erfolgreich aktiviert`);
         activatedCount++;
       } catch (err) {
-        console.error(`❌ Fehler beim Aktivieren von Modul ${moduleId} (${entitlementKey}):`, err);
+        console.error(`  ❌ Fehler beim Aktivieren von Modul ${moduleName} (${moduleId}):`, err);
       }
     } else {
       // Core-Module haben kein entitlementKey - das ist normal
-      const module = MODULE_REGISTRY[moduleId];
       if (module && module.category === 'core') {
-        console.log(`ℹ️ Modul ${moduleId} ist ein Core-Modul und immer aktiv (kein Entitlement nötig)`);
+        console.log(`  ℹ️ Modul ${moduleName} (${moduleId}) ist ein Core-Modul - immer aktiv (kein Entitlement nötig)`);
+        coreModulesCount++;
       } else {
-        console.warn(`⚠️ Kein Entitlement-Key für Modul ${moduleId} gefunden. Modul in Registry: ${module ? 'ja' : 'nein'}`);
+        console.warn(`  ⚠️ Kein Entitlement-Key für Modul ${moduleName} (${moduleId}) gefunden. Modul in Registry: ${module ? 'ja' : 'nein'}`);
+        skippedCount++;
       }
     }
   }
 
   // Aktiviere Module aus Addons
-  const addons = await getPricingAddons();
-  for (const addonId of addonIds) {
-    if (!addonId) continue; // Leere Strings überspringen
-    
-    const addon = addons.find(a => a.id === addonId);
-    if (addon && addon.moduleId) {
-      const entitlementKey = getEntitlementKeyForModule(addon.moduleId);
-      if (entitlementKey) {
-        try {
-          await setEntitlement(tenantId, entitlementKey, true);
-          console.log(`✅ Modul ${addon.moduleId} (${entitlementKey}) aus Addon ${addonId} für Tenant ${tenantId} aktiviert`);
-          activatedCount++;
-        } catch (err) {
-          console.error(`❌ Fehler beim Aktivieren von Modul ${addon.moduleId} aus Addon ${addonId}:`, err);
+  if (addonIds.length > 0) {
+    console.log(`\n📦 Aktiviere Module aus Addons:`);
+    const addons = await getPricingAddons();
+    for (const addonId of addonIds) {
+      if (!addonId) continue; // Leere Strings überspringen
+      
+      const addon = addons.find(a => a.id === addonId);
+      if (addon && addon.moduleId) {
+        const module = MODULE_REGISTRY[addon.moduleId];
+        const moduleName = module?.displayName || addon.moduleId;
+        const entitlementKey = getEntitlementKeyForModule(addon.moduleId);
+        
+        if (entitlementKey) {
+          try {
+            console.log(`  🔄 Aktiviere Modul: ${moduleName} (${addon.moduleId}) aus Addon: ${addon.name} (${addonId})`);
+            await setEntitlement(tenantId, entitlementKey, true);
+            console.log(`  ✅ Modul ${moduleName} (${addon.moduleId}) aus Addon ${addon.name} erfolgreich aktiviert`);
+            activatedCount++;
+          } catch (err) {
+            console.error(`  ❌ Fehler beim Aktivieren von Modul ${moduleName} (${addon.moduleId}) aus Addon ${addon.name}:`, err);
+          }
+        } else {
+          console.warn(`  ⚠️ Kein Entitlement-Key für Modul ${moduleName} (${addon.moduleId}) aus Addon ${addon.name} gefunden`);
         }
       } else {
-        console.warn(`⚠️ Kein Entitlement-Key für Modul ${addon.moduleId} (Addon ${addonId}) gefunden`);
+        console.warn(`  ⚠️ Addon ${addonId} nicht gefunden oder hat kein moduleId`);
       }
-    } else {
-      console.warn(`⚠️ Addon ${addonId} nicht gefunden oder hat kein moduleId`);
     }
   }
 
-  console.log(`✅ Module-Aktivierung abgeschlossen: ${activatedCount} Module aktiviert für Tenant ${tenantId}`);
+  console.log(`\n📊 ========== MODULE-AKTIVIERUNG ZUSAMMENFASSUNG ==========`);
+  console.log(`📊 Optionale Module aktiviert: ${activatedCount}`);
+  console.log(`📊 Core-Module (immer aktiv): ${coreModulesCount}`);
+  console.log(`📊 Übersprungene Module: ${skippedCount}`);
+  console.log(`📊 Gesamt Module im Plan: ${(plan.includedModules?.length || 0) + addonIds.length}`);
+  console.log(`✅ Module-Aktivierung abgeschlossen für Tenant ${tenantId}`);
+  console.log(`🔄 ========== MODULE-AKTIVIERUNG ENDE ==========\n`);
 }
 
 /**
@@ -527,10 +574,17 @@ export async function getTenantSubscriptions(tenantId: string): Promise<Subscrip
   const subscriptions: Subscription[] = [];
   
   for (const doc of subscriptionsSnap.docs) {
+    const data = doc.data() as Omit<Subscription, 'id'>;
+    
+    // Konvertiere Timestamps zu ISO-Strings für Frontend
     subscriptions.push({
       id: doc.id,
-      ...(doc.data() as Omit<Subscription, 'id'>),
-    });
+      ...data,
+      currentPeriodStart: data.currentPeriodStart?.toDate?.()?.toISOString() || new Date().toISOString(),
+      currentPeriodEnd: data.currentPeriodEnd?.toDate?.()?.toISOString() || new Date().toISOString(),
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+    } as any); // Type assertion, da wir Timestamps zu Strings konvertieren
   }
   
   return subscriptions;
@@ -542,6 +596,24 @@ export async function getTenantSubscriptions(tenantId: string): Promise<Subscrip
 export async function createSubscription(
   request: CreateSubscriptionRequest
 ): Promise<Subscription> {
+  console.log(`\n📦 ========== SUBSCRIPTION ERSTELLEN ==========`);
+  console.log(`📋 Tenant ID: ${request.tenantId}`);
+  console.log(`📋 Plan ID: ${request.planId}`);
+  console.log(`📋 Addon IDs: ${request.addonIds?.join(', ') || 'keine'}`);
+  console.log(`📋 Nutzer: ${request.userCount}`);
+  console.log(`📋 Billing Cycle: ${request.billingCycle}`);
+  
+  // Lade Plan-Details für Logging
+  const plans = await getPricingPlans();
+  const plan = plans.find(p => p.id === request.planId);
+  if (plan) {
+    console.log(`📋 Plan Name: ${plan.name}`);
+    console.log(`📋 Plan Module: ${plan.includedModules?.join(', ') || 'keine'}`);
+    console.log(`📋 Plan Module-Anzahl: ${plan.includedModules?.length || 0}`);
+  } else {
+    console.warn(`⚠️ Plan ${request.planId} nicht gefunden beim Erstellen der Subscription`);
+  }
+  
   const db = getAdminFirestore();
   const subscriptionsRef = db
     .collection('tenants')
@@ -561,7 +633,10 @@ export async function createSubscription(
     updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
   };
   
+  console.log(`💾 Speichere Subscription in Firestore...`);
   const docRef = await subscriptionsRef.add(subscription);
+  console.log(`✅ Subscription gespeichert mit ID: ${docRef.id}`);
+  console.log(`📦 ========== SUBSCRIPTION ERSTELLT ==========\n`);
   
   return {
     id: docRef.id,
@@ -649,24 +724,33 @@ export async function saveStripeCustomer(
     .collection('stripe')
     .doc('customers');
   
-  const customer: Omit<StripeCustomer, 'id'> = {
+  // Erstelle Customer-Objekt ohne undefined-Werte
+  const customerData: Record<string, unknown> = {
     tenantId,
     stripeCustomerId,
-    email,
-    createdAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
-    updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
   };
+  
+  // Füge email nur hinzu, wenn es definiert ist
+  if (email !== undefined && email !== null) {
+    customerData.email = email;
+  }
   
   await customersRef.set(
     {
-      [stripeCustomerId]: customer,
+      [stripeCustomerId]: customerData,
     },
     { merge: true }
   );
   
   return {
     id: stripeCustomerId,
-    ...customer,
+    tenantId,
+    stripeCustomerId,
+    email: email || undefined,
+    createdAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+    updatedAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
   };
 }
 
@@ -826,6 +910,157 @@ export async function createCheckoutSession(
 }
 
 /**
+ * Erstellt eine Subscription aus einer Stripe Checkout Session (Fallback, falls Webhook nicht ausgelöst wurde).
+ */
+export async function createSubscriptionFromSession(sessionId: string): Promise<{ subscription: Subscription; transactionLog: TransactionLog }> {
+  console.log(`\n🎯 ========== SUBSCRIPTION AUS SESSION ERSTELLEN ==========`);
+  console.log(`🎯 Session ID: ${sessionId}`);
+  
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    console.error(`❌ STRIPE_SECRET_KEY fehlt`);
+    throw new Error('Stripe ist nicht konfiguriert (STRIPE_SECRET_KEY fehlt).');
+  }
+  console.log(`✅ Stripe Secret Key gefunden`);
+
+  // Initialisiere Stripe Client
+  const stripeClient = stripe || new Stripe(stripeSecretKey, {
+    apiVersion: '2025-12-15.clover',
+  });
+
+  // Lade Session von Stripe
+  console.log(`🔄 Lade Stripe Checkout Session...`);
+  const session = await stripeClient.checkout.sessions.retrieve(sessionId, {
+    expand: ['customer', 'subscription'],
+  });
+  console.log(`✅ Session geladen: ${session.id}`);
+  console.log(`📋 Session Status: ${session.status}`);
+  console.log(`📋 Payment Status: ${session.payment_status}`);
+
+  const tenantId = session.metadata?.tenantId;
+  const planId = session.metadata?.planId;
+  const addonIdsStr = session.metadata?.addonIds || '';
+  const addonIds = addonIdsStr ? addonIdsStr.split(',').filter(id => id.trim()) : [];
+  const userCount = parseInt(session.metadata?.userCount || '0', 10);
+  const billingCycle = (session.metadata?.billingCycle || 'monthly') as 'monthly' | 'yearly';
+
+  console.log(`📋 Session Metadata:`);
+  console.log(`  - Tenant ID: ${tenantId}`);
+  console.log(`  - Plan ID: ${planId}`);
+  console.log(`  - Addon IDs: ${addonIds.join(', ') || 'keine'}`);
+  console.log(`  - User Count: ${userCount}`);
+  console.log(`  - Billing Cycle: ${billingCycle}`);
+
+  if (!tenantId || !planId) {
+    console.error(`❌ Fehlende Metadata: tenantId=${tenantId}, planId=${planId}`);
+    throw new Error(`Fehlende Metadata in Checkout Session: tenantId=${tenantId}, planId=${planId}`);
+  }
+
+  // Prüfe, ob Subscription bereits existiert
+  console.log(`🔍 Prüfe ob Subscription bereits existiert...`);
+  const existingSubscriptions = await getTenantSubscriptions(tenantId);
+  console.log(`📋 Gefundene Subscriptions: ${existingSubscriptions.length}`);
+  
+  const existingSubscription = existingSubscriptions.find(sub => 
+    sub.planId === planId && 
+    JSON.stringify(sub.addonIds?.sort()) === JSON.stringify(addonIds.sort()) &&
+    sub.userCount === userCount &&
+    sub.billingCycle === billingCycle
+  );
+
+  if (existingSubscription) {
+    console.log(`ℹ️ Subscription existiert bereits für Tenant ${tenantId}, Plan ${planId}`);
+    console.log(`ℹ️ Subscription ID: ${existingSubscription.id}`);
+    // Erstelle trotzdem ein Transaktions-Log, falls noch nicht vorhanden
+    const amountTotal = session.amount_total || 0;
+    console.log(`💾 Erstelle Transaktions-Log für existierende Subscription...`);
+    const transactionLog = await logTransaction({
+      tenantId,
+      eventType: 'checkout_completed',
+      subscriptionId: existingSubscription.id,
+      planId,
+      addonIds,
+      userCount,
+      billingCycle,
+      amount: amountTotal,
+      currency: session.currency || 'eur',
+      stripeSessionId: session.id,
+      stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id,
+      status: 'success',
+      metadata: {
+        customer_email: session.customer_email || '',
+        payment_status: session.payment_status || '',
+        created_from_session: 'true',
+      },
+    });
+    console.log(`✅ Transaktions-Log erstellt: ${transactionLog.id}`);
+    console.log(`🎯 ========== SUBSCRIPTION AUS SESSION ABGESCHLOSSEN (EXISTIERT) ==========\n`);
+    return { subscription: existingSubscription, transactionLog };
+  }
+
+  // Speichere Customer
+  if (session.customer) {
+    const customerId = typeof session.customer === 'string' ? session.customer : session.customer.id;
+    console.log(`💳 Speichere Stripe Customer: ${customerId}`);
+    await saveStripeCustomer(
+      tenantId,
+      customerId,
+      session.customer_email || undefined
+    );
+    console.log(`✅ Stripe Customer gespeichert für Tenant ${tenantId}`);
+  }
+
+  // Erstelle Subscription
+  console.log(`\n📦 Erstelle neue Subscription...`);
+  const subscription = await createSubscription({
+    tenantId,
+    planId,
+    addonIds,
+    userCount,
+    billingCycle,
+  });
+
+  // Berechne Gesamtbetrag aus Session
+  const amountTotal = session.amount_total || 0;
+  console.log(`💰 Betrag: ${(amountTotal / 100).toFixed(2)} ${session.currency?.toUpperCase() || 'EUR'}`);
+
+  // Speichere Transaktions-Log
+  console.log(`💾 Erstelle Transaktions-Log...`);
+  const transactionLog = await logTransaction({
+    tenantId,
+    eventType: 'checkout_completed',
+    subscriptionId: subscription.id,
+    planId,
+    addonIds,
+    userCount,
+    billingCycle,
+    amount: amountTotal,
+    currency: session.currency || 'eur',
+    stripeSessionId: session.id,
+    stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id,
+    status: 'success',
+    metadata: {
+      customer_email: session.customer_email || '',
+      payment_status: session.payment_status || '',
+      created_from_session: 'true',
+    },
+  });
+  console.log(`✅ Transaktions-Log erstellt: ${transactionLog.id}`);
+
+  // Module aktivieren
+  console.log(`\n🔄 Starte Module-Aktivierung...`);
+  await activateModulesForSubscription(tenantId, planId, addonIds);
+
+  console.log(`\n✅ ========== SUBSCRIPTION AUS SESSION ERFOLGREICH ERSTELLT ==========`);
+  console.log(`✅ Subscription ID: ${subscription.id}`);
+  console.log(`✅ Transaction Log ID: ${transactionLog.id}`);
+  console.log(`✅ Tenant ID: ${tenantId}`);
+  console.log(`🎯 ========== SUBSCRIPTION AUS SESSION ABGESCHLOSSEN ==========\n`);
+
+  return { subscription, transactionLog };
+}
+
+/**
  * Verarbeitet Stripe Webhook Events.
  */
 export async function handleStripeWebhook(
@@ -867,7 +1102,7 @@ export async function handleStripeWebhook(
       }
       
       // Erstelle Subscription
-      await createSubscription({
+      const subscription = await createSubscription({
         tenantId,
         planId,
         addonIds,
@@ -875,6 +1110,30 @@ export async function handleStripeWebhook(
         billingCycle,
       });
       console.log(`📝 Subscription erstellt für Tenant ${tenantId}, Plan ${planId}`);
+      
+      // Berechne Gesamtbetrag aus Session
+      const amountTotal = session.amount_total || 0; // in Cent
+      
+      // Speichere Transaktions-Log
+      await logTransaction({
+        tenantId,
+        eventType: 'checkout_completed',
+        subscriptionId: subscription.id,
+        planId,
+        addonIds,
+        userCount,
+        billingCycle,
+        amount: amountTotal,
+        currency: session.currency || 'eur',
+        stripeSessionId: session.id,
+        stripeCustomerId: typeof session.customer === 'string' ? session.customer : session.customer?.id,
+        stripeEventId: event.id,
+        status: 'success',
+        metadata: {
+          customer_email: session.customer_email || '',
+          payment_status: session.payment_status || '',
+        },
+      });
       
       // Module aktivieren
       await activateModulesForSubscription(tenantId, planId, addonIds);
@@ -900,5 +1159,71 @@ export async function handleStripeWebhook(
     default:
       console.log(`Unhandled event type: ${event.type}`);
   }
+}
+
+/**
+ * Speichert einen Transaktions-Log-Eintrag.
+ */
+export async function logTransaction(
+  data: Omit<TransactionLog, 'id' | 'createdAt'>
+): Promise<TransactionLog> {
+  console.log(`\n💾 ========== TRANSACTIONS-LOG ERSTELLEN ==========`);
+  console.log(`💾 Event Type: ${data.eventType}`);
+  console.log(`💾 Tenant ID: ${data.tenantId}`);
+  console.log(`💾 Plan ID: ${data.planId || 'keine'}`);
+  console.log(`💾 Subscription ID: ${data.subscriptionId || 'keine'}`);
+  console.log(`💾 Addon IDs: ${data.addonIds?.join(', ') || 'keine'}`);
+  console.log(`💾 User Count: ${data.userCount || 'keine'}`);
+  console.log(`💾 Billing Cycle: ${data.billingCycle || 'keine'}`);
+  console.log(`💾 Amount: ${data.amount ? (data.amount / 100).toFixed(2) + ' ' + (data.currency?.toUpperCase() || 'EUR') : 'keine'}`);
+  console.log(`💾 Status: ${data.status || 'keine'}`);
+  console.log(`💾 Stripe Session ID: ${data.stripeSessionId || 'keine'}`);
+  
+  const db = getAdminFirestore();
+  const transactionsRef = db.collection('transaction_logs');
+  
+  const transaction: Omit<TransactionLog, 'id'> = {
+    ...data,
+    createdAt: FieldValue.serverTimestamp() as FirebaseFirestore.Timestamp,
+  };
+  
+  const docRef = await transactionsRef.add(transaction);
+  console.log(`✅ Transaktions-Log gespeichert mit ID: ${docRef.id}`);
+  console.log(`💾 ========== TRANSACTIONS-LOG ERSTELLT ==========\n`);
+  
+  return {
+    id: docRef.id,
+    ...transaction,
+  };
+}
+
+/**
+ * Lädt alle Transaktions-Logs (optional gefiltert nach Tenant).
+ */
+export async function getTransactionLogs(tenantId?: string): Promise<TransactionLog[]> {
+  const db = getAdminFirestore();
+  let query: FirebaseFirestore.Query = db.collection('transaction_logs');
+  
+  if (tenantId) {
+    query = query.where('tenantId', '==', tenantId);
+  }
+  
+  // Sortiere nach Datum (neueste zuerst)
+  query = query.orderBy('createdAt', 'desc').limit(1000);
+  
+  const snapshot = await query.get();
+  
+  const logs: TransactionLog[] = [];
+  
+  for (const doc of snapshot.docs) {
+    const data = doc.data() as Omit<TransactionLog, 'id'>;
+    logs.push({
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+    } as any);
+  }
+  
+  return logs;
 }
 

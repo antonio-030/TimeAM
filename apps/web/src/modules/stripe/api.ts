@@ -48,6 +48,27 @@ export interface Subscription {
   cancelAtPeriodEnd?: boolean;
 }
 
+export interface TransactionLog {
+  id: string;
+  tenantId: string;
+  eventType: 'subscription_created' | 'subscription_updated' | 'subscription_canceled' | 'payment_succeeded' | 'payment_failed' | 'checkout_completed';
+  subscriptionId?: string;
+  planId?: string;
+  addonIds?: string[];
+  userCount?: number;
+  billingCycle?: 'monthly' | 'yearly';
+  amount?: number; // in Cent
+  currency?: string;
+  stripeSessionId?: string;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  stripeEventId?: string;
+  status?: 'success' | 'failed' | 'pending';
+  errorMessage?: string;
+  metadata?: Record<string, string>;
+  createdAt: string;
+}
+
 export interface UpsertPricingPlanRequest {
   id: string;
   name: string;
@@ -208,9 +229,19 @@ export async function upsertPricingAddon(request: UpsertPricingAddonRequest): Pr
 
 /**
  * Lädt alle Subscriptions für einen Tenant.
+ * Erfordert Stripe-Entitlement (für Admin-Zugriff).
  */
 export async function getTenantSubscriptions(tenantId: string): Promise<Subscription[]> {
   const data = await apiGet<{ subscriptions: Subscription[] }>(`${API_BASE}/subscriptions/${tenantId}`);
+  return data.subscriptions || [];
+}
+
+/**
+ * Lädt die aktive Subscription für den aktuellen Tenant des Users.
+ * Erfordert nur Auth + Tenant-Membership (für normale User).
+ */
+export async function getMySubscription(): Promise<Subscription[]> {
+  const data = await apiGet<{ subscriptions: Subscription[] }>(`${API_BASE}/my-subscription`);
   return data.subscriptions || [];
 }
 
@@ -263,5 +294,23 @@ export async function createCheckoutSession(
     successUrl,
     cancelUrl,
   });
+}
+
+/**
+ * Lädt alle Transaktions-Logs (optional gefiltert nach Tenant).
+ */
+export async function getTransactionLogs(tenantId?: string): Promise<TransactionLog[]> {
+  const url = tenantId 
+    ? `${API_BASE}/transactions?tenantId=${encodeURIComponent(tenantId)}`
+    : `${API_BASE}/transactions`;
+  const data = await apiGet<{ transactions: TransactionLog[] }>(url);
+  return data.transactions || [];
+}
+
+/**
+ * Erstellt eine Subscription aus einer Stripe Checkout Session (Fallback, falls Webhook nicht ausgelöst wurde).
+ */
+export async function createSubscriptionFromSession(sessionId: string): Promise<{ subscription: Subscription; transactionLog: TransactionLog }> {
+  return await apiPost<{ subscription: Subscription; transactionLog: TransactionLog }>(`${API_BASE}/subscriptions/from-session`, { sessionId });
 }
 

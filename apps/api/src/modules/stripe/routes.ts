@@ -6,7 +6,7 @@
 
 import { Router } from 'express';
 import { requireAuth } from '../../core/auth/express-middleware.js';
-import { requireEntitlements } from '../../core/entitlements/middleware.js';
+import { requireEntitlements, requireTenantOnly } from '../../core/entitlements/middleware.js';
 import { ENTITLEMENT_KEYS } from '@timeam/shared';
 import type { TenantRequest } from '../../core/entitlements/middleware.js';
 import type { AuthenticatedRequest } from '../../core/auth/express-middleware.js';
@@ -27,6 +27,8 @@ import {
   updateStripeConfig,
   validateStripeConfig,
   seedDefaultPlans,
+  getTransactionLogs,
+  createSubscriptionFromSession,
 } from './service.js';
 import Stripe from 'stripe';
 import type {
@@ -43,6 +45,12 @@ const router = Router();
 const stripeGuard = [
   requireAuth,
   requireEntitlements([ENTITLEMENT_KEYS.MODULE_STRIPE]),
+];
+
+// Guard für normale User (nur Auth + Tenant-Membership)
+const tenantGuard = [
+  requireAuth,
+  requireTenantOnly(),
 ];
 
 // =============================================================================
@@ -308,6 +316,30 @@ router.get('/subscriptions/:tenantId', ...stripeGuard, async (req, res) => {
 });
 
 /**
+ * GET /api/stripe/my-subscription
+ * Lädt die aktive Subscription für den aktuellen Tenant des Users.
+ * Erfordert nur Auth + Tenant-Membership (für normale User).
+ */
+router.get('/my-subscription', ...tenantGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  try {
+    if (!tenant) {
+      res.status(400).json({ error: 'Kein Tenant gefunden' });
+      return;
+    }
+    
+    const subscriptions = await getTenantSubscriptions(tenant.id);
+    // Nur aktive Subscriptions zurückgeben
+    const activeSubscriptions = subscriptions.filter(sub => sub.status === 'active');
+    res.json({ subscriptions: activeSubscriptions });
+  } catch (error) {
+    console.error('Error in GET /stripe/my-subscription:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get subscription';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
  * POST /api/stripe/subscriptions
  * Erstellt eine neue Subscription.
  */
@@ -474,6 +506,44 @@ router.post('/webhooks', async (req, res) => {
   } catch (error) {
     console.error('Error handling webhook:', error);
     res.status(500).json({ error: 'Fehler beim Verarbeiten des Webhooks' });
+  }
+});
+
+/**
+ * GET /api/stripe/transactions
+ * Lädt alle Transaktions-Logs (optional gefiltert nach Tenant).
+ */
+router.get('/transactions', ...stripeGuard, async (req, res) => {
+  try {
+    const tenantId = req.query.tenantId as string | undefined;
+    const logs = await getTransactionLogs(tenantId);
+    res.json({ transactions: logs });
+  } catch (error) {
+    console.error('Error in GET /stripe/transactions:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get transaction logs';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/stripe/subscriptions/from-session
+ * Erstellt eine Subscription aus einer Stripe Checkout Session (Fallback, falls Webhook nicht ausgelöst wurde).
+ */
+router.post('/subscriptions/from-session', requireAuth, async (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    
+    if (!sessionId) {
+      res.status(400).json({ error: 'sessionId ist erforderlich' });
+      return;
+    }
+    
+    const result = await createSubscriptionFromSession(sessionId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error in POST /stripe/subscriptions/from-session:', error);
+    const message = error instanceof Error ? error.message : 'Failed to create subscription from session';
+    res.status(500).json({ error: message });
   }
 });
 
