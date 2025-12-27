@@ -7,7 +7,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { usePricingPlans, usePricingAddons, useTenantSubscriptions } from './hooks';
 import { useAllTenants } from '../admin/hooks';
-import { getStripeConfig, updateStripeConfig, validateStripeConfig, type StripeConfig, upsertPricingPlan, deletePricingPlan, upsertPricingAddon, type PricingPlan, type PricingAddon, type UpsertPricingPlanRequest, type UpsertPricingAddonRequest, getModuleStatus, type ModuleStatusItem, getTenantSubscriptions, getTransactionLogs } from './api';
+import { getStripeConfig, updateStripeConfig, validateStripeConfig, type StripeConfig, upsertPricingPlan, deletePricingPlan, upsertPricingAddon, type PricingPlan, type PricingAddon, type UpsertPricingPlanRequest, type UpsertPricingAddonRequest, getModuleStatus, type ModuleStatusItem, getTenantSubscriptions, getTransactionLogs, type TransactionLog } from './api';
 import { MODULE_REGISTRY, MODULE_CATEGORY, getCoreModules } from '../../core/modules';
 import styles from './StripePage.module.css';
 
