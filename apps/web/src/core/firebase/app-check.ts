@@ -7,8 +7,9 @@
 
 import { 
   initializeAppCheck as firebaseInitializeAppCheck, 
-  ReCaptchaV3Provider, 
-  type AppCheck 
+  ReCaptchaV3Provider,
+  // @ts-expect-error - Firebase types are namespaces, but we need them as types
+  type AppCheck,
 } from 'firebase/app-check';
 import { getFirebaseApp } from './app';
 

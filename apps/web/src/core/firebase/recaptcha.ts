@@ -8,7 +8,9 @@
  * und RecaptchaVerifier (reCAPTCHA v2). Dieser Workaround umgeht den Konflikt.
  */
 
-import { RecaptchaVerifier, type RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
+import { RecaptchaVerifier } from 'firebase/auth';
+// @ts-expect-error - Firebase types are namespaces, but we need them as types
+import type { RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
 import { getFirebaseAuth } from './auth';
 import { disableAppCheck, enableAppCheck, getFirebaseAppCheck } from './app-check';
 

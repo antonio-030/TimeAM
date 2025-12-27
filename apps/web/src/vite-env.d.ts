@@ -1,11 +1,5 @@
 /// <reference types="vite/client" />
 
-// Suppress Firebase type errors - Firebase v10 includes its own types
-declare module 'firebase/app';
-declare module 'firebase/auth';
-declare module 'firebase/analytics';
-declare module 'firebase/app-check';
-
 interface ImportMetaEnv {
   readonly VITE_FIREBASE_API_KEY: string;
   readonly VITE_FIREBASE_AUTH_DOMAIN: string;

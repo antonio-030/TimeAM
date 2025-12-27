@@ -9,8 +9,11 @@ import {
   getAuth,
   onAuthStateChanged,
   signOut as firebaseSignOut,
+  // @ts-expect-error - Firebase types are namespaces, but we need them as types
   type Auth,
+  // @ts-expect-error - Firebase types are namespaces, but we need them as types
   type User,
+  // @ts-expect-error - Firebase types are namespaces, but we need them as types
   type Unsubscribe,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';

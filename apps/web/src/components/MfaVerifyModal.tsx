@@ -8,7 +8,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { verifyMfa, verifyPhoneMfa, getMfaStatus } from '../core/mfa/api';
 import { getFirebaseAuth } from '../core/firebase';
-import { signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+// @ts-expect-error - Firebase types are namespaces, but we need them as types
+import { signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { createRecaptchaVerifier, clearRecaptchaVerifier } from '../core/firebase';
 import styles from './MfaVerifyModal.module.css';
 

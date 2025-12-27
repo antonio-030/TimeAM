@@ -13,6 +13,7 @@ import {
   useMemo,
   type ReactNode,
 } from 'react';
+// @ts-expect-error - Firebase types are namespaces, but we need them as types
 import type { User } from 'firebase/auth';
 import {
   onAuthStateChange,
