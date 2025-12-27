@@ -577,13 +577,22 @@ export async function getTenantSubscriptions(tenantId: string): Promise<Subscrip
     const data = doc.data() as Omit<Subscription, 'id'>;
     
     // Konvertiere Timestamps zu ISO-Strings für Frontend
+    const convertTimestamp = (ts: FirebaseFirestore.Timestamp | string | undefined): string => {
+      if (!ts) return new Date().toISOString();
+      if (typeof ts === 'string') return ts;
+      if (ts && typeof ts === 'object' && 'toDate' in ts) {
+        return ts.toDate().toISOString();
+      }
+      return new Date().toISOString();
+    };
+    
     subscriptions.push({
       id: doc.id,
       ...data,
-      currentPeriodStart: data.currentPeriodStart?.toDate?.()?.toISOString() || new Date().toISOString(),
-      currentPeriodEnd: data.currentPeriodEnd?.toDate?.()?.toISOString() || new Date().toISOString(),
-      createdAt: data.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
-      updatedAt: data.updatedAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      currentPeriodStart: convertTimestamp(data.currentPeriodStart as FirebaseFirestore.Timestamp | string | undefined),
+      currentPeriodEnd: convertTimestamp(data.currentPeriodEnd as FirebaseFirestore.Timestamp | string | undefined),
+      createdAt: convertTimestamp(data.createdAt as FirebaseFirestore.Timestamp | string | undefined),
+      updatedAt: convertTimestamp(data.updatedAt as FirebaseFirestore.Timestamp | string | undefined),
     } as any); // Type assertion, da wir Timestamps zu Strings konvertieren
   }
   
