@@ -1321,15 +1321,17 @@ export async function handleStripeWebhook(
       console.log(`💳 Betrag: ${(invoice.amount_paid / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || 'EUR'}`);
       console.log(`💳 Billing Reason: ${invoice.billing_reason || 'unbekannt'}`);
       
-      if (!invoice.subscription) {
+      // Invoice.subscription kann string, Subscription oder null sein
+      const invoiceSubscription = (invoice as any).subscription as string | Stripe.Subscription | null;
+      if (!invoiceSubscription) {
         console.log('⚠️ Invoice hat keine Subscription, überspringe');
-        console.log('💳 ========== WEBHOOK ABGEBROCHEN ==========\n');
+        console.log('💳 ========== WEBHOOK ABGESCHLOSSEN ==========\n');
         break;
       }
       
-      const stripeSubscriptionId = typeof invoice.subscription === 'string'
-        ? invoice.subscription
-        : invoice.subscription.id;
+      const stripeSubscriptionId = typeof invoiceSubscription === 'string'
+        ? invoiceSubscription
+        : invoiceSubscription.id;
       console.log(`💳 Stripe Subscription ID: ${stripeSubscriptionId}`);
       
       // Prüfe ob es eine wiederkehrende Abrechnung ist
@@ -1363,11 +1365,14 @@ export async function handleStripeWebhook(
       // Aktualisiere Abrechnungsperioden
       console.log(`\n🔄 Lade aktuelle Stripe Subscription...`);
       const stripeSubscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
-      const periodStart = Timestamp.fromDate(new Date(stripeSubscription.current_period_start * 1000));
-      const periodEnd = Timestamp.fromDate(new Date(stripeSubscription.current_period_end * 1000));
+      // Stripe Subscription hat current_period_start und current_period_end als number (Unix timestamp)
+      const periodStartValue = (stripeSubscription as any).current_period_start as number;
+      const periodEndValue = (stripeSubscription as any).current_period_end as number;
+      const periodStart = Timestamp.fromDate(new Date(periodStartValue * 1000));
+      const periodEnd = Timestamp.fromDate(new Date(periodEndValue * 1000));
       
-      console.log(`📅 Aktuelle Periode Start: ${new Date(stripeSubscription.current_period_start * 1000).toISOString()}`);
-      console.log(`📅 Aktuelle Periode Ende: ${new Date(stripeSubscription.current_period_end * 1000).toISOString()}`);
+      console.log(`📅 Aktuelle Periode Start: ${new Date(periodStartValue * 1000).toISOString()}`);
+      console.log(`📅 Aktuelle Periode Ende: ${new Date(periodEndValue * 1000).toISOString()}`);
       
       console.log(`💾 Aktualisiere Subscription in Firestore...`);
       await subscriptionDoc.ref.update({
@@ -1405,7 +1410,7 @@ export async function handleStripeWebhook(
       console.log(`\n✅ ========== WIEDERKEHRENDE ABRECHNUNG ERFOLGREICH VERARBEITET ==========`);
       console.log(`✅ Tenant: ${tenantId}`);
       console.log(`✅ Betrag: ${(invoice.amount_paid / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || 'EUR'}`);
-      console.log(`✅ Nächste Abrechnung: ${new Date(stripeSubscription.current_period_end * 1000).toLocaleDateString('de-DE')}`);
+      console.log(`✅ Nächste Abrechnung: ${new Date(periodEndValue * 1000).toLocaleDateString('de-DE')}`);
       console.log(`💳 ========== WEBHOOK ABGESCHLOSSEN ==========\n`);
       break;
     }
@@ -1422,15 +1427,17 @@ export async function handleStripeWebhook(
       console.log(`❌ Betrag: ${(invoice.amount_due / 100).toFixed(2)} ${invoice.currency?.toUpperCase() || 'EUR'}`);
       console.log(`❌ Versuche: ${invoice.attempt_count || 0}`);
       
-      if (!invoice.subscription) {
+      // Invoice.subscription kann string, Subscription oder null sein
+      const invoiceSubscription = (invoice as any).subscription as string | Stripe.Subscription | null;
+      if (!invoiceSubscription) {
         console.log('⚠️ Invoice hat keine Subscription, überspringe');
-        console.log('❌ ========== WEBHOOK ABGEBROCHEN ==========\n');
+        console.log('❌ ========== WEBHOOK ABGESCHLOSSEN ==========\n');
         break;
       }
       
-      const stripeSubscriptionId = typeof invoice.subscription === 'string'
-        ? invoice.subscription
-        : invoice.subscription.id;
+      const stripeSubscriptionId = typeof invoiceSubscription === 'string'
+        ? invoiceSubscription
+        : invoiceSubscription.id;
       console.log(`❌ Stripe Subscription ID: ${stripeSubscriptionId}`);
       
       // Finde Subscription in Firestore
@@ -1455,7 +1462,8 @@ export async function handleStripeWebhook(
       console.log(`❌ Subscription ID (Firestore): ${subscriptionDoc.id}`);
       console.log(`❌ Plan: ${subscriptionData.planId}`);
       
-      const errorMessage = invoice.last_payment_error?.message || 'Zahlung fehlgeschlagen';
+      const lastPaymentError = (invoice as any).last_payment_error as { message?: string; type?: string } | null | undefined;
+      const errorMessage = lastPaymentError?.message || 'Zahlung fehlgeschlagen';
       console.log(`❌ Fehlermeldung: ${errorMessage}`);
       
       // Setze Status auf past_due
@@ -1486,7 +1494,7 @@ export async function handleStripeWebhook(
         metadata: {
           invoice_id: invoice.id,
           attempt_count: invoice.attempt_count?.toString() || '0',
-          error_type: invoice.last_payment_error?.type || 'unknown',
+          error_type: lastPaymentError?.type || 'unknown',
         },
       });
       
@@ -1533,8 +1541,11 @@ export async function handleStripeWebhook(
       console.log(`🔄 Alter Status: ${subscriptionData.status}`);
       
       // Aktualisiere Firestore mit Daten aus Stripe
-      const periodStart = Timestamp.fromDate(new Date(stripeSubscription.current_period_start * 1000));
-      const periodEnd = Timestamp.fromDate(new Date(stripeSubscription.current_period_end * 1000));
+      // Stripe.Subscription hat current_period_start und current_period_end als number (Unix timestamp)
+      const periodStartValue = (stripeSubscription as any).current_period_start as number;
+      const periodEndValue = (stripeSubscription as any).current_period_end as number;
+      const periodStart = Timestamp.fromDate(new Date(periodStartValue * 1000));
+      const periodEnd = Timestamp.fromDate(new Date(periodEndValue * 1000));
       
       const updateData: Partial<Subscription> = {
         currentPeriodStart: periodStart,
