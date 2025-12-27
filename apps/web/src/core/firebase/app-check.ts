@@ -93,28 +93,11 @@ export async function getAppCheckTokenValue(): Promise<string | null> {
   }
 
   try {
-    // In Firebase v10 wird getAppCheckToken möglicherweise nicht exportiert
-    // Versuche verschiedene Methoden, um das Token zu erhalten
-    
-    // Methode 1: Direkter Import
-    try {
-      const { getAppCheckToken } = await import('firebase/app-check');
-      if (getAppCheckToken) {
-        const token = await getAppCheckToken(appCheck);
-        return token.token;
-      }
-    } catch (importError) {
-      // Ignoriere Import-Fehler
-    }
-    
-    // Methode 2: Token über die App Check Instanz (falls verfügbar)
-    // In Firebase v10 kann das Token möglicherweise direkt von der Instanz abgerufen werden
-    // Da App Check Token automatisch erneuert wird, können wir es optional machen
-    // und nur verwenden, wenn es verfügbar ist
-    
-    // Für jetzt: App Check Token ist optional - Warnung unterdrücken
-    // Das Token wird automatisch bei Bedarf von Firebase generiert
-    return null;
+    // In Firebase v10 wird getToken verwendet, um das App Check Token zu erhalten
+    // Die Funktion wird dynamisch importiert, um Tree-Shaking zu ermöglichen
+    const { getToken } = await import('firebase/app-check');
+    const tokenResult = await getToken(appCheck);
+    return tokenResult.token;
   } catch (error) {
     // Graceful degradation: App Check Fehler blockieren nicht
     // Token ist optional - App funktioniert auch ohne

@@ -277,43 +277,18 @@ export async function createRecaptchaVerifier(containerId?: string): Promise<Rec
     // Falls das nicht funktioniert, verwende einen anderen Ansatz
     
     try {
-      // Methode 1: Versuche OHNE Container (für invisible reCAPTCHA)
-      console.log('🔵 [reCAPTCHA] Versuche Verifier OHNE Container (invisible)...');
-      recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig);
-      console.log('✅ [reCAPTCHA] Verifier erfolgreich OHNE Container erstellt');
-    } catch (noContainerError) {
-      console.warn('⚠️  [reCAPTCHA] Fehler ohne Container, versuche mit Element:', noContainerError);
-      
-      // Methode 2: Verwende das Element direkt, aber stelle sicher, dass es wirklich ein HTMLElement ist
+      // RecaptchaVerifier Signatur: RecaptchaVerifier(auth, containerIdOrElement, options?)
+      // Für invisible reCAPTCHA benötigen wir einen Container (kann unsichtbar sein)
       if (!(finalContainer instanceof HTMLElement)) {
         throw new Error('Container-Element ist kein gültiges HTMLElement');
       }
       
-      // WICHTIG: Erstelle eine neue Referenz zum Element, um sicherzustellen, dass es nicht durch Proxy modifiziert wurde
-      const containerRef = finalContainer.cloneNode(false) as HTMLElement;
-      containerRef.id = containerIdToUse + '-ref';
-      containerRef.style.cssText = finalContainer.style.cssText;
-      
-      // Ersetze das alte Element
-      finalContainer.replaceWith(containerRef);
-      
-      // Warte kurz
-      await new Promise(resolve => setTimeout(resolve, 50));
-      
-      // Hole das neue Element
-      const finalRef = document.getElementById(containerRef.id);
-      if (!finalRef || !(finalRef instanceof HTMLElement)) {
-        throw new Error('Container-Referenz konnte nicht erstellt werden');
-      }
-      
-      try {
-        console.log('🔵 [reCAPTCHA] Versuche Verifier mit Element-Referenz...');
-        recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig, finalRef);
-        console.log('✅ [reCAPTCHA] Verifier erfolgreich mit Element-Referenz erstellt');
-      } catch (refError) {
-        console.error('❌ [reCAPTCHA] Alle Methoden fehlgeschlagen:', refError);
-        throw new Error(`Fehler beim Erstellen des RecaptchaVerifier: ${refError instanceof Error ? refError.message : String(refError)}. Dies ist ein bekannter Bug in Firebase 10.14.1. Bitte versuchen Sie es später erneut oder kontaktieren Sie den Support.`);
-      }
+      console.log('🔵 [reCAPTCHA] Erstelle Verifier mit Container und Config...');
+      recaptchaVerifier = new RecaptchaVerifier(auth, finalContainer, recaptchaConfig);
+      console.log('✅ [reCAPTCHA] Verifier erfolgreich erstellt');
+    } catch (error) {
+      console.error('❌ [reCAPTCHA] Fehler beim Erstellen des RecaptchaVerifier:', error);
+      throw new Error(`Fehler beim Erstellen des RecaptchaVerifier: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return recaptchaVerifier;
