@@ -22,6 +22,27 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    chunkSizeWarningLimit: 1000, // Erhöhe Limit auf 1MB (aktuell: 1.14MB)
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Firebase in separaten Chunk
+          'firebase-core': ['firebase/app', 'firebase/auth'],
+          'firebase-other': ['firebase/app-check', 'firebase/analytics'],
+          // React Router
+          'react-router': ['react-router-dom'],
+          // FullCalendar
+          'fullcalendar': [
+            '@fullcalendar/core',
+            '@fullcalendar/react',
+            '@fullcalendar/daygrid',
+            '@fullcalendar/timegrid',
+            '@fullcalendar/list',
+            '@fullcalendar/interaction',
+          ],
+        },
+      },
+    },
   },
 });
 

@@ -161,6 +161,7 @@ export function useTimeEntries(limit = 50) {
 import {
   getTimeAccount,
   getTimeAccountHistory,
+  getTimeAccountTarget,
   updateTimeAccountTarget,
   addTimeAccountAdjustment,
   exportTimeAccountData,
@@ -258,7 +259,6 @@ export function useTimeAccountTarget(userId: string) {
     setError(null);
 
     try {
-      const { getTimeAccountTarget } = await import('./api.js');
       const response = await getTimeAccountTarget(userId);
       setTarget(response.target);
     } catch (err) {

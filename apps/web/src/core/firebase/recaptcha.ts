@@ -10,6 +10,7 @@
 
 import { RecaptchaVerifier, type RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
 import { getFirebaseAuth } from './auth';
+import { disableAppCheck, enableAppCheck, getFirebaseAppCheck } from './app-check';
 
 let recaptchaVerifier: RecaptchaVerifierType | null = null;
 let recaptchaV2ScriptLoaded = false;
@@ -127,7 +128,6 @@ export async function createRecaptchaVerifier(containerId?: string): Promise<Rec
     console.log('🔵 [reCAPTCHA] Starte Verifier-Erstellung...');
     
     // WICHTIG: Deaktiviere App Check temporär, um Konflikt mit Phone Auth zu vermeiden
-    const { disableAppCheck, getFirebaseAppCheck } = await import('./app-check.js');
     const appCheck = getFirebaseAppCheck();
     if (appCheck) {
       console.warn('⚠️  [reCAPTCHA] App Check ist aktiviert - deaktiviere temporär für Phone Auth');
@@ -365,9 +365,5 @@ export function clearRecaptchaVerifier(): void {
   }
   
   // WICHTIG: Aktiviere App Check wieder, nachdem Phone Auth abgeschlossen ist
-  import('./app-check.js').then(({ enableAppCheck }) => {
-    enableAppCheck();
-  }).catch(() => {
-    // Ignoriere Fehler beim Aktivieren von App Check
-  });
+  enableAppCheck();
 }
