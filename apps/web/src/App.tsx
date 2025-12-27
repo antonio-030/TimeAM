@@ -31,6 +31,9 @@ import { FreelancerPoolPage } from './modules/freelancer/FreelancerPoolPage';
 import { FreelancerDashboardPage } from './modules/freelancer/FreelancerDashboardPage';
 import { FreelancerMyShiftsPage } from './modules/freelancer/FreelancerMyShiftsPage';
 import { MfaVerifyModal } from './components/MfaVerifyModal';
+import { CheckoutPage } from './pages/CheckoutPage';
+import { SuccessPage } from './pages/SuccessPage';
+import { CheckoutCancelPage } from './pages/CheckoutCancelPage';
 import styles from './App.module.css';
 
 type LegalPage = 'privacy' | 'imprint' | null;
@@ -117,17 +120,40 @@ function AppContent() {
   useEffect(() => {
     // Wenn User eingeloggt ist und ALLE Daten geladen sind
     if (user && !tenantLoading && !mfaRequired && tenant !== undefined) {
-      // Nur von /login weiterleiten
+      // Nur von /login weiterleiten, ABER NICHT wenn Plan-Kontext oder pendingCheckout vorhanden ist
+      // (dann wird die Navigation von LoginForm/CreateTenantForm übernommen)
       if (location.pathname === '/login') {
-        // Bestimme Standard-Route basierend auf User-Typ
-        let defaultRoute = '/dashboard';
-        if (isFreelancer) {
-          defaultRoute = '/freelancer-dashboard';
+        // Prüfe ob Plan-Kontext in URL vorhanden ist
+        const searchParams = new URLSearchParams(location.search);
+        const planId = searchParams.get('planId');
+        
+        // Prüfe auch ob ein pending Checkout vorhanden ist (hat Priorität)
+        const pendingCheckoutStr = localStorage.getItem('pendingCheckout');
+        let hasPendingCheckout = false;
+        if (pendingCheckoutStr) {
+          try {
+            const pendingCheckout = JSON.parse(pendingCheckoutStr);
+            const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 Tage
+            const age = Date.now() - pendingCheckout.timestamp;
+            hasPendingCheckout = age < maxAge;
+          } catch {
+            // Fehler ignorieren
+          }
         }
-        navigate(defaultRoute, { replace: true });
+        
+        // Wenn kein Plan-Kontext UND kein pendingCheckout vorhanden ist, zur Standard-Route weiterleiten
+        if (!planId && !hasPendingCheckout) {
+          // Bestimme Standard-Route basierend auf User-Typ
+          let defaultRoute = '/dashboard';
+          if (isFreelancer) {
+            defaultRoute = '/freelancer-dashboard';
+          }
+          navigate(defaultRoute, { replace: true });
+        }
+        // Wenn Plan-Kontext oder pendingCheckout vorhanden ist, wird die Navigation von LoginForm übernommen
       }
     }
-  }, [user, location.pathname, tenantLoading, mfaRequired, isFreelancer, tenant, navigate]);
+  }, [user, location.pathname, location.search, tenantLoading, mfaRequired, isFreelancer, tenant, navigate]);
 
   // Route-Guard: Freelancer von /dashboard auf /freelancer-dashboard umleiten
   useEffect(() => {
@@ -280,6 +306,18 @@ function AppContent() {
               />
             } 
           />
+          <Route 
+            path="/checkout" 
+            element={<CheckoutPage />} 
+          />
+          <Route 
+            path="/checkout-cancel" 
+            element={<CheckoutCancelPage />} 
+          />
+          <Route 
+            path="/success" 
+            element={<SuccessPage />} 
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
         <CookieBanner onPrivacyClick={() => setLegalPage('privacy')} />
@@ -317,6 +355,8 @@ function AppContent() {
   // User braucht Onboarding → Tenant erstellen
   // WICHTIG: Super Admins (Dev-Staff) brauchen kein Onboarding, sie haben bereits einen Dev-Tenant
   if (needsOnboarding && !isSuperAdmin && !isDevStaff) {
+    // URL-Parameter (planId, billingCycle) werden automatisch an CreateTenantForm weitergegeben
+    // über useSearchParams() in CreateTenantForm
     return (
       <>
         <CreateTenantForm />
@@ -342,7 +382,21 @@ function AppContent() {
     return '/dashboard';
   };
 
-  // Eingeloggt mit Tenant → Protected Routes mit Layout
+  // Eingeloggt mit Tenant → Protected Routes
+  // Checkout und Success werden außerhalb des Layouts gerendert
+  const isCheckoutOrSuccess = location.pathname === '/checkout' || location.pathname === '/success';
+  
+  // Wenn User auf Checkout oder Success ist, rendere ohne Layout
+  if (isCheckoutOrSuccess) {
+    return (
+      <Routes>
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/success" element={<SuccessPage />} />
+      </Routes>
+    );
+  }
+
+  // Ansonsten: Normale Routes mit Layout
   return (
     <AppLayout>
       <Routes>
@@ -586,10 +640,22 @@ function AppContent() {
           </>
         )}
 
-        {/* Login Route - auch für eingeloggte User verfügbar (z.B. während Logout) */}
+        {/* Checkout und Success auch hier verfügbar (für Fallback) */}
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/checkout-cancel" element={<CheckoutCancelPage />} />
+        <Route path="/success" element={<SuccessPage />} />
+        <Route path="/login" element={<LoginForm />} />
+        {/* PricingPage auch für eingeloggte User verfügbar */}
         <Route 
-          path="/login" 
-          element={<LoginForm />} 
+          path="/pricing" 
+          element={
+            <PricingPage 
+              onGetStarted={() => navigate('/dashboard')}
+              onPrivacyClick={() => setLegalPage('privacy')}
+              onImprintClick={() => setLegalPage('imprint')}
+              onFreelancerPoolClick={() => navigate('/freelancer-pool')}
+            />
+          } 
         />
 
         {/* Default Route - Redirect zu passender Startseite */}

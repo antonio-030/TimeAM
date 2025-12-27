@@ -164,3 +164,28 @@ export interface CheckoutSessionResponse {
   url: string;
 }
 
+/**
+ * Stripe Configuration
+ */
+export interface StripeConfig {
+  publishableKey: string;
+  webhookSecret?: string;
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt: FirebaseFirestore.Timestamp;
+}
+
+/**
+ * Request: Stripe Configuration aktualisieren
+ */
+export interface UpdateStripeConfigRequest {
+  publishableKey: string;
+  webhookSecret?: string;
+}
+
+/**
+ * Response: Stripe Configuration
+ */
+export interface StripeConfigResponse {
+  config: StripeConfig;
+}
+

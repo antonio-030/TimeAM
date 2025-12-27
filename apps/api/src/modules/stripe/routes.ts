@@ -9,9 +9,12 @@ import { requireAuth } from '../../core/auth/express-middleware.js';
 import { requireEntitlements } from '../../core/entitlements/middleware.js';
 import { ENTITLEMENT_KEYS } from '@timeam/shared';
 import type { TenantRequest } from '../../core/entitlements/middleware.js';
+import type { AuthenticatedRequest } from '../../core/auth/express-middleware.js';
+import { getAdminFirestore } from '../../core/firebase/admin.js';
 import {
   getPricingPlans,
   upsertPricingPlan,
+  deletePricingPlan,
   getPricingAddons,
   upsertPricingAddon,
   getTenantSubscriptions,
@@ -20,6 +23,10 @@ import {
   cancelSubscription,
   createCheckoutSession,
   handleStripeWebhook,
+  getStripeConfig,
+  updateStripeConfig,
+  validateStripeConfig,
+  seedDefaultPlans,
 } from './service.js';
 import Stripe from 'stripe';
 import type {
@@ -27,6 +34,7 @@ import type {
   UpsertPricingAddonRequest,
   CreateSubscriptionRequest,
   UpdateSubscriptionRequest,
+  UpdateStripeConfigRequest,
 } from './types.js';
 
 const router = Router();
@@ -36,6 +44,113 @@ const stripeGuard = [
   requireAuth,
   requireEntitlements([ENTITLEMENT_KEYS.MODULE_STRIPE]),
 ];
+
+// =============================================================================
+// Public Routes (ohne Auth - für PricingPage)
+// =============================================================================
+
+/**
+ * GET /api/stripe/public/pricing/plans
+ * Lädt alle Pricing Plans (öffentlich, für PricingPage).
+ */
+router.get('/public/pricing/plans', async (req, res) => {
+  try {
+    // Stelle sicher, dass Standard-Plans vorhanden sind
+    await seedDefaultPlans();
+    const plans = await getPricingPlans();
+    res.json({ plans });
+  } catch (error) {
+    console.error('Error in GET /stripe/public/pricing/plans:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get pricing plans';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * GET /api/stripe/public/pricing/addons
+ * Lädt alle Pricing Addons (öffentlich, für PricingPage).
+ */
+router.get('/public/pricing/addons', async (req, res) => {
+  try {
+    const addons = await getPricingAddons();
+    res.json({ addons });
+  } catch (error) {
+    console.error('Error in GET /stripe/public/pricing/addons:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get pricing addons';
+    res.status(500).json({ error: message });
+  }
+});
+
+// =============================================================================
+// Stripe Configuration
+// =============================================================================
+
+/**
+ * GET /api/stripe/config
+ * Lädt die Stripe-Konfiguration.
+ */
+router.get('/config', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  try {
+    const config = await getStripeConfig();
+    
+    if (!config) {
+      res.json({ config: null });
+      return;
+    }
+    
+    res.json({ config });
+  } catch (error) {
+    console.error('Error in GET /stripe/config:', error);
+    const message = error instanceof Error ? error.message : 'Failed to get stripe config';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * PUT /api/stripe/config
+ * Aktualisiert die Stripe-Konfiguration (nur Publishable Key).
+ */
+router.put('/config', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  try {
+    const request = req.body as UpdateStripeConfigRequest;
+    
+    if (!request.publishableKey) {
+      res.status(400).json({ error: 'publishableKey ist erforderlich' });
+      return;
+    }
+    
+    // Validiere Format
+    if (!request.publishableKey.startsWith('pk_')) {
+      res.status(400).json({ error: 'Ungültiges Format für Publishable Key (muss mit pk_ beginnen)' });
+      return;
+    }
+    
+    const config = await updateStripeConfig(request);
+    res.json({ config });
+  } catch (error) {
+    console.error('Error in PUT /stripe/config:', error);
+    const message = error instanceof Error ? error.message : 'Failed to update stripe config';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/stripe/config/validate
+ * Validiert die Stripe-Konfiguration.
+ */
+router.post('/config/validate', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  try {
+    const validation = await validateStripeConfig();
+    res.json(validation);
+  } catch (error) {
+    console.error('Error in POST /stripe/config/validate:', error);
+    const message = error instanceof Error ? error.message : 'Failed to validate stripe config';
+    res.status(500).json({ error: message });
+  }
+});
 
 // =============================================================================
 // Pricing Plans
@@ -48,11 +163,30 @@ const stripeGuard = [
 router.get('/pricing/plans', ...stripeGuard, async (req, res) => {
   const { tenant } = req as TenantRequest;
   try {
+    // Stelle sicher, dass Standard-Plans vorhanden sind
+    await seedDefaultPlans();
     const plans = await getPricingPlans();
     res.json({ plans });
   } catch (error) {
     console.error('Error in GET /stripe/pricing/plans:', error);
     const message = error instanceof Error ? error.message : 'Failed to get pricing plans';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/stripe/pricing/plans/seed
+ * Erstellt Standard-Plans (falls noch keine vorhanden sind).
+ */
+router.post('/pricing/plans/seed', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  try {
+    await seedDefaultPlans();
+    const plans = await getPricingPlans();
+    res.json({ plans, message: 'Standard-Plans erstellt' });
+  } catch (error) {
+    console.error('Error in POST /stripe/pricing/plans/seed:', error);
+    const message = error instanceof Error ? error.message : 'Failed to seed default plans';
     res.status(500).json({ error: message });
   }
 });
@@ -76,6 +210,29 @@ router.post('/pricing/plans', ...stripeGuard, async (req, res) => {
   } catch (error) {
     console.error('Error in POST /stripe/pricing/plans:', error);
     const message = error instanceof Error ? error.message : 'Failed to upsert pricing plan';
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * DELETE /api/stripe/pricing/plans/:planId
+ * Löscht einen Pricing Plan.
+ */
+router.delete('/pricing/plans/:planId', ...stripeGuard, async (req, res) => {
+  const { tenant } = req as TenantRequest;
+  try {
+    const { planId } = req.params;
+    
+    if (!planId) {
+      res.status(400).json({ error: 'planId ist erforderlich' });
+      return;
+    }
+    
+    await deletePricingPlan(planId);
+    res.json({ success: true, message: `Plan ${planId} wurde gelöscht` });
+  } catch (error) {
+    console.error('Error in DELETE /stripe/pricing/plans/:planId:', error);
+    const message = error instanceof Error ? error.message : 'Failed to delete pricing plan';
     res.status(500).json({ error: message });
   }
 });
@@ -227,14 +384,31 @@ router.post('/subscriptions/:tenantId/:subscriptionId/cancel', ...stripeGuard, a
 /**
  * POST /api/stripe/checkout/create
  * Erstellt eine Stripe Checkout Session.
+ * 
+ * WICHTIG: Dieser Endpoint erfordert nur Auth, NICHT das Stripe-Entitlement,
+ * damit normale User Checkout-Sessions erstellen können, um zu zahlen.
  */
-router.post('/checkout/create', ...stripeGuard, async (req, res) => {
-  const { tenant } = req as TenantRequest;
+router.post('/checkout/create', requireAuth, async (req, res) => {
   try {
     const { tenantId, planId, addonIds, userCount, billingCycle, successUrl, cancelUrl } = req.body;
+    const { user } = req as AuthenticatedRequest;
     
     if (!tenantId || !planId || !userCount || !billingCycle || !successUrl || !cancelUrl) {
       res.status(400).json({ error: 'Fehlende Pflichtfelder: tenantId, planId, userCount, billingCycle, successUrl, cancelUrl' });
+      return;
+    }
+    
+    // Prüfe, ob der User Zugriff auf den Tenant hat
+    const db = getAdminFirestore();
+    const memberRef = db
+      .collection('tenants')
+      .doc(tenantId)
+      .collection('members')
+      .doc(user.uid);
+    const memberSnap = await memberRef.get();
+    
+    if (!memberSnap.exists) {
+      res.status(403).json({ error: 'No tenant membership' });
       return;
     }
     

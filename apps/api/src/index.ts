@@ -13,7 +13,16 @@ const __dirname = dirname(__filename);
 // .env liegt in apps/api/, aber dist/ liegt in apps/api/dist/
 // Daher müssen wir zwei Ebenen nach oben gehen
 const envPath = resolve(__dirname, '../.env');
-config({ path: envPath });
+const result = config({ path: envPath });
+
+// Debug: Prüfe ob STRIPE_SECRET_KEY geladen wurde
+if (process.env.STRIPE_SECRET_KEY) {
+  console.log('✅ STRIPE_SECRET_KEY geladen');
+} else {
+  console.warn('⚠️ STRIPE_SECRET_KEY nicht gefunden in .env-Datei');
+  console.log(`📁 .env-Pfad: ${envPath}`);
+  console.log(`📋 Geladene Variablen: ${Object.keys(result.parsed || {}).join(', ')}`);
+}
 
 import express from 'express';
 import cors from 'cors';

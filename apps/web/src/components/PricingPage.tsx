@@ -5,7 +5,9 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { usePricingPlans, usePricingAddons } from '../modules/stripe/hooks';
+import { useAuth } from '../core/auth';
 import styles from './PricingPage.module.css';
 import landingStyles from './LandingPage.module.css';
 
@@ -18,8 +20,26 @@ interface PricingPageProps {
 
 export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFreelancerPoolClick }: PricingPageProps) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+  const { plans: stripePlans, loading: plansLoading } = usePricingPlans();
+  const { addons: stripeAddons, loading: addonsLoading } = usePricingAddons();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [isScrolled, setIsScrolled] = useState(false);
+  const [showCanceledMessage, setShowCanceledMessage] = useState(false);
+
+  // Prüfe ob User von einem abgebrochenen Checkout kommt
+  useEffect(() => {
+    const canceled = searchParams.get('canceled');
+    if (canceled === 'true') {
+      setShowCanceledMessage(true);
+      // Entferne Parameter aus URL nach 5 Sekunden
+      setTimeout(() => {
+        setShowCanceledMessage(false);
+        navigate('/pricing', { replace: true });
+      }, 5000);
+    }
+  }, [searchParams, navigate]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,157 +51,68 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleGetStarted = () => {
-    if (onGetStarted) {
-      onGetStarted();
+  const handleGetStarted = (planId?: string) => {
+    if (planId) {
+      // Weiterleitung zu Checkout mit Plan-Kontext
+      if (user) {
+        // User ist eingeloggt -> direkt zu Checkout
+        navigate(`/checkout?planId=${planId}&billingCycle=${billingCycle}`);
+      } else {
+        // User nicht eingeloggt -> zu Registrierung mit Plan-Kontext
+        navigate(`/login?planId=${planId}&billingCycle=${billingCycle}&mode=register`);
+      }
     } else {
-      navigate('/login');
+      // Fallback: Standard-Verhalten
+      if (onGetStarted) {
+        onGetStarted();
+      } else {
+        navigate('/login');
+      }
     }
   };
 
-  const plans = [
-    {
-      id: 'basic',
-      name: 'Basic',
-      description: 'Für kleine Teams, "kommt schnell live"',
-      priceMonthly: 4.50,
-      priceYearly: 3.83, // 15% Rabatt
-      minimumPriceMonthly: 45,
-      minimumPriceYearly: 38.25, // 15% Rabatt
-      targetGroup: '1–30 MA',
-      features: [
-        'Core-Module (Dashboard, Kalender, Mitarbeiter)',
-        'Schichtplanung mit Freelancer-Pool',
-        'Zeiterfassung (Clock In/Out, Timesheets)',
-        'Standardberichte/Exports',
-        'Benachrichtigungen',
-        'Freelancer-Pool: Schichten öffentlich veröffentlichen',
-      ],
-      includedModules: ['dashboard', 'calendar-core', 'members', 'notifications', 'time-tracking', 'shift-pool', 'reports'],
-      moduleDetails: {
-        'time-tracking': {
-          name: 'Zeiterfassung',
-          description: 'Einfache und präzise Arbeitszeiterfassung. Clock In/Out mit einem Klick, automatische Stundenberechnung, Übersicht über deine geleisteten Stunden und flexible Timesheet-Verwaltung. Perfekt für Einzelpersonen oder Teams.',
-          features: ['Clock In/Out', 'Stundenkonto', 'Timesheets', 'Pausen-Erfassung', 'Projekt-Zuordnung'],
-        },
-        'shift-pool': {
-          name: 'Schichtplanung',
-          description: 'Flexible Schichtverwaltung für Teams. Veröffentliche offene Schichten im Freelancer-Pool und lass Mitarbeiter oder externe Freelancer sich bewerben. Ideal für Unternehmen, die flexible Besetzung benötigen.',
-          features: ['Schichten erstellen', 'Freelancer-Pool Integration', 'Bewerbungen verwalten', 'Automatische Benachrichtigungen', 'Schicht-Zuweisungen'],
-        },
-        'reports': {
-          name: 'Berichte & Analytics',
-          description: 'Auswertungen, Statistiken und Export-Funktionen. Behalte den Überblick über Arbeitszeiten, Schichten und Team-Performance mit übersichtlichen Dashboards und detaillierten Reports.',
-          features: ['Zeiterfassungs-Reports', 'Schicht-Übersichten', 'Export-Funktionen (PDF, Excel)', 'Statistiken & Kennzahlen'],
-        },
-      },
-    },
-    {
-      id: 'pro',
-      name: 'Pro',
-      description: 'Für Teams, die mehr Steuerung/Reporting wollen',
-      priceMonthly: 6.50,
-      priceYearly: 5.53, // 15% Rabatt
-      minimumPriceMonthly: 79,
-      minimumPriceYearly: 67.15, // 15% Rabatt
-      targetGroup: '10–50 MA',
-      features: [
-        'Alles aus Basic',
-        'Erweiterte Analytics-Ansichten',
-        'Mehr Exportoptionen',
-        'Rollen/Rechte "Pro"',
-        'Prioritäts-Support',
-      ],
-      includedModules: ['dashboard', 'calendar-core', 'members', 'notifications', 'time-tracking', 'shift-pool', 'reports'],
-      popular: true,
-    },
-    {
-      id: 'business',
-      name: 'Business',
-      description: 'Für größere Firmen / mehrere Standorte',
-      priceMonthly: 8.50,
-      priceYearly: 7.23, // 15% Rabatt
-      minimumPriceMonthly: 129,
-      minimumPriceYearly: 109.65, // 15% Rabatt
-      targetGroup: '50+ MA',
-      features: [
-        'Alles aus Pro',
-        'Multi-Standort-Features',
-        'Erweiterte Auswertungen/Filter',
-        'Prioritäts-Support',
-        'Dedicated Account Manager',
-      ],
-      includedModules: ['dashboard', 'calendar-core', 'members', 'notifications', 'time-tracking', 'shift-pool', 'reports'],
-    },
-  ];
+  // Transform Stripe Plans to PricingPage format
+  const plans = stripePlans.map(plan => {
+    const priceMonthly = plan.pricePerUser / 100; // Convert from cents
+    const priceYearly = plan.pricePerUserYearly ? plan.pricePerUserYearly / 100 : priceMonthly * 0.85; // 15% discount if not set
+    const minimumPriceMonthly = plan.minimumPrice / 100;
+    const minimumPriceYearly = plan.minimumPriceYearly ? plan.minimumPriceYearly / 100 : minimumPriceMonthly * 0.85;
 
-  const addons = [
-    {
-      id: 'work-time-compliance',
-      name: 'Arbeitszeit-Compliance',
-      description: 'Automatische Verstoß-Erkennung und Prüfungs-Exports für Arbeitszeitgesetze',
-      detailedDescription: 'Erkenne automatisch Verstöße gegen Arbeitszeitgesetze (z.B. maximale Arbeitszeit, Ruhezeiten, Pausen). Generiere Prüfungs-Exports für Behörden und Audits. Ideal für Unternehmen, die Compliance-Anforderungen erfüllen müssen.',
-      priceMonthly: 1.20,
-      priceYearly: 1.02, // 15% Rabatt
-      minimumPriceMonthly: 19,
-      minimumPriceYearly: 16.15, // 15% Rabatt
-      icon: '⚖️',
-      moduleId: 'work-time-compliance',
-      features: ['Automatische Verstoß-Erkennung', 'Prüfungs-Exports', 'Compliance-Reports', 'Warnungen bei Regelverstößen'],
-    },
-    {
-      id: 'company-branding',
-      name: 'Custom Branding',
-      description: 'Eigene Farben, Logo und Branding für deine Firma',
-      detailedDescription: 'Passe TimeAM an dein Corporate Design an. Eigene Farben, Logo, und Branding-Elemente sorgen für eine konsistente Markenerfahrung. Deine Mitarbeiter sehen dein Branding statt des Standard-Designs.',
-      priceMonthly: 0.60,
-      priceYearly: 0.51, // 15% Rabatt
-      minimumPriceMonthly: 15,
-      minimumPriceYearly: 12.75, // 15% Rabatt
-      icon: '🎨',
-      moduleId: 'company-branding',
-      features: ['Eigenes Logo', 'Farbanpassung', 'Custom Branding', 'White-Label Option'],
-    },
-    {
-      id: 'company-integrations',
-      name: 'Integrationen',
-      description: 'HR/Payroll/API-Connectoren für nahtlose Datenübertragung',
-      detailedDescription: 'Integriere TimeAM mit deinen bestehenden Systemen. Verbinde dich mit HR-Systemen, Payroll-Lösungen und anderen Tools über unsere API oder vorkonfigurierte Connectors. Automatisiere Datenübertragungen und spare Zeit.',
-      priceMonthly: 1.80,
-      priceYearly: 1.53, // 15% Rabatt
-      minimumPriceMonthly: 39,
-      minimumPriceYearly: 33.15, // 15% Rabatt
-      icon: '🔌',
-      moduleId: 'company-integrations',
-      features: ['HR-System Integration', 'Payroll-Anbindung', 'API-Zugriff', 'Webhook-Support', 'Automatisierte Datenübertragung'],
-    },
-    {
-      id: 'company-advanced-reports',
-      name: 'Erweiterte Berichte',
-      description: 'Custom Exports und zusätzliche Report-Funktionen',
-      detailedDescription: 'Erweiterte Reporting-Funktionen für detaillierte Analysen. Erstelle custom Reports, erweiterte Export-Formate und automatisierte Report-Zustellungen. Perfekt für Unternehmen, die tiefere Einblicke benötigen.',
-      priceMonthly: 0.90,
-      priceYearly: 0.77, // 15% Rabatt
-      minimumPriceMonthly: 19,
-      minimumPriceYearly: 16.15, // 15% Rabatt
-      icon: '📑',
-      moduleId: 'company-advanced-reports',
-      features: ['Custom Reports', 'Erweiterte Export-Formate', 'Automatisierte Report-Zustellung', 'Detaillierte Analysen'],
-    },
-    {
-      id: 'company-sso',
-      name: 'Single Sign-On (SSO)',
-      description: 'SSO-Integration für sicheren Firmen-Login',
-      detailedDescription: 'Integriere TimeAM mit deinem bestehenden SSO-System (SAML, OAuth, etc.). Deine Mitarbeiter können sich mit ihren Firmen-Credentials anmelden, ohne separate Accounts zu verwalten. Erhöht Sicherheit und Benutzerfreundlichkeit.',
-      priceMonthly: 2.50,
-      priceYearly: 2.13, // 15% Rabatt
-      minimumPriceMonthly: 79,
-      minimumPriceYearly: 67.15, // 15% Rabatt
-      icon: '🔐',
-      moduleId: 'company-sso',
-      features: ['SAML-Support', 'OAuth-Integration', 'Zentrale Authentifizierung', 'Enterprise-Sicherheit'],
-    },
-  ];
+    return {
+      id: plan.id,
+      name: plan.name,
+      description: plan.description,
+      priceMonthly,
+      priceYearly,
+      minimumPriceMonthly,
+      minimumPriceYearly,
+      targetGroup: plan.targetGroup || '',
+      features: plan.features || [],
+      includedModules: plan.includedModules || [],
+      popular: plan.id === 'pro', // Mark 'pro' as popular by default
+    };
+  });
+
+  // Transform Stripe Addons to PricingPage format
+  const addons = stripeAddons.map(addon => {
+    const priceMonthly = addon.pricePerUser / 100;
+    const priceYearly = addon.pricePerUserYearly ? addon.pricePerUserYearly / 100 : priceMonthly * 0.85;
+    const minimumPriceMonthly = addon.minimumPrice / 100;
+    const minimumPriceYearly = addon.minimumPriceYearly ? addon.minimumPriceYearly / 100 : minimumPriceMonthly * 0.85;
+
+    return {
+      id: addon.id,
+      name: addon.name,
+      description: addon.description,
+      priceMonthly,
+      priceYearly,
+      minimumPriceMonthly,
+      minimumPriceYearly,
+      icon: addon.icon || '🔧',
+      moduleId: addon.moduleId,
+      features: [], // Addons don't have features in Stripe, but we can add them later
+    };
+  });
 
   const calculatePrice = (pricePerUser: number, users: number, minimumPrice: number, isYearly: boolean) => {
     const discount = isYearly ? 0.15 : 0;
@@ -190,12 +121,13 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
     return total;
   };
 
-  const exampleCalculations = [
+  // Example scenarios for pricing calculator (use first available plans/addons)
+  const exampleCalculations = plans.length > 0 && addons.length >= 2 ? [
     {
       scenario: 'Firma mit 20 Nutzern, Plan Pro + Compliance + Integrationen',
       users: 20,
-      plan: plans[1],
-      addons: [addons[0], addons[2]],
+      plan: plans[1] || plans[0],
+      addons: [addons[0], addons[2] || addons[1]],
     },
     {
       scenario: 'Firma mit 8 Nutzern, Plan Basic',
@@ -203,7 +135,7 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
       plan: plans[0],
       addons: [],
     },
-  ];
+  ] : [];
 
   return (
     <div className={styles.pricing}>
@@ -257,6 +189,11 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
           <p className={styles.subtitle}>
             Einfache, transparente Preise. Zahl nur für das, was du brauchst.
           </p>
+          {showCanceledMessage && (
+            <div className={styles.canceledMessage}>
+              <p>💡 Du hast den Checkout-Prozess abgebrochen. Kein Problem! Du kannst jederzeit einen Plan auswählen und fortfahren.</p>
+            </div>
+          )}
         </div>
       </header>
 
@@ -279,8 +216,13 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
 
       {/* Pricing Plans */}
       <section className={styles.plansSection}>
-        <div className={styles.plansGrid}>
-          {plans.map((plan) => {
+        {plansLoading ? (
+          <div className={styles.loading}>Laden...</div>
+        ) : plans.length === 0 ? (
+          <div className={styles.emptyState}>Keine Pläne verfügbar. Bitte später erneut versuchen.</div>
+        ) : (
+          <div className={styles.plansGrid}>
+            {plans.map((plan) => {
             const price = billingCycle === 'monthly' ? plan.priceMonthly : plan.priceYearly;
             const minimumPrice = billingCycle === 'monthly' ? plan.minimumPriceMonthly : plan.minimumPriceYearly;
 
@@ -312,14 +254,15 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
                 </ul>
                 <button
                   className={styles.planButton}
-                  onClick={handleGetStarted}
+                  onClick={() => handleGetStarted(plan.id)}
                 >
                   Jetzt starten
                 </button>
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
       </section>
 
       {/* Add-ons Section */}
@@ -330,8 +273,13 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
             Erweitere deinen Plan mit zusätzlichen Features. Monatlich zu-/abbuchbar.
           </p>
         </div>
-        <div className={styles.addonsGrid}>
-          {addons.map((addon) => {
+        {addonsLoading ? (
+          <div className={styles.loading}>Laden...</div>
+        ) : addons.length === 0 ? (
+          <div className={styles.emptyState}>Keine Add-ons verfügbar.</div>
+        ) : (
+          <div className={styles.addonsGrid}>
+            {addons.map((addon) => {
             const price = billingCycle === 'monthly' ? addon.priceMonthly : addon.priceYearly;
             const minimumPrice = billingCycle === 'monthly' ? addon.minimumPriceMonthly : addon.minimumPriceYearly;
 
@@ -363,34 +311,11 @@ export function PricingPage({ onGetStarted, onPrivacyClick, onImprintClick, onFr
               </div>
             );
           })}
-        </div>
+          </div>
+        )}
       </section>
 
-      {/* Module Details Section */}
-      <section className={styles.modulesSection}>
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>Was können die Module?</h2>
-          <p className={styles.sectionSubtitle}>
-            Detaillierte Informationen zu den Hauptmodulen, die in allen Plänen enthalten sind.
-          </p>
-        </div>
-        <div className={styles.modulesDetailsGrid}>
-          {plans[0].moduleDetails && Object.entries(plans[0].moduleDetails).map(([key, module]: [string, any]) => (
-            <div key={key} className={styles.moduleDetailCard}>
-              <h3 className={styles.moduleDetailName}>{module.name}</h3>
-              <p className={styles.moduleDetailDescription}>{module.description}</p>
-              <ul className={styles.moduleDetailFeatures}>
-                {module.features.map((feature: string, idx: number) => (
-                  <li key={idx}>
-                    <span className={styles.checkIcon}>✓</span>
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Module Details Section - Removed as module details are now in Stripe plans */}
 
       {/* Freelancer Pool Section */}
       <section className={styles.freelancerSection}>

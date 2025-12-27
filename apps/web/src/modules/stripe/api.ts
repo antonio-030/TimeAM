@@ -4,7 +4,7 @@
  * API-Calls für das Stripe-Modul.
  */
 
-import { apiGet, apiPost, apiPatch } from '../../core/api';
+import { apiGet, apiPost, apiPatch, apiPut, apiDelete } from '../../core/api';
 
 const API_BASE = '/api/stripe';
 
@@ -94,12 +94,77 @@ export interface CheckoutSessionResponse {
   url: string;
 }
 
+export interface StripeConfig {
+  publishableKey: string;
+  webhookSecret?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface UpdateStripeConfigRequest {
+  publishableKey: string;
+  webhookSecret?: string;
+}
+
+export interface ModuleStatusItem {
+  id: string;
+  displayName: string;
+  description: string;
+  icon: string;
+  category: 'core' | 'optional';
+  isActive: boolean;
+  canToggle: boolean;
+}
+
+export interface ModuleStatusResponse {
+  modules: ModuleStatusItem[];
+}
+
+/**
+ * Lädt die Stripe-Konfiguration.
+ */
+export async function getStripeConfig(): Promise<StripeConfig | null> {
+  const data = await apiGet<{ config: StripeConfig | null }>(`${API_BASE}/config`);
+  return data.config;
+}
+
+/**
+ * Aktualisiert die Stripe-Konfiguration.
+ */
+export async function updateStripeConfig(request: UpdateStripeConfigRequest): Promise<StripeConfig> {
+  const data = await apiPut<{ config: StripeConfig }>(`${API_BASE}/config`, request);
+  return data.config;
+}
+
+/**
+ * Validiert die Stripe-Konfiguration.
+ */
+export async function validateStripeConfig(): Promise<{ valid: boolean; message?: string }> {
+  return await apiPost<{ valid: boolean; message?: string }>(`${API_BASE}/config/validate`, {});
+}
+
+/**
+ * Lädt den Status aller Module für den aktuellen Tenant.
+ */
+export async function getModuleStatus(): Promise<ModuleStatusItem[]> {
+  const data = await apiGet<ModuleStatusResponse>('/api/settings/modules');
+  return data.modules || [];
+}
+
 /**
  * Lädt alle Pricing Plans.
+ * Verwendet public endpoint, damit es auch ohne Auth funktioniert (für PricingPage).
  */
 export async function getPricingPlans(): Promise<PricingPlan[]> {
-  const data = await apiGet<{ plans: PricingPlan[] }>(`${API_BASE}/pricing/plans`);
-  return data.plans || [];
+  try {
+    // Versuche zuerst den public endpoint (für PricingPage ohne Auth)
+    const data = await apiGet<{ plans: PricingPlan[] }>(`${API_BASE}/public/pricing/plans`);
+    return data.plans || [];
+  } catch (err) {
+    // Fallback auf protected endpoint (für StripePage mit Auth)
+    const data = await apiGet<{ plans: PricingPlan[] }>(`${API_BASE}/pricing/plans`);
+    return data.plans || [];
+  }
 }
 
 /**
@@ -111,11 +176,26 @@ export async function upsertPricingPlan(request: UpsertPricingPlanRequest): Prom
 }
 
 /**
+ * Löscht einen Pricing Plan.
+ */
+export async function deletePricingPlan(planId: string): Promise<void> {
+  await apiDelete<{ success: boolean; message: string }>(`${API_BASE}/pricing/plans/${planId}`);
+}
+
+/**
  * Lädt alle Pricing Addons.
+ * Verwendet public endpoint, damit es auch ohne Auth funktioniert (für PricingPage).
  */
 export async function getPricingAddons(): Promise<PricingAddon[]> {
-  const data = await apiGet<{ addons: PricingAddon[] }>(`${API_BASE}/pricing/addons`);
-  return data.addons || [];
+  try {
+    // Versuche zuerst den public endpoint (für PricingPage ohne Auth)
+    const data = await apiGet<{ addons: PricingAddon[] }>(`${API_BASE}/public/pricing/addons`);
+    return data.addons || [];
+  } catch (err) {
+    // Fallback auf protected endpoint (für StripePage mit Auth)
+    const data = await apiGet<{ addons: PricingAddon[] }>(`${API_BASE}/pricing/addons`);
+    return data.addons || [];
+  }
 }
 
 /**

@@ -4,7 +4,8 @@
  * Login/Registrierung im TimeAM Design System.
  */
 
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../core/auth';
 import { useTenant } from '../core/tenant';
 import { registerFreelancer } from '../modules/freelancer/api';
@@ -19,8 +20,10 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginFormProps) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signIn, signUp, error, loading, clearError } = useAuth();
-  const { refresh } = useTenant();
+  const { refresh, createTenant, tenant, needsOnboarding } = useTenant();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +37,18 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
   const [userType, setUserType] = useState<UserType>(defaultUserType);
   const [mode, setMode] = useState<Mode>('login');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Plan-Kontext aus URL-Parametern lesen
+  const planId = searchParams.get('planId');
+  const billingCycle = searchParams.get('billingCycle') || 'monthly';
+  const modeParam = searchParams.get('mode');
+
+  useEffect(() => {
+    // Wenn mode-Parameter vorhanden ist, Modus setzen
+    if (modeParam === 'register') {
+      setMode('register');
+    }
+  }, [modeParam]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -78,6 +93,50 @@ export function LoginForm({ defaultUserType = 'employee', onSuccess }: LoginForm
       // User-State wird jetzt sofort in signIn aktualisiert, daher kein Timeout nötig
       // Tenant-Context explizit neu laden - warte bis alle Daten geladen sind
       await refresh();
+      
+      // Prüfe IMMER ob ein pending Checkout vorhanden ist (auch wenn User die Domain verlassen hat)
+      // Dies hat Priorität vor URL-Parametern, da es der letzte Checkout-Kontext ist
+      const pendingCheckoutStr = localStorage.getItem('pendingCheckout');
+      if (pendingCheckoutStr) {
+        try {
+          const pendingCheckout = JSON.parse(pendingCheckoutStr);
+          // Prüfe ob der Checkout nicht zu alt ist (max. 7 Tage)
+          const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 Tage in Millisekunden
+          const age = Date.now() - pendingCheckout.timestamp;
+          
+          if (age < maxAge) {
+            // Pending Checkout vorhanden und noch gültig
+            if (tenant) {
+              // Tenant vorhanden -> direkt zum Checkout
+              navigate(`/checkout?planId=${pendingCheckout.planId}&billingCycle=${pendingCheckout.billingCycle}`);
+              return;
+            } else {
+              // Kein Tenant -> User wird automatisch zum Onboarding weitergeleitet
+              // CreateTenantForm wird den pendingCheckout aus localStorage lesen
+              // Keine Navigation hier, App.tsx leitet automatisch zum Onboarding weiter
+            }
+          } else {
+            // Checkout zu alt -> löschen
+            localStorage.removeItem('pendingCheckout');
+          }
+        } catch (err) {
+          console.error('Fehler beim Parsen des pending Checkouts:', err);
+          localStorage.removeItem('pendingCheckout');
+        }
+      }
+      
+      // Wenn Plan-Kontext in URL vorhanden ist UND Tenant bereits existiert, zum Checkout weiterleiten
+      // Wenn kein Tenant existiert, wird der User zum Onboarding (CreateTenantForm) weitergeleitet
+      // Das CreateTenantForm wird dann nach der Tenant-Erstellung zum Checkout weiterleiten
+      if (planId && tenant) {
+        navigate(`/checkout?planId=${planId}&billingCycle=${billingCycle}`);
+        return;
+      }
+      
+      // Wenn Plan-Kontext vorhanden ist aber kein Tenant, wird der User automatisch
+      // zum Onboarding weitergeleitet (needsOnboarding wird true sein)
+      // Das CreateTenantForm wird den Plan-Kontext aus der URL lesen und nach
+      // der Tenant-Erstellung zum Checkout weiterleiten
       
       // Die Weiterleitung erfolgt dann automatisch in App.tsx
       // Keine manuelle Navigation hier, damit App.tsx die korrekte Route bestimmen kann

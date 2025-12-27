@@ -5,15 +5,47 @@
  */
 
 import { useState, type FormEvent } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../core/auth';
 import { useTenant } from '../core/tenant';
 import styles from './CreateTenantForm.module.css';
 
 export function CreateTenantForm() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { signOut } = useAuth();
-  const { createTenant, error, loading } = useTenant();
+  const { createTenant, error, loading, refresh } = useTenant();
   const [tenantName, setTenantName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Plan-Kontext aus URL-Parametern ODER aus localStorage (pendingCheckout) lesen
+  const planIdFromUrl = searchParams.get('planId');
+  const billingCycleFromUrl = searchParams.get('billingCycle') || 'monthly';
+  
+  // Prüfe ob ein pending Checkout vorhanden ist (hat Priorität vor URL-Parametern)
+  const pendingCheckoutStr = localStorage.getItem('pendingCheckout');
+  let planId = planIdFromUrl;
+  let billingCycle = billingCycleFromUrl;
+  
+  if (pendingCheckoutStr) {
+    try {
+      const pendingCheckout = JSON.parse(pendingCheckoutStr);
+      const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 Tage
+      const age = Date.now() - pendingCheckout.timestamp;
+      
+      if (age < maxAge) {
+        // Pending Checkout ist noch gültig -> verwende diese Daten
+        planId = pendingCheckout.planId;
+        billingCycle = pendingCheckout.billingCycle || 'monthly';
+      } else {
+        // Zu alt -> löschen
+        localStorage.removeItem('pendingCheckout');
+      }
+    } catch (err) {
+      console.error('Fehler beim Parsen des pending Checkouts:', err);
+      localStorage.removeItem('pendingCheckout');
+    }
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -26,8 +58,20 @@ export function CreateTenantForm() {
 
     try {
       await createTenant(tenantName.trim());
-    } catch {
+      
+      // Tenant-Context explizit neu laden, um sicherzustellen, dass alle Daten vom Backend geladen sind
+      await refresh();
+      
+      // Wenn Plan-Kontext vorhanden ist, zum Checkout weiterleiten
+      if (planId) {
+        // Warte kurz, damit der Tenant-State vollständig aktualisiert ist
+        await new Promise(resolve => setTimeout(resolve, 500));
+        navigate(`/checkout?planId=${planId}&billingCycle=${billingCycle}`, { replace: true });
+        return;
+      }
+    } catch (err) {
       // Error wird im Context behandelt
+      console.error('Fehler beim Erstellen des Tenants:', err);
     } finally {
       setIsSubmitting(false);
     }

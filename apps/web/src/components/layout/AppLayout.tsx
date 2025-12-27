@@ -671,7 +671,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className={styles.sidebarContent}>
           {/* Navigation */}
           <nav className={styles.nav}>
-            {navItems.map((item) => (
+            {navItems.filter(item => item.enabled).map((item) => (
               item.enabled && (
                 <button
                   key={item.id}
