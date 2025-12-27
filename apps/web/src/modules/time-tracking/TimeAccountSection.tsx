@@ -249,7 +249,7 @@ export function TimeAccountSection({ year, month }: TimeAccountSectionProps) {
               <p>Keine Anpassungen vorhanden.</p>
             ) : (
               <>
-                {account.manualAdjustments.map((adj) => (
+                {account.manualAdjustments.map((adj: TimeAccount['manualAdjustments'][0]) => (
                   <div key={adj.id} className={styles.adjustment}>
                     <div className={styles.adjustmentHeader}>
                       <span className={styles.adjustmentType}>Manuell</span>
@@ -267,7 +267,7 @@ export function TimeAccountSection({ year, month }: TimeAccountSectionProps) {
                   </div>
                 ))}
 
-                {account.complianceAdjustments.map((adj) => (
+                {account.complianceAdjustments.map((adj: TimeAccount['complianceAdjustments'][0]) => (
                   <div key={adj.id} className={styles.adjustment}>
                     <div className={styles.adjustmentHeader}>
                       <span className={styles.adjustmentType}>Compliance</span>

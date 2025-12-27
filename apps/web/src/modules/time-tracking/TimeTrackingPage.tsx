@@ -522,7 +522,7 @@ export function TimeTrackingPage() {
 
   // Keyboard Navigation für Tabs
   const handleTabKeyDown = (e: React.KeyboardEvent, tabId: TabId) => {
-    const tabs: TabId[] = ['tracking', 'account', ...(canManageTargets ? ['management'] : [])];
+    const tabs: TabId[] = ['tracking', 'account', ...(canManageTargets ? ['management' as TabId] : [])];
     const currentIndex = tabs.indexOf(activeTab);
     let newIndex = currentIndex;
 

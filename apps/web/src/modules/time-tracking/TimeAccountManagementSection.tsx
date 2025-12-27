@@ -338,7 +338,7 @@ function MemberTargetRow({
                     value={weeklyHours}
                     onChange={(e) => handleWeeklyHoursChange(parseFloat(e.target.value) || 0)}
                     className={styles.numberInput}
-                    disabled={isSaving || employmentType !== EMPLOYMENT_TYPE.CUSTOM}
+                    disabled={isSaving || (employmentType as EmploymentType) !== EMPLOYMENT_TYPE.CUSTOM}
                     aria-label="Wochenstunden"
                     aria-describedby={`weekly-hours-desc-${member.id}`}
                   />
@@ -415,7 +415,8 @@ function MemberTargetRow({
     );
   }
 
-  const preset = EMPLOYMENT_PRESETS[target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME];
+  const employmentTypeForPreset: EmploymentType = target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME;
+  const preset = EMPLOYMENT_PRESETS[employmentTypeForPreset];
   const displayHours = loading ? '...' : target?.monthlyTargetHours || 160;
 
   return (
@@ -435,7 +436,7 @@ function MemberTargetRow({
             </span>
             {target?.employmentType && (
               <span className={styles.targetType}>
-                {EMPLOYMENT_PRESETS[target.employmentType].label}
+                {EMPLOYMENT_PRESETS[target.employmentType as EmploymentType].label}
               </span>
             )}
             {target?.weeklyHours && (

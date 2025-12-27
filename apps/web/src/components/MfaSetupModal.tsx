@@ -135,7 +135,7 @@ export function MfaSetupModal({ open, onClose, onSuccess }: MfaSetupModalProps) 
     try {
       // Backend: Telefonnummer speichern
       const response = await setupPhoneMfa(phoneNumber);
-      setMaskedPhoneNumber(response.phoneNumber);
+      setMaskedPhoneNumber(response.phoneNumber ?? null);
 
       // Firebase Phone Auth: SMS senden
       const auth = getFirebaseAuth();

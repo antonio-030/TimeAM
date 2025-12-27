@@ -80,6 +80,8 @@ export function useSecurityEvent(eventId: string | null) {
     let cancelled = false;
 
     async function fetchEvent() {
+      if (!eventId) return; // TypeScript: eventId kann hier nicht null sein
+      
       setLoading(true);
       setError(null);
 

@@ -278,8 +278,9 @@ export async function createRecaptchaVerifier(containerId?: string): Promise<Rec
     
     try {
       // Methode 1: Versuche OHNE Container (für invisible reCAPTCHA)
+      // Für invisible reCAPTCHA: new RecaptchaVerifier(auth, { size: 'invisible' })
       console.log('🔵 [reCAPTCHA] Versuche Verifier OHNE Container (invisible)...');
-      recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig);
+      recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig as any);
       console.log('✅ [reCAPTCHA] Verifier erfolgreich OHNE Container erstellt');
     } catch (noContainerError) {
       console.warn('⚠️  [reCAPTCHA] Fehler ohne Container, versuche mit Element:', noContainerError);
@@ -307,8 +308,9 @@ export async function createRecaptchaVerifier(containerId?: string): Promise<Rec
       }
       
       try {
+        // Für invisible reCAPTCHA mit Container: new RecaptchaVerifier(auth, container, { size: 'invisible' })
         console.log('🔵 [reCAPTCHA] Versuche Verifier mit Element-Referenz...');
-        recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig, finalRef);
+        recaptchaVerifier = new RecaptchaVerifier(auth, finalRef, recaptchaConfig as any);
         console.log('✅ [reCAPTCHA] Verifier erfolgreich mit Element-Referenz erstellt');
       } catch (refError) {
         console.error('❌ [reCAPTCHA] Alle Methoden fehlgeschlagen:', refError);
