@@ -212,7 +212,7 @@ function MemberTargetRow({
     target?.monthlyTargetHours || 160
   );
   const [employmentType, setEmploymentType] = useState<EmploymentType>(
-    target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME
+    (target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME) as EmploymentType
   );
   const [weeklyHours, setWeeklyHours] = useState(
     target?.weeklyHours || 40
@@ -415,8 +415,8 @@ function MemberTargetRow({
     );
   }
 
-  const employmentType = (target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME) as keyof typeof EMPLOYMENT_PRESETS;
-  const preset = EMPLOYMENT_PRESETS[employmentType];
+  const targetEmploymentType = (target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME) as keyof typeof EMPLOYMENT_PRESETS;
+  const preset = EMPLOYMENT_PRESETS[targetEmploymentType];
   const displayHours = loading ? '...' : target?.monthlyTargetHours || 160;
 
   return (
