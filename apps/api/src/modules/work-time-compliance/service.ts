@@ -5,7 +5,7 @@
  */
 
 import { getAdminFirestore, getAdminStorage } from '../../core/firebase/index.js';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import type {
   RuleSet,
   RuleConfig,
@@ -39,6 +39,7 @@ import type { TimeEntryDoc } from '../time-tracking/types.js';
 import type { ShiftTimeEntryDoc } from '../shift-pool/types.js';
 import crypto from 'crypto';
 import PDFDocument from 'pdfkit';
+import type { PDFDocument as PDFDocumentType } from 'pdfkit';
 
 // =============================================================================
 // Helper Functions
@@ -592,7 +593,7 @@ export async function getViolations(
     snapshot = await query.limit(limit).get();
   }
 
-  let violations = snapshot.docs.map((doc) =>
+  let violations = snapshot.docs.map((doc: QueryDocumentSnapshot<ComplianceViolationDoc>) =>
     violationToResponse(doc.id, doc.data() as ComplianceViolationDoc)
   );
 
@@ -769,7 +770,7 @@ export async function getAuditLogs(
     snapshot = await query.limit(limit).get();
   }
 
-  const logs = snapshot.docs.map((doc) =>
+  const logs = snapshot.docs.map((doc: QueryDocumentSnapshot<ComplianceAuditLogDoc>) =>
     auditLogToResponse(doc.id, doc.data() as ComplianceAuditLogDoc)
   );
 
@@ -1055,7 +1056,7 @@ async function generatePdfReport(
     const doc = new PDFDocument({ margin: 50 });
     const chunks: Buffer[] = [];
 
-    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
