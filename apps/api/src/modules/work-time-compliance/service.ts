@@ -5,7 +5,7 @@
  */
 
 import { getAdminFirestore, getAdminStorage } from '../../core/firebase/index.js';
-import { FieldValue, Timestamp, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type {
   RuleSet,
   RuleConfig,
@@ -38,6 +38,7 @@ import {
 import type { TimeEntryDoc } from '../time-tracking/types.js';
 import type { ShiftTimeEntryDoc } from '../shift-pool/types.js';
 import crypto from 'crypto';
+import PDFDocument from 'pdfkit';
 
 // =============================================================================
 // Helper Functions
@@ -591,7 +592,7 @@ export async function getViolations(
     snapshot = await query.limit(limit).get();
   }
 
-  let violations = snapshot.docs.map((doc: QueryDocumentSnapshot<ComplianceViolationDoc>) =>
+  let violations = snapshot.docs.map((doc) =>
     violationToResponse(doc.id, doc.data() as ComplianceViolationDoc)
   );
 
@@ -768,7 +769,7 @@ export async function getAuditLogs(
     snapshot = await query.limit(limit).get();
   }
 
-  const logs = snapshot.docs.map((doc: QueryDocumentSnapshot<ComplianceAuditLogDoc>) =>
+  const logs = snapshot.docs.map((doc) =>
     auditLogToResponse(doc.id, doc.data() as ComplianceAuditLogDoc)
   );
 
@@ -1050,59 +1051,49 @@ async function generatePdfReport(
     violationsBySeverity: Record<ViolationSeverity, number>;
   }
 ): Promise<Buffer> {
-  return new Promise(async (resolve, reject) => {
-    try {
-      // Dynamischer Import von pdfkit (CommonJS-Modul)
-      const { createRequire } = await import('module');
-      const require = createRequire(import.meta.url);
-      // @ts-ignore - pdfkit is CommonJS
-      const PDFDocument = require('pdfkit');
-      
-      const doc = new PDFDocument({ margin: 50 });
-      const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({ margin: 50 });
+    const chunks: Buffer[] = [];
 
-      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
 
-      // Header
-      doc.fontSize(20).text('Compliance-Report', { align: 'center' });
-      doc.moveDown();
-      doc.fontSize(12).text(`Zeitraum: ${periodStart.toLocaleDateString('de-DE')} - ${periodEnd.toLocaleDateString('de-DE')}`, { align: 'center' });
-      doc.text(`Regel-Set: ${rule.ruleSet.toUpperCase()}`, { align: 'center' });
-      doc.moveDown(2);
+    // Header
+    doc.fontSize(20).text('Compliance-Report', { align: 'center' });
+    doc.moveDown();
+    doc.fontSize(12).text(`Zeitraum: ${periodStart.toLocaleDateString('de-DE')} - ${periodEnd.toLocaleDateString('de-DE')}`, { align: 'center' });
+    doc.text(`Regel-Set: ${rule.ruleSet.toUpperCase()}`, { align: 'center' });
+    doc.moveDown(2);
 
-      // Zusammenfassung
-      doc.fontSize(16).text('Zusammenfassung');
-      doc.moveDown();
+    // Zusammenfassung
+    doc.fontSize(16).text('Zusammenfassung');
+    doc.moveDown();
+    doc.fontSize(12);
+    doc.text(`Gesamt Verstöße: ${summary.totalViolations}`);
+    doc.text(`Warnungen: ${summary.violationsBySeverity.warning || 0}`);
+    doc.text(`Fehler: ${summary.violationsBySeverity.error || 0}`);
+    doc.moveDown(2);
+
+    // Detailliste
+    doc.fontSize(16).text('Detailliste');
+    doc.moveDown();
+
+    for (const violation of violations) {
       doc.fontSize(12);
-      doc.text(`Gesamt Verstöße: ${summary.totalViolations}`);
-      doc.text(`Warnungen: ${summary.violationsBySeverity.warning || 0}`);
-      doc.text(`Fehler: ${summary.violationsBySeverity.error || 0}`);
-      doc.moveDown(2);
-
-      // Detailliste
-      doc.fontSize(16).text('Detailliste');
+      doc.text(`Datum: ${new Date(violation.detectedAt).toLocaleDateString('de-DE')}`, { continued: false });
+      doc.text(`Typ: ${violation.violationType}`, { indent: 20 });
+      doc.text(`Severity: ${violation.severity}`, { indent: 20 });
+      doc.text(`Erwartet: ${violation.details.expected}`, { indent: 20 });
+      doc.text(`Tatsächlich: ${violation.details.actual}`, { indent: 20 });
       doc.moveDown();
-
-      for (const violation of violations) {
-        doc.fontSize(12);
-        doc.text(`Datum: ${new Date(violation.detectedAt).toLocaleDateString('de-DE')}`, { continued: false });
-        doc.text(`Typ: ${violation.violationType}`, { indent: 20 });
-        doc.text(`Severity: ${violation.severity}`, { indent: 20 });
-        doc.text(`Erwartet: ${violation.details.expected}`, { indent: 20 });
-        doc.text(`Tatsächlich: ${violation.details.actual}`, { indent: 20 });
-        doc.moveDown();
-      }
-
-      // Footer
-      doc.fontSize(10);
-      doc.text(`Generiert am: ${new Date().toLocaleString('de-DE')}`, 50, doc.page.height - 50, { align: 'left' });
-
-      doc.end();
-    } catch (error) {
-      reject(error);
     }
+
+    // Footer
+    doc.fontSize(10);
+    doc.text(`Generiert am: ${new Date().toLocaleString('de-DE')}`, 50, doc.page.height - 50, { align: 'left' });
+
+    doc.end();
   });
 }
 

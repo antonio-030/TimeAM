@@ -87,7 +87,7 @@ export async function logSecurityEvent(
  */
 export async function logAuthEvent(
   tenantId: string | null,
-  eventType: 'auth.login.success' | 'auth.login.failed' | 'auth.logout' | 'auth.rate_limit_exceeded',
+  eventType: 'auth.login.success' | 'auth.login.failed' | 'auth.logout',
   options: {
     userId?: string;
     email?: string;

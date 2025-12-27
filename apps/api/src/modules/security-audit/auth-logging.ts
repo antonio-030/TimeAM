@@ -43,8 +43,7 @@ router.post('/log-auth-event', async (req, res) => {
 
   try {
     // IP-Adresse und User-Agent extrahieren
-    const ipAddressRaw = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress;
-    const ipAddress = Array.isArray(ipAddressRaw) ? ipAddressRaw[0] : (ipAddressRaw || undefined);
+    const ipAddress = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || undefined;
     const userAgent = req.headers['user-agent'] || undefined;
 
     // Tenant-ID ermitteln (falls userId vorhanden)

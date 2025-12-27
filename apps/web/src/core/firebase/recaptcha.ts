@@ -8,11 +8,8 @@
  * und RecaptchaVerifier (reCAPTCHA v2). Dieser Workaround umgeht den Konflikt.
  */
 
-import { RecaptchaVerifier } from 'firebase/auth';
-// @ts-ignore - Firebase exports types as namespaces, extract type from class
-type RecaptchaVerifierType = InstanceType<typeof RecaptchaVerifier>;
+import { RecaptchaVerifier, type RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
 import { getFirebaseAuth } from './auth';
-import { disableAppCheck, enableAppCheck, getFirebaseAppCheck } from './app-check';
 
 let recaptchaVerifier: RecaptchaVerifierType | null = null;
 let recaptchaV2ScriptLoaded = false;
@@ -130,6 +127,7 @@ export async function createRecaptchaVerifier(containerId?: string): Promise<Rec
     console.log('🔵 [reCAPTCHA] Starte Verifier-Erstellung...');
     
     // WICHTIG: Deaktiviere App Check temporär, um Konflikt mit Phone Auth zu vermeiden
+    const { disableAppCheck, getFirebaseAppCheck } = await import('./app-check.js');
     const appCheck = getFirebaseAppCheck();
     if (appCheck) {
       console.warn('⚠️  [reCAPTCHA] App Check ist aktiviert - deaktiviere temporär für Phone Auth');
@@ -280,9 +278,8 @@ export async function createRecaptchaVerifier(containerId?: string): Promise<Rec
     
     try {
       // Methode 1: Versuche OHNE Container (für invisible reCAPTCHA)
-      // Für invisible reCAPTCHA: new RecaptchaVerifier(auth, { size: 'invisible' })
       console.log('🔵 [reCAPTCHA] Versuche Verifier OHNE Container (invisible)...');
-      recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig as any);
+      recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig);
       console.log('✅ [reCAPTCHA] Verifier erfolgreich OHNE Container erstellt');
     } catch (noContainerError) {
       console.warn('⚠️  [reCAPTCHA] Fehler ohne Container, versuche mit Element:', noContainerError);
@@ -310,9 +307,8 @@ export async function createRecaptchaVerifier(containerId?: string): Promise<Rec
       }
       
       try {
-        // Für invisible reCAPTCHA mit Container: new RecaptchaVerifier(auth, container, { size: 'invisible' })
         console.log('🔵 [reCAPTCHA] Versuche Verifier mit Element-Referenz...');
-        recaptchaVerifier = new RecaptchaVerifier(auth, finalRef, recaptchaConfig as any);
+        recaptchaVerifier = new RecaptchaVerifier(auth, recaptchaConfig, finalRef);
         console.log('✅ [reCAPTCHA] Verifier erfolgreich mit Element-Referenz erstellt');
       } catch (refError) {
         console.error('❌ [reCAPTCHA] Alle Methoden fehlgeschlagen:', refError);
@@ -367,5 +363,9 @@ export function clearRecaptchaVerifier(): void {
   }
   
   // WICHTIG: Aktiviere App Check wieder, nachdem Phone Auth abgeschlossen ist
-  enableAppCheck();
+  import('./app-check.js').then(({ enableAppCheck }) => {
+    enableAppCheck();
+  }).catch(() => {
+    // Ignoriere Fehler beim Aktivieren von App Check
+  });
 }

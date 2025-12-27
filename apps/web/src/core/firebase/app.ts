@@ -5,9 +5,7 @@
  * Wird einmal beim App-Start aufgerufen.
  */
 
-import { initializeApp, getApps } from 'firebase/app';
-// @ts-ignore - Firebase exports types as namespaces, extract type from function return
-type FirebaseApp = ReturnType<typeof initializeApp>;
+import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { firebaseConfig, validateFirebaseConfig } from './config';
 
 let app: FirebaseApp | null = null;

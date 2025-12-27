@@ -13,9 +13,6 @@ import type {
   SecurityEventsQueryParams,
 } from '@timeam/shared';
 
-// Export für Hooks
-export type { SecurityEventsQueryParams };
-
 /**
  * Lädt alle Security-Events mit optionalen Filtern.
  */

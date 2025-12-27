@@ -132,7 +132,7 @@ import type {
   TimeAccountTargetResponse,
   UpdateTimeAccountTargetRequest,
   AddTimeAccountAdjustmentRequest,
-} from '@timeam/shared';
+} from '@timeam/shared/types/time-account.js';
 
 /**
  * Holt das Zeitkonto für einen Monat.
@@ -171,9 +171,6 @@ export function updateTimeAccountTarget(
     weeklyHours,
   });
 }
-
-// Export Types für Hooks
-export type { TimeAccount, TimeAccountTarget };
 
 /**
  * Fügt eine manuelle Anpassung hinzu.

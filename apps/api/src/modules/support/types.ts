@@ -91,8 +91,7 @@ export interface RejectVerificationRequest {
  * Request: Dev-Mitarbeiter-Rechte aktualisieren.
  */
 export interface UpdateDevStaffPermissionsRequest {
-  permissions?: string[];
-  role?: DevStaffRole; // Optional: Rolle aktualisieren (nur Super-Admins können 'super-admin' setzen)
+  permissions: string[];
 }
 
 // =============================================================================

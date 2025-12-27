@@ -2906,14 +2906,13 @@ export async function completeShift(
     console.error('Failed to create automatic time entries:', timeEntryError);
   }
 
-  // Zeitkonto aktualisieren für alle zugewiesenen Mitarbeiter (asynchron, nicht blockierend)
-  const shiftEndsAt = shiftData.endsAt.toDate();
-  
   // Compliance-Prüfung für alle zugewiesenen Mitarbeiter (asynchron, nicht blockierend)
   checkComplianceAfterShiftComplete(tenantId, shiftId, startsAt, shiftEndsAt).catch((error) => {
     console.error('Error in compliance check after shift complete:', error);
   });
 
+  // Zeitkonto aktualisieren für alle zugewiesenen Mitarbeiter (asynchron, nicht blockierend)
+  const shiftEndsAt = shiftData.endsAt.toDate();
   updateTimeAccountAfterShiftComplete(tenantId, shiftId, shiftEndsAt).catch((error) => {
     console.error('Error in time account update after shift complete:', error);
   });

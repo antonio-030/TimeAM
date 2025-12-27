@@ -161,7 +161,6 @@ export function useTimeEntries(limit = 50) {
 import {
   getTimeAccount,
   getTimeAccountHistory,
-  getTimeAccountTarget,
   updateTimeAccountTarget,
   addTimeAccountAdjustment,
   exportTimeAccountData,
@@ -259,6 +258,7 @@ export function useTimeAccountTarget(userId: string) {
     setError(null);
 
     try {
+      const { getTimeAccountTarget } = await import('./api.js');
       const response = await getTimeAccountTarget(userId);
       setTarget(response.target);
     } catch (err) {
@@ -289,7 +289,7 @@ export function useTimeAccountTarget(userId: string) {
     if (!user?.uid || !tenant?.id) return;
     setError(null);
     try {
-      await updateTimeAccountTarget(userId, monthlyTargetHours, employmentType, weeklyHours);
+      await apiUpdateTimeAccountTarget(userId, monthlyTargetHours, employmentType, weeklyHours);
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Fehler beim Aktualisieren der Zielstunden';
