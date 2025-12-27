@@ -38,8 +38,10 @@ import {
 import type { TimeEntryDoc } from '../time-tracking/types.js';
 import type { ShiftTimeEntryDoc } from '../shift-pool/types.js';
 import crypto from 'crypto';
-// @ts-ignore - pdfkit types are available but TypeScript has issues resolving them
-import PDFDocument from 'pdfkit';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+// @ts-ignore - pdfkit is CommonJS, needs require
+const PDFDocument = require('pdfkit');
 
 // =============================================================================
 // Helper Functions
