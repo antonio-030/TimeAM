@@ -593,8 +593,8 @@ export function TimeTrackingPage() {
     const tabs: TabId[] = [
       'tracking',
       'account',
-      ...(canManageTargets ? ['management'] : []),
-      ...(isAdminOrManager ? ['admin'] : []),
+      ...(canManageTargets ? ['management' as TabId] : []),
+      ...(isAdminOrManager ? ['admin' as TabId] : []),
     ];
     const currentIndex = tabs.indexOf(activeTab);
     let newIndex = currentIndex;

@@ -415,7 +415,8 @@ function MemberTargetRow({
     );
   }
 
-  const preset = EMPLOYMENT_PRESETS[target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME];
+  const employmentType = (target?.employmentType || EMPLOYMENT_TYPE.FULL_TIME) as keyof typeof EMPLOYMENT_PRESETS;
+  const preset = EMPLOYMENT_PRESETS[employmentType];
   const displayHours = loading ? '...' : target?.monthlyTargetHours || 160;
 
   return (
@@ -435,7 +436,7 @@ function MemberTargetRow({
             </span>
             {target?.employmentType && (
               <span className={styles.targetType}>
-                {EMPLOYMENT_PRESETS[target.employmentType].label}
+                {EMPLOYMENT_PRESETS[target.employmentType as keyof typeof EMPLOYMENT_PRESETS].label}
               </span>
             )}
             {target?.weeklyHours && (

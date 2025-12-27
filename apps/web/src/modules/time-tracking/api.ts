@@ -200,7 +200,7 @@ import type {
   TimeAccountTargetResponse,
   UpdateTimeAccountTargetRequest,
   AddTimeAccountAdjustmentRequest,
-} from '@timeam/shared/types/time-account.js';
+} from '@timeam/shared';
 
 /**
  * Holt das Zeitkonto für einen Monat.

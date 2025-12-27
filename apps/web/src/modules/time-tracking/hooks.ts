@@ -164,9 +164,11 @@ import {
   updateTimeAccountTarget,
   addTimeAccountAdjustment,
   exportTimeAccountData,
-  type TimeAccount,
-  type TimeAccountTarget,
 } from './api';
+import type {
+  TimeAccount,
+  TimeAccountTarget,
+} from '@timeam/shared';
 import type {
   UpdateTimeAccountTargetRequest,
   AddTimeAccountAdjustmentRequest,
@@ -289,7 +291,7 @@ export function useTimeAccountTarget(userId: string) {
     if (!user?.uid || !tenant?.id) return;
     setError(null);
     try {
-      await apiUpdateTimeAccountTarget(userId, monthlyTargetHours, employmentType, weeklyHours);
+      await updateTimeAccountTarget(userId, monthlyTargetHours, employmentType, weeklyHours);
       await refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Fehler beim Aktualisieren der Zielstunden';

@@ -10,8 +10,8 @@ import {
   getSecurityEvent,
   getSecurityStats,
   getRateLimits,
-  type SecurityEventsQueryParams,
 } from './api';
+import type { SecurityEventsQueryParams } from '@timeam/shared';
 import type {
   SecurityEventsListResponse,
   SecurityEventDetailResponse,
@@ -84,6 +84,11 @@ export function useSecurityEvent(eventId: string | null) {
       setError(null);
 
       try {
+        if (!eventId) {
+          setEvent(null);
+          setLoading(false);
+          return;
+        }
         const data = await getSecurityEvent(eventId);
         if (!cancelled) {
           setEvent(data);

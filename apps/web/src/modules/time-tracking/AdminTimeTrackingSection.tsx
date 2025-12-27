@@ -101,11 +101,16 @@ export function AdminTimeTrackingSection() {
 
   const selectedMember = members.find((m) => m.uid === selectedUserId);
 
-  const handleCreateEntry = async (data: CreateTimeEntryRequest) => {
+  const handleCreateEntry = async (data: CreateTimeEntryRequest | UpdateTimeEntryRequest) => {
+    // Nur CreateTimeEntryRequest wird unterstützt
+    if (!('clockIn' in data) || !data.clockIn) {
+      throw new Error('clockIn ist erforderlich');
+    }
+    const createData = data as CreateTimeEntryRequest;
     if (!selectedUserId || !selectedMember) return;
 
     try {
-      await createAdminEntry(selectedUserId, selectedMember.email || '', data);
+      await createAdminEntry(selectedUserId, selectedMember.email || '', createData);
       // Einträge neu laden
       const response = await getAdminEntries(selectedUserId, 100);
       setEntries(response.entries);
