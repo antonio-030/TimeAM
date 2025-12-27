@@ -23,15 +23,16 @@ import type {
   SubscriptionDetailsResponse,
 } from './types.js';
 
-// Stripe Client initialisieren
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-if (!stripeSecretKey) {
-  console.warn('⚠️ STRIPE_SECRET_KEY nicht gesetzt. Stripe-Funktionen werden nicht verfügbar sein.');
+// Stripe Client initialisieren (zur Laufzeit, nicht beim Import)
+function getStripeClient(): Stripe | null {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    return null;
+  }
+  return new Stripe(stripeSecretKey, {
+    apiVersion: '2025-12-15.clover',
+  });
 }
-
-const stripe = stripeSecretKey ? new Stripe(stripeSecretKey, {
-  apiVersion: '2025-12-15.clover',
-}) : null;
 
 /**
  * Lädt die aktive Subscription für einen Tenant mit Details.
@@ -219,11 +220,12 @@ export async function updateSubscriptionUserCount(
   );
   
   // Aktualisiere Stripe Subscription (falls Stripe konfiguriert ist und Subscription ID vorhanden)
-  if (stripe && subscription.stripeSubscriptionId) {
+  const stripeClient = getStripeClient();
+  if (stripeClient && subscription.stripeSubscriptionId) {
     console.log(`💳 Stripe Subscription ID gefunden: ${subscription.stripeSubscriptionId}`);
     try {
       console.log(`🔄 Lade Stripe Subscription...`);
-      const stripeSubscription = await stripe.subscriptions.retrieve(subscription.stripeSubscriptionId);
+      const stripeSubscription = await stripeClient.subscriptions.retrieve(subscription.stripeSubscriptionId);
       console.log(`✅ Stripe Subscription geladen: ${stripeSubscription.id}`);
       console.log(`📊 Aktuelle Quantity in Stripe: ${stripeSubscription.items.data[0]?.quantity || 'unbekannt'}`);
       
@@ -235,7 +237,7 @@ export async function updateSubscriptionUserCount(
       if (planItem) {
         console.log(`🔄 Aktualisiere Stripe Subscription Quantity: ${planItem.quantity} → ${request.newUserCount}`);
         // Aktualisiere Quantity mit anteiliger Berechnung
-        const updatedSubscription = await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+        const updatedSubscription = await stripeClient.subscriptions.update(subscription.stripeSubscriptionId, {
           items: [{
             id: planItem.id,
             quantity: request.newUserCount,
@@ -248,7 +250,7 @@ export async function updateSubscriptionUserCount(
         // Erstelle sofortige Invoice für anteiligen Betrag
         if (proratedAmount.immediateCharge > 0) {
           console.log(`💰 Erstelle anteilige Invoice: ${proratedAmount.immediateCharge / 100} €`);
-          const invoice = await stripe.invoices.create({
+          const invoice = await stripeClient.invoices.create({
             customer: subscription.stripeCustomerId || stripeSubscription.customer as string,
             subscription: subscription.stripeSubscriptionId,
             auto_advance: true, // Automatisch bezahlen
@@ -268,13 +270,15 @@ export async function updateSubscriptionUserCount(
       // Weiter mit Firestore-Update, auch wenn Stripe fehlschlägt
     }
   } else {
-    if (!stripe) {
+    if (!stripeClient) {
       console.warn('⚠️ Stripe nicht konfiguriert (STRIPE_SECRET_KEY fehlt)');
     }
     if (!subscription.stripeSubscriptionId) {
       console.warn('⚠️ Keine Stripe Subscription ID vorhanden');
     }
-    console.warn('⚠️ Nur Firestore wird aktualisiert (keine Stripe-Synchronisation)');
+    if (!stripeClient || !subscription.stripeSubscriptionId) {
+      console.warn('⚠️ Nur Firestore wird aktualisiert (keine Stripe-Synchronisation)');
+    }
   }
   
   // Aktualisiere Firestore
@@ -344,7 +348,8 @@ export async function updateSubscriptionPlan(
   
   // TODO: Stripe Subscription Update für Plan-Wechsel
   // Dies erfordert das Erstellen eines neuen Subscription-Items und das Entfernen des alten
-  if (stripe && subscription.stripeSubscriptionId) {
+  const stripeClient = getStripeClient();
+  if (stripeClient && subscription.stripeSubscriptionId) {
     try {
       // TODO: Implementiere Plan-Wechsel in Stripe
       console.log(`⚠️ Plan-Wechsel in Stripe noch nicht implementiert für Subscription ${subscription.stripeSubscriptionId}`);
@@ -409,7 +414,8 @@ export async function addSubscriptionAddon(
   }
   
   // TODO: Stripe Subscription Update für Addon hinzufügen
-  if (stripe && subscription.stripeSubscriptionId) {
+  const stripeClient = getStripeClient();
+  if (stripeClient && subscription.stripeSubscriptionId) {
     try {
       // TODO: Implementiere Addon hinzufügen in Stripe
       console.log(`⚠️ Addon hinzufügen in Stripe noch nicht implementiert für Subscription ${subscription.stripeSubscriptionId}`);
@@ -468,7 +474,8 @@ export async function removeSubscriptionAddon(
   }
   
   // TODO: Stripe Subscription Update für Addon entfernen
-  if (stripe && subscription.stripeSubscriptionId) {
+  const stripeClient = getStripeClient();
+  if (stripeClient && subscription.stripeSubscriptionId) {
     try {
       // TODO: Implementiere Addon entfernen in Stripe
       console.log(`⚠️ Addon entfernen in Stripe noch nicht implementiert für Subscription ${subscription.stripeSubscriptionId}`);
