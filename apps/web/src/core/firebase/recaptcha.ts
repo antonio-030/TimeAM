@@ -9,7 +9,6 @@
  */
 
 import { RecaptchaVerifier } from 'firebase/auth';
-// @ts-expect-error - Firebase types are namespaces, but we need them as types
 import type { RecaptchaVerifier as RecaptchaVerifierType } from 'firebase/auth';
 import { getFirebaseAuth } from './auth';
 import { disableAppCheck, enableAppCheck, getFirebaseAppCheck } from './app-check';

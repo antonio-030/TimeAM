@@ -11,7 +11,6 @@ import {
   getAnalytics,
   isSupported,
   setAnalyticsCollectionEnabled,
-  // @ts-expect-error - Firebase types are namespaces, but we need them as types
   type Analytics,
 } from 'firebase/analytics';
 import { getFirebaseApp } from './app';
